@@ -3,6 +3,7 @@ import AppButton from "../src/components/AppButton";
 import AppCard from "../src/components/AppCard";
 import Screen from "../src/components/Screen";
 import { colors, spacing, typography } from "../src/theme/tokens";
+import { router } from "expo-router";
 
 export default function Index() {
   return (
@@ -16,8 +17,15 @@ export default function Index() {
         </Text>
 
         <View style={styles.actions}>
-          <AppButton title="Get started" />
-          <AppButton title="Sign in" variant="secondary" />
+          <AppButton
+            title="Get started"
+            onPress={() => router.push("/(auth)/signup")}
+          />
+          <AppButton
+            title="Sign in"
+            variant="secondary"
+            onPress={() => router.push("/(auth)/login")}
+          />
         </View>
       </View>
 
