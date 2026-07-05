@@ -1,12 +1,6 @@
-import { useEffect, useMemo, useState } from "react";
-import {
-  Alert,
-  Modal,
-  Pressable,
-  StyleSheet,
-  Text,
-  View,
-} from "react-native";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { useFocusEffect } from "expo-router";
+import { Alert, Modal, Pressable, StyleSheet, Text, View } from "react-native";
 import AppButton from "../../src/components/AppButton";
 import AppCard from "../../src/components/AppCard";
 import AppTextInput from "../../src/components/AppTextInput";
@@ -96,6 +90,12 @@ export default function Friends() {
   useEffect(() => {
     void loadFriends();
   }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      void loadFriends();
+    }, []),
+  );
 
   async function handleSendRequest() {
     const email = friendEmail.trim().toLowerCase();
@@ -332,7 +332,9 @@ export default function Friends() {
                       <Text style={styles.friendName}>{item.title}</Text>
                       <Text style={styles.friendEmail}>{item.source}</Text>
                     </View>
-                    <Text style={styles.amount}>{formatMoney(item.amount)}</Text>
+                    <Text style={styles.amount}>
+                      {formatMoney(item.amount)}
+                    </Text>
                   </View>
                 ))}
               </View>
