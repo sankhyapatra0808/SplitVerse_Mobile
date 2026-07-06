@@ -22,6 +22,51 @@ function formatAmount(amount: number) {
   })}`;
 }
 
+function getMonthLabel(label: string) {
+  const cleanLabel = String(label || "").trim();
+
+  const monthMap: Record<string, string> = {
+    january: "Jan",
+    jan: "Jan",
+    february: "Feb",
+    feb: "Feb",
+    march: "Mar",
+    mar: "Mar",
+    april: "Apr",
+    apr: "Apr",
+    may: "May",
+    june: "Jun",
+    jun: "Jun",
+    july: "Jul",
+    jul: "Jul",
+    august: "Aug",
+    aug: "Aug",
+    september: "Sep",
+    sep: "Sep",
+    sept: "Sep",
+    october: "Oct",
+    oct: "Oct",
+    november: "Nov",
+    nov: "Nov",
+    december: "Dec",
+    dec: "Dec",
+  };
+
+  const lower = cleanLabel.toLowerCase();
+
+  if (monthMap[lower]) {
+    return monthMap[lower];
+  }
+
+  const firstWord = lower.split(/\s+/)[0];
+
+  if (monthMap[firstWord]) {
+    return monthMap[firstWord];
+  }
+
+  return cleanLabel;
+}
+
 export default function SpendBarChart({
   title,
   totalLabel,
@@ -31,16 +76,25 @@ export default function SpendBarChart({
   style,
   ...props
 }: SpendBarChartProps) {
-  const maxAmount = Math.max(...data.map((item) => item.amount), 0);
+  const normalizedData =
+    mode === "yearly"
+      ? data.map((item) => ({
+          ...item,
+          label: getMonthLabel(item.label),
+        }))
+      : data;
+
+  const maxAmount = Math.max(
+    ...normalizedData.map((item) => Number(item.amount || 0)),
+    0,
+  );
+
   const halfAmount = maxAmount / 2;
 
   return (
     <View {...props} style={[styles.card, style]}>
       <View style={styles.head}>
         <View style={styles.headCopy}>
-          <Text style={styles.eyebrow}>
-            {mode === "weekly" ? "Amount vs day" : "Amount vs month"}
-          </Text>
           <Text style={styles.title}>{title}</Text>
           <Text style={styles.total}>{totalLabel}</Text>
         </View>
@@ -84,25 +138,25 @@ export default function SpendBarChart({
         </View>
 
         <View style={styles.chart}>
-          {data.map((item) => {
+          {normalizedData.map((item, index) => {
+            const amount = Number(item.amount || 0);
+
             const barHeight =
-              maxAmount > 0 && item.amount > 0
-                ? Math.max(4, (item.amount / maxAmount) * 100)
+              maxAmount > 0 && amount > 0
+                ? Math.max(4, (amount / maxAmount) * 100)
                 : 0;
 
             return (
-              <View style={styles.barColumn} key={item.label}>
+              <View style={styles.barColumn} key={`${item.label}-${index}`}>
                 <Text style={styles.amountLabel}>
-                  {item.amount > 0 ? formatAmount(item.amount) : ""}
+                  {amount > 0 ? formatAmount(amount) : ""}
                 </Text>
 
                 <View style={styles.barTrack}>
                   <View style={[styles.barFill, { height: `${barHeight}%` }]} />
                 </View>
 
-                <Text style={styles.xLabel} numberOfLines={1}>
-                  {item.label}
-                </Text>
+                <Text style={styles.xLabel}>{item.label}</Text>
               </View>
             );
           })}
@@ -119,24 +173,20 @@ const styles = StyleSheet.create({
     borderColor: colors.hairlineSoft,
     borderRadius: radius.xl,
     backgroundColor: colors.canvas,
-    padding: spacing.base,
+    paddingHorizontal: 12,
+    paddingVertical: spacing.base,
   },
   head: {
     flexDirection: "row",
     alignItems: "flex-start",
     justifyContent: "space-between",
-    gap: spacing.base,
+    gap: spacing.sm,
   },
   headCopy: {
     flex: 1,
     minWidth: 0,
   },
-  eyebrow: {
-    color: colors.body,
-    ...typography.caption,
-  },
   title: {
-    marginTop: spacing.xs,
     color: colors.ink,
     ...typography.titleMd,
   },
@@ -154,7 +204,7 @@ const styles = StyleSheet.create({
   },
   switchButton: {
     minHeight: 32,
-    minWidth: 54,
+    minWidth: 52,
     alignItems: "center",
     justifyContent: "center",
     borderRadius: radius.pill,
@@ -174,24 +224,25 @@ const styles = StyleSheet.create({
   graphArea: {
     minHeight: 210,
     flexDirection: "row",
-    gap: spacing.sm,
+    gap: 6,
   },
   yAxis: {
-    width: 48,
+    width: 38,
     justifyContent: "space-between",
     paddingTop: 20,
     paddingBottom: 24,
   },
   axisText: {
     color: colors.muted,
-    fontSize: 10,
+    fontSize: 9,
     fontWeight: "600",
   },
   chart: {
     flex: 1,
     flexDirection: "row",
     alignItems: "flex-end",
-    gap: 6,
+    justifyContent: "space-between",
+    gap: 4,
   },
   barColumn: {
     flex: 1,
@@ -204,11 +255,12 @@ const styles = StyleSheet.create({
   amountLabel: {
     minHeight: 14,
     color: colors.body,
-    fontSize: 9,
+    fontSize: 8,
     fontWeight: "600",
   },
   barTrack: {
     width: "100%",
+    minWidth: 16,
     height: 126,
     justifyContent: "flex-end",
     overflow: "hidden",
@@ -222,7 +274,8 @@ const styles = StyleSheet.create({
   },
   xLabel: {
     color: colors.body,
-    fontSize: 10,
-    fontWeight: "600",
+    fontSize: 9,
+    fontWeight: "700",
+    textAlign: "center",
   },
 });

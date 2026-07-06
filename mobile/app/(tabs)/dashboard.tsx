@@ -47,7 +47,11 @@ function formatMoney(value?: number | null) {
 }
 
 function getDateKey(date: Date) {
-  return date.toISOString().slice(0, 10);
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+
+  return `${year}-${month}-${day}`;
 }
 
 function isSpendTransaction(transaction: TransactionItem) {
@@ -69,14 +73,19 @@ function isSpendTransaction(transaction: TransactionItem) {
 
 function buildWeeklySpend(transactions: TransactionItem[]): SpendGraphPoint[] {
   const today = new Date();
+
+  const sunday = new Date(today);
+  sunday.setHours(0, 0, 0, 0);
+  sunday.setDate(today.getDate() - today.getDay());
+
   const days = Array.from({ length: 7 }, (_, index) => {
-    const date = new Date(today);
-    date.setDate(today.getDate() - (6 - index));
+    const date = new Date(sunday);
+    date.setDate(sunday.getDate() + index);
 
     return {
       date,
       key: getDateKey(date),
-      label: date.toLocaleDateString("en-IN", { weekday: "short" }),
+      label: ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][index],
       amount: 0,
     };
   });
@@ -324,7 +333,7 @@ export default function Dashboard() {
 
       <SpendBarChart
         style={styles.chartCard}
-        title={graphMode === "weekly" ? "Weekly spending graph" : "12 months spending graph"}
+        title={graphMode === "weekly" ? "Weekly spending graph" : "Yearly spending graph"}
         totalLabel={`Total: ${formatMoney(graphTotal)}`}
         mode={graphMode}
         onModeChange={setGraphMode}
