@@ -45,17 +45,41 @@ export type DashboardSummary = {
   metrics?: {
     todayExpense?: number;
     pendingPayment?: number;
+    todaySavings?: number;
     walletBalance?: number;
   };
+
+  expenseTracker?: {
+    totalSpentToday?: number;
+    timeSlots?: {
+      label: string;
+      amount: number;
+      peakHour?: string;
+    }[];
+  };
+
   walletHealth?: {
     availableBalance?: number;
     receivable?: number;
     payable?: number;
     netPosition?: number;
   };
+
   monthlySpend?: {
     graphTotal?: number;
     currentMonthTotal?: number;
+    currentMonthLabel?: string;
+    months?: {
+      label: string;
+      amount: number;
+      value?: number;
+      peakDay?: number | string;
+      peakSpendingDay?: number | string;
+    }[];
+  };
+
+  spendingInsight?: {
+    text: string;
   };
 };
 
@@ -65,7 +89,11 @@ export type DbUser = {
   email: string;
   name?: string | null;
   display_name?: string | null;
+  username?: string | null;
   photo_url?: string | null;
+  profile_photo_url?: string | null;
+  display_photo_url?: string | null;
+  avatar_mode?: string | null;
   wallet_balance?: number;
 };
 
@@ -160,5 +188,87 @@ export async function acceptFriendRequest(requestId: string) {
 export async function getFriendActivity(friendId: string) {
   return apiFetch<FriendActivityResponse>(
     `/api/friends/${friendId}/activity`,
+  );
+}
+
+export type SplitRoom = {
+  id: string;
+  name: string;
+  category?: string | null;
+  created_at?: string;
+  memberCount?: number;
+  totalAmount?: number;
+  outstandingAmount?: number;
+  collectedAmount?: number;
+  status?: string;
+};
+
+export type TransactionStatus =
+  | "all"
+  | "received"
+  | "paid"
+  | "pending"
+  | "added";
+
+export type TransactionItem = {
+  id: string;
+  title: string;
+  room?: string;
+  amount: number;
+  status: string;
+  displayStatus?: string;
+  type?: string;
+  createdAt: string;
+  displayDate?: string;
+};
+
+export type TransactionsResponse = {
+  transactions: TransactionItem[];
+  summary: {
+    netMovement: number;
+    count: number;
+    totalTillDate?: number;
+    visibleCount?: number;
+    accountCreatedAt?: string;
+  };
+};
+
+export async function getSplitRooms() {
+  return apiFetch<{ rooms: SplitRoom[] }>("/api/split-rooms");
+}
+
+export async function getTransactions(params?: {
+  search?: string;
+  status?: TransactionStatus;
+  limit?: number;
+  exportMode?: "count" | "year";
+  year?: number;
+}) {
+  const searchParams = new URLSearchParams();
+
+  if (params?.search) {
+    searchParams.set("search", params.search);
+  }
+
+  if (params?.status && params.status !== "all") {
+    searchParams.set("status", params.status);
+  }
+
+  if (params?.limit) {
+    searchParams.set("limit", String(params.limit));
+  }
+
+  if (params?.exportMode) {
+    searchParams.set("exportMode", params.exportMode);
+  }
+
+  if (params?.year) {
+    searchParams.set("year", String(params.year));
+  }
+
+  const queryString = searchParams.toString();
+
+  return apiFetch<TransactionsResponse>(
+    `/api/transactions${queryString ? `?${queryString}` : ""}`,
   );
 }

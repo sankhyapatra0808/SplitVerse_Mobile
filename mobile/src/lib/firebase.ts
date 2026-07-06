@@ -1,5 +1,11 @@
-import { initializeApp } from "firebase/app";
-import { getAuth } from "firebase/auth";
+import * as AsyncStoragePackage from "@react-native-async-storage/async-storage";
+import { getApp, getApps, initializeApp } from "firebase/app";
+import {
+  getAuth,
+  initializeAuth,
+  type Auth,
+} from "firebase/auth";
+import * as FirebaseAuth from "firebase/auth";
 
 const firebaseConfig = {
   apiKey: process.env.EXPO_PUBLIC_FIREBASE_API_KEY,
@@ -10,5 +16,31 @@ const firebaseConfig = {
   appId: process.env.EXPO_PUBLIC_FIREBASE_APP_ID,
 };
 
-export const firebaseApp = initializeApp(firebaseConfig);
-export const auth = getAuth(firebaseApp);
+export const firebaseApp =
+  getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
+
+const getReactNativePersistence = (FirebaseAuth as any)
+  .getReactNativePersistence;
+
+const createAsyncStorage = (AsyncStoragePackage as any).createAsyncStorage;
+
+const asyncStorage =
+  typeof createAsyncStorage === "function"
+    ? createAsyncStorage("splitverse-auth")
+    : (AsyncStoragePackage as any).default ?? AsyncStoragePackage;
+
+let authInstance: Auth;
+
+try {
+  if (typeof getReactNativePersistence === "function") {
+    authInstance = initializeAuth(firebaseApp, {
+      persistence: getReactNativePersistence(asyncStorage),
+    });
+  } else {
+    authInstance = getAuth(firebaseApp);
+  }
+} catch {
+  authInstance = getAuth(firebaseApp);
+}
+
+export const auth = authInstance;

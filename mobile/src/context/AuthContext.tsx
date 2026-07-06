@@ -6,6 +6,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
+import { AppState } from "react-native";
 import {
   createUserWithEmailAndPassword,
   onAuthStateChanged,
@@ -20,6 +21,11 @@ import {
   syncCurrentUser,
   type DbUser,
 } from "../lib/api";
+import {
+  clearSessionActivity,
+  isSessionExpired,
+  touchSessionActivity,
+} from "../lib/session";
 
 type AuthContextValue = {
   user: User | null;
@@ -55,6 +61,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }
 
+  async function logout() {
+    setDbUser(null);
+    await clearSessionActivity();
+    await signOut(auth);
+  }
+
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (nextUser) => {
       setUser(nextUser);
@@ -66,6 +78,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
 
       try {
+        const expired = await isSessionExpired();
+
+        if (expired) {
+          await logout();
+          setInitializing(false);
+          return;
+        }
+
+        await touchSessionActivity();
+
         const synced = await syncCurrentUser();
         setDbUser(synced.user);
       } catch (error) {
@@ -79,6 +101,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return unsubscribe;
   }, []);
 
+  useEffect(() => {
+    const subscription = AppState.addEventListener("change", async (state) => {
+      if (state !== "active" || !auth.currentUser) {
+        return;
+      }
+
+      const expired = await isSessionExpired();
+
+      if (expired) {
+        await logout();
+        return;
+      }
+
+      await touchSessionActivity();
+    });
+
+    return () => {
+      subscription.remove();
+    };
+  }, []);
+
   const value = useMemo<AuthContextValue>(
     () => ({
       user,
@@ -87,6 +130,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       login: async (email, password) => {
         await signInWithEmailAndPassword(auth, email.trim(), password);
+        await touchSessionActivity();
+
         const response = await syncCurrentUser();
         setDbUser(response.user);
       },
@@ -106,16 +151,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           await credential.user.getIdToken(true);
         }
 
+        await touchSessionActivity();
+
         const response = await syncCurrentUser();
         setDbUser(response.user);
       },
 
       refreshDbUser,
 
-      logout: async () => {
-        setDbUser(null);
-        await signOut(auth);
-      },
+      logout,
     }),
     [user, dbUser, initializing],
   );

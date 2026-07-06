@@ -36,8 +36,10 @@ export default function TabsLayout() {
       <Tabs.Screen name="dashboard" options={{ title: "Home" }} />
       <Tabs.Screen name="split-rooms" options={{ title: "Rooms" }} />
       <Tabs.Screen name="wallet" options={{ title: "Wallet" }} />
-      <Tabs.Screen name="friends" options={{ title: "Friends" }} />
-      <Tabs.Screen name="settings" options={{ title: "Settings" }} />
+      <Tabs.Screen name="profile" options={{ title: "Profile" }} />
+
+      <Tabs.Screen name="friends" options={{ href: null }} />
+      <Tabs.Screen name="settings" options={{ href: null }} />
     </Tabs>
   );
 }
