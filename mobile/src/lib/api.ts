@@ -111,7 +111,6 @@ export async function getDashboardSummary() {
   return apiFetch<DashboardSummary>("/api/dashboard/summary");
 }
 
-
 // friends api
 export type Friend = {
   id: string;
@@ -186,21 +185,75 @@ export async function acceptFriendRequest(requestId: string) {
 }
 
 export async function getFriendActivity(friendId: string) {
-  return apiFetch<FriendActivityResponse>(
-    `/api/friends/${friendId}/activity`,
-  );
+  return apiFetch<FriendActivityResponse>(`/api/friends/${friendId}/activity`);
 }
+
+export type SplitRoomMember = {
+  id: string;
+  user_id?: string;
+  email: string;
+  display_name?: string | null;
+  name?: string | null;
+  photo_url?: string | null;
+  profile_photo_url?: string | null;
+  display_photo_url?: string | null;
+  avatar_mode?: string | null;
+  isMe?: boolean;
+  isOwner?: boolean;
+};
+
+export type SplitRoomBalance = {
+  memberId: string;
+  assignedTotal?: number;
+  paidTotal?: number;
+  pendingTotal?: number;
+  collectedTotal?: number;
+  totalAssigned?: number;
+  totalPaid?: number;
+  totalPending?: number;
+};
+
+export type SplitRoomItem = {
+  id: string;
+  room_id?: string;
+  assigned_member_id: string;
+  assignedMemberId?: string;
+  title: string;
+  amount: number;
+  settled_amount?: number;
+  pending_amount?: number;
+  collected_at?: string | null;
+  expense_id?: string | null;
+  isCollected?: boolean;
+  created_at?: string;
+};
 
 export type SplitRoom = {
   id: string;
   name: string;
   category?: string | null;
+  status?: string;
+  isOwner?: boolean;
+  isArchived?: boolean;
+  isFinalized?: boolean;
+  ownerEmail?: string;
+  paidByEmail?: string | null;
+  paid_by_email?: string | null;
   created_at?: string;
   memberCount?: number;
   totalAmount?: number;
   outstandingAmount?: number;
   collectedAmount?: number;
-  status?: string;
+  members: SplitRoomMember[];
+  balances: SplitRoomBalance[];
+  items: SplitRoomItem[];
+};
+
+export type CreateSplitRoomPayload = {
+  name: string;
+  category: string;
+  members: string[];
+  paidByEmail?: string;
 };
 
 export type TransactionStatus =
@@ -232,10 +285,6 @@ export type TransactionsResponse = {
     accountCreatedAt?: string;
   };
 };
-
-export async function getSplitRooms() {
-  return apiFetch<{ rooms: SplitRoom[] }>("/api/split-rooms");
-}
 
 export async function getTransactions(params?: {
   search?: string;
@@ -271,4 +320,59 @@ export async function getTransactions(params?: {
   return apiFetch<TransactionsResponse>(
     `/api/transactions${queryString ? `?${queryString}` : ""}`,
   );
+}
+
+export async function getSplitRooms() {
+  return apiFetch<{ rooms: SplitRoom[] }>("/api/split-rooms");
+}
+
+export async function createSplitRoom(payload: CreateSplitRoomPayload) {
+  return apiFetch<{ message: string; room: SplitRoom }>("/api/split-rooms", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+// ITEM SPLIT ROOM API
+export type CreateSplitRoomItemPayload = {
+  title: string;
+  amount: number;
+  assignedMemberId: string;
+};
+
+export type UpdateSplitRoomItemPayload = {
+  title: string;
+  amount: number;
+};
+
+export async function createSplitRoomItem(
+  roomId: string,
+  payload: CreateSplitRoomItemPayload,
+) {
+  return apiFetch<{ message: string; item: SplitRoomItem }>(
+    `/api/split-rooms/${roomId}/items`,
+    {
+      method: "POST",
+      body: JSON.stringify(payload),
+    },
+  );
+}
+
+export async function updateSplitRoomItem(
+  itemId: string,
+  payload: UpdateSplitRoomItemPayload,
+) {
+  return apiFetch<{ message: string; item: SplitRoomItem }>(
+    `/api/split-rooms/items/${itemId}`,
+    {
+      method: "PATCH",
+      body: JSON.stringify(payload),
+    },
+  );
+}
+
+export async function deleteSplitRoomItem(itemId: string) {
+  return apiFetch<{ message: string }>(`/api/split-rooms/items/${itemId}`, {
+    method: "DELETE",
+  });
 }
