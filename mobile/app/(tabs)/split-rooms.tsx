@@ -2069,6 +2069,7 @@ export default function SplitRooms() {
             ? "Payable details"
             : "Receivable details"
         }
+        size="large"
         onClose={() => setNetSettlementInfoDialog(null)}
       >
         <View style={styles.netInfoSummary}>

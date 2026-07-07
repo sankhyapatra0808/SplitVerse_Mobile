@@ -275,14 +275,15 @@ export type TransactionStatus =
 
 export type TransactionItem = {
   id: string;
-  title: string;
-  room?: string;
+  type: string;
   amount: number;
-  status: string;
-  displayStatus?: string;
-  type?: string;
+  description?: string | null;
+  status?: string | null;
   createdAt: string;
   displayDate?: string;
+  roomName?: string | null;
+  counterpartyName?: string | null;
+  counterpartyEmail?: string | null;
 };
 
 export type TransactionsResponse = {
@@ -496,4 +497,62 @@ export async function payNetSettlement(payload: {
     method: "POST",
     body: JSON.stringify(payload),
   });
+}
+
+// wallet api
+export type WalletTopUpMethod = "UPI" | "Card" | "Net banking";
+
+export type WalletTopUpItem = {
+  id: string;
+  amount: number;
+  method: string;
+  createdAt: string;
+  displayDate?: string;
+};
+
+export type WalletTopUpsResponse = {
+  topUps: WalletTopUpItem[];
+};
+
+export type WalletTransactionItem = {
+  id: string;
+  type: "credit" | "debit" | string;
+  amount: number;
+  description: string | null;
+  createdAt: string;
+  displayDate?: string;
+};
+
+export type PendingWalletSettlement = {
+  id: string;
+  amount: number;
+  status: string;
+  direction: "incoming" | "outgoing";
+  title?: string;
+  roomName?: string;
+  fromName: string | null;
+  fromEmail: string;
+  toName: string | null;
+  toEmail: string;
+  createdAt: string;
+  displayDate?: string;
+};
+
+export type WalletSummaryResponse = {
+  summary: {
+    availableBalance: number;
+    pendingIncoming: number;
+    pendingOutgoing: number;
+    netPosition: number;
+  };
+  recentWalletTransactions: WalletTransactionItem[];
+  pendingSettlements: PendingWalletSettlement[];
+};
+
+export async function getWalletSummary() {
+  return apiFetch<WalletSummaryResponse>("/api/wallet/summary");
+}
+
+export async function getRecentWalletTopUps() {
+  return apiFetch<WalletTopUpsResponse>("/api/wallet/top-ups");
 }

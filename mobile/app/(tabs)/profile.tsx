@@ -1,13 +1,6 @@
 import { router, useFocusEffect } from "expo-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import {
-  Alert,
-  Modal,
-  Pressable,
-  StyleSheet,
-  Text,
-  View,
-} from "react-native";
+import { Alert, Pressable, StyleSheet, Text, View } from "react-native";
 import AmountText from "../../src/components/AmountText";
 import AppButton from "../../src/components/AppButton";
 import AppCard from "../../src/components/AppCard";
@@ -18,6 +11,7 @@ import LoadingState from "../../src/components/LoadingState";
 import ProfileMetric from "../../src/components/ProfileMetric";
 import Screen from "../../src/components/Screen";
 import SegmentedTabs from "../../src/components/SegmentedTabs";
+import SheetModal from "../../src/components/SheetModal";
 import { useAuth } from "../../src/context/AuthContext";
 import {
   acceptFriendRequest,
@@ -25,6 +19,8 @@ import {
   getFriendsSummary,
   getSplitRooms,
   sendFriendRequest,
+  getTransactions,
+  type TransactionItem,
   type Friend,
   type FriendActivityResponse,
   type FriendsSummary,
@@ -40,6 +36,17 @@ const emptySummary: FriendsSummary = {
 
 type ProfileTab = "account" | "friends" | "activity";
 
+type ProfileTransaction = TransactionItem & {
+  created_at?: string;
+  createdAt?: string;
+  displayDate?: string;
+  description?: string | null;
+  status?: string | null;
+  roomName?: string | null;
+  counterpartyName?: string | null;
+  counterpartyEmail?: string | null;
+};
+
 function getFriendLabel(friend: Friend) {
   return friend.name || friend.email.split("@")[0] || friend.email;
 }
@@ -48,6 +55,60 @@ function formatMoney(value?: number | null) {
   return `₹${Number(value || 0).toLocaleString("en-IN", {
     maximumFractionDigits: 2,
   })}`;
+}
+
+function formatDate(dateValue?: string | null) {
+  if (!dateValue) return "Unknown";
+
+  const rawValue = String(dateValue);
+
+  if (/^\d{4}-\d{2}-\d{2}$/.test(rawValue)) {
+    const [year, month, day] = rawValue.split("-");
+    return `${day}-${month}-${year}`;
+  }
+
+  const normalizedValue = rawValue.replace(" ", "T");
+  const hasTimezone = /z$|[+-]\d{2}:?\d{2}$/i.test(normalizedValue);
+  const date = new Date(hasTimezone ? normalizedValue : `${normalizedValue}Z`);
+
+  if (Number.isNaN(date.getTime())) return "Unknown";
+
+  return new Intl.DateTimeFormat("en-GB", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    timeZone: "Asia/Kolkata",
+  }).format(date);
+}
+
+function getTransactionTitle(transaction: ProfileTransaction) {
+  return (
+    transaction.description ||
+    transaction.roomName ||
+    transaction.counterpartyName ||
+    transaction.counterpartyEmail ||
+    transaction.type ||
+    "Transaction"
+  );
+}
+
+function getTransactionDate(transaction: ProfileTransaction) {
+  return formatDate(
+    transaction.displayDate || transaction.createdAt || transaction.created_at,
+  );
+}
+
+function isTransactionCredit(transaction: ProfileTransaction) {
+  const type = String(transaction.type || "").toLowerCase();
+
+  return (
+    type === "credit" ||
+    type === "top_up" ||
+    type === "top-up" ||
+    type.includes("credit") ||
+    type.includes("top") ||
+    Number(transaction.amount || 0) > 0
+  );
 }
 
 export default function Profile() {
@@ -63,13 +124,19 @@ export default function Profile() {
   const [sendingRequest, setSendingRequest] = useState(false);
   const [acceptingRequestId, setAcceptingRequestId] = useState("");
   const [activityLoadingId, setActivityLoadingId] = useState("");
+  const [transactions, setTransactions] = useState<TransactionItem[]>([]);
   const [activity, setActivity] = useState<FriendActivityResponse | null>(null);
 
   const displayName =
-    dbUser?.display_name || dbUser?.name || user?.displayName || "SplitVerse user";
+    dbUser?.display_name ||
+    dbUser?.name ||
+    user?.displayName ||
+    "SplitVerse user";
 
   const email = dbUser?.email || user?.email || "";
-  const username = dbUser?.username ? `@${dbUser.username}` : "Username coming soon";
+  const username = dbUser?.username
+    ? `@${dbUser.username}`
+    : "Username coming soon";
 
   const walletBalance = Number(dbUser?.wallet_balance || 0);
 
@@ -101,13 +168,15 @@ export default function Profile() {
         setLoadingProfileData(true);
       }
 
-      const [friendsData, roomsData] = await Promise.all([
+      const [friendsData, roomsData, transactionData] = await Promise.all([
         getFriendsSummary(),
         getSplitRooms(),
+        getTransactions({ limit: 20 }),
       ]);
 
       setFriendsSummary(friendsData);
       setRooms(roomsData.rooms);
+      setTransactions(transactionData.transactions ?? []);
     } catch (error) {
       if (!silent) {
         Alert.alert(
@@ -437,9 +506,7 @@ export default function Profile() {
 
                     <AppButton
                       title={
-                        activityLoadingId === friend.id
-                          ? "Loading"
-                          : "Activity"
+                        activityLoadingId === friend.id ? "Loading" : "Activity"
                       }
                       loading={activityLoadingId === friend.id}
                       onPress={() => handleOpenActivity(friend.id)}
@@ -500,7 +567,8 @@ export default function Profile() {
                         {room.name}
                       </Text>
                       <Text style={styles.rowSubtext} numberOfLines={1}>
-                        {room.category || "Split room"} · {room.status || "Active"}
+                        {room.category || "Split room"} ·{" "}
+                        {room.status || "Active"}
                       </Text>
                     </View>
 
@@ -522,86 +590,114 @@ export default function Profile() {
           </AppCard>
 
           <AppCard style={styles.card}>
-            <Text style={styles.cardEyebrow}>Friend activity</Text>
-            <Text style={styles.cardTitle}>Shared history</Text>
-            <Text style={styles.cardText}>
-              Tap Activity beside any friend to view rooms together, total
-              settled amount, net position, and recent shared activity.
-            </Text>
+            <View style={styles.cardHeadRow}>
+              <View>
+                <Text style={styles.cardEyebrow}>Transactions</Text>
+                <Text style={styles.cardTitle}>Transaction history</Text>
+              </View>
+
+              <Text style={styles.countPill}>{transactions.length}</Text>
+            </View>
+
+            {transactions.length === 0 ? (
+              <EmptyState
+                title="No transactions yet"
+                message="Wallet payments, top-ups, and settlements will appear here."
+              />
+            ) : (
+              <View style={styles.transactionList}>
+                {transactions.map((transaction) => {
+                  const item = transaction as ProfileTransaction;
+                  const credit = isTransactionCredit(item);
+
+                  return (
+                    <View style={styles.transactionRow} key={item.id}>
+                      <View style={styles.transactionIcon}>
+                        <Text style={styles.transactionIconText}>
+                          {credit ? "+" : "-"}
+                        </Text>
+                      </View>
+
+                      <View style={styles.transactionCopy}>
+                        <Text style={styles.transactionTitle} numberOfLines={1}>
+                          {getTransactionTitle(item)}
+                        </Text>
+
+                        <Text style={styles.transactionMeta} numberOfLines={1}>
+                          {(item.status || "completed").toString()} ·{" "}
+                          {getTransactionDate(item)}
+                        </Text>
+                      </View>
+
+                      <AmountText
+                        amount={Math.abs(Number(item.amount || 0))}
+                        size="sm"
+                        tone={credit ? "success" : "danger"}
+                      />
+                    </View>
+                  );
+                })}
+              </View>
+            )}
           </AppCard>
         </View>
       )}
 
-      <AppButton title="Logout" variant="secondary" onPress={logout} />
-
-      <Modal
+      <SheetModal
         visible={Boolean(activity)}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setActivity(null)}
+        eyebrow="Friend activity"
+        title={
+          activity?.friend.name || activity?.friend.email || "Friend activity"
+        }
+        onClose={() => setActivity(null)}
       >
-        <View style={styles.modalBackdrop}>
-          <View style={styles.modalCard}>
-            <Text style={styles.modalEyebrow}>Friend activity</Text>
-            <Text style={styles.modalTitle}>
-              {activity?.friend.name || activity?.friend.email}
+        <View style={styles.activityStats}>
+          <View style={styles.activityStat}>
+            <Text style={styles.statLabel}>Rooms</Text>
+            <Text style={styles.statValue}>
+              {activity?.summary.roomsTogether ?? 0}
             </Text>
+          </View>
 
-            <View style={styles.activityStats}>
-              <View style={styles.activityStat}>
-                <Text style={styles.statLabel}>Rooms</Text>
-                <Text style={styles.statValue}>
-                  {activity?.summary.roomsTogether ?? 0}
-                </Text>
-              </View>
+          <View style={styles.activityStat}>
+            <Text style={styles.statLabel}>Settled</Text>
+            <Text style={styles.statValue}>
+              {formatMoney(activity?.summary.totalSettled ?? 0)}
+            </Text>
+          </View>
 
-              <View style={styles.activityStat}>
-                <Text style={styles.statLabel}>Settled</Text>
-                <Text style={styles.statValue}>
-                  {formatMoney(activity?.summary.totalSettled ?? 0)}
-                </Text>
-              </View>
-
-              <View style={styles.activityStat}>
-                <Text style={styles.statLabel}>Net</Text>
-                <Text style={styles.statValue}>
-                  {formatMoney(activity?.summary.netPosition ?? 0)}
-                </Text>
-              </View>
-            </View>
-
-            {activity?.recentActivity.length ? (
-              <View style={styles.list}>
-                {activity.recentActivity.slice(0, 5).map((item) => (
-                  <View style={styles.activityRow} key={item.id}>
-                    <View style={styles.rowCopy}>
-                      <Text style={styles.rowTitle} numberOfLines={1}>
-                        {item.title}
-                      </Text>
-                      <Text style={styles.rowSubtext} numberOfLines={1}>
-                        {item.source}
-                      </Text>
-                    </View>
-
-                    <AmountText amount={item.amount} size="sm" tone="primary" />
-                  </View>
-                ))}
-              </View>
-            ) : (
-              <EmptyState
-                title="No shared activity"
-                message="Shared room and settlement activity will appear here."
-              />
-            )}
-
-            <AppButton
-              title="Close"
-              variant="secondary"
-              onPress={() => setActivity(null)}
-            />
+          <View style={styles.activityStat}>
+            <Text style={styles.statLabel}>Net</Text>
+            <Text style={styles.statValue}>
+              {formatMoney(activity?.summary.netPosition ?? 0)}
+            </Text>
           </View>
         </View>
-      </Modal>
+
+        {activity?.recentActivity.length ? (
+          <View style={styles.list}>
+            {activity.recentActivity.slice(0, 5).map((item) => (
+              <View style={styles.activityRow} key={item.id}>
+                <View style={styles.rowCopy}>
+                  <Text style={styles.rowTitle} numberOfLines={1}>
+                    {item.title}
+                  </Text>
+                  <Text style={styles.rowSubtext} numberOfLines={1}>
+                    {item.source}
+                  </Text>
+                </View>
+
+                <AmountText amount={item.amount} size="sm" tone="primary" />
+              </View>
+            ))}
+          </View>
+        ) : (
+          <EmptyState
+            title="No shared activity"
+            message="Shared room and settlement activity will appear here."
+          />
+        )}
+      </SheetModal>
     </Screen>
   );
 }
@@ -677,6 +773,21 @@ const styles = StyleSheet.create({
   cardText: {
     color: colors.body,
     ...typography.bodySm,
+  },
+  cardHeadRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+    gap: spacing.base,
+  },
+  countPill: {
+    overflow: "hidden",
+    borderRadius: radius.pill,
+    backgroundColor: colors.surfaceStrong,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs,
+    color: colors.ink,
+    ...typography.caption,
   },
   accountList: {
     gap: spacing.sm,
@@ -767,6 +878,46 @@ const styles = StyleSheet.create({
     minWidth: 96,
     minHeight: 40,
     paddingHorizontal: spacing.sm,
+  },
+  transactionList: {
+    gap: spacing.sm,
+  },
+  transactionRow: {
+    minHeight: 68,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    borderWidth: 1,
+    borderColor: colors.hairlineSoft,
+    borderRadius: radius.lg,
+    backgroundColor: colors.surfaceSoft,
+    padding: spacing.sm,
+  },
+  transactionIcon: {
+    width: 42,
+    height: 42,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: radius.pill,
+    backgroundColor: colors.canvas,
+  },
+  transactionIconText: {
+    color: colors.primary,
+    fontSize: 20,
+    fontWeight: "800",
+  },
+  transactionCopy: {
+    flex: 1,
+    minWidth: 0,
+    gap: 2,
+  },
+  transactionTitle: {
+    color: colors.ink,
+    ...typography.titleSm,
+  },
+  transactionMeta: {
+    color: colors.body,
+    ...typography.bodySm,
   },
   modalBackdrop: {
     flex: 1,
