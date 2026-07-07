@@ -1,13 +1,6 @@
 import { useFocusEffect } from "expo-router";
-import { useCallback, useEffect, useMemo, useState } from "react";
-import {
-  Alert,
-  Modal,
-  Pressable,
-  StyleSheet,
-  Text,
-  View,
-} from "react-native";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Alert, Modal, Pressable, StyleSheet, Text, View } from "react-native";
 import AmountText from "../../src/components/AmountText";
 import AppButton from "../../src/components/AppButton";
 import AppCard from "../../src/components/AppCard";
@@ -22,9 +15,13 @@ import {
   createSplitRoomItem,
   deleteSplitRoomItem,
   getFriendsSummary,
+  getNetSettlements,
   getSplitRooms,
+  payNetSettlement,
   updateSplitRoomItem,
   type Friend,
+  type NetSettlement,
+  type NetSettlementsResponse,
   type SplitRoom,
   type SplitRoomItem,
   type SplitRoomMember,
@@ -54,7 +51,12 @@ function getMemberName(member?: SplitRoomMember) {
   if (!member) return "Member";
   if (member.isMe) return "Me";
 
-  return member.display_name || member.name || member.email?.split("@")[0] || "Member";
+  return (
+    member.display_name ||
+    member.name ||
+    member.email?.split("@")[0] ||
+    "Member"
+  );
 }
 
 function getFriendName(friend: Friend) {
@@ -181,7 +183,8 @@ function addOptimisticRoomItem({
   };
 
   const nextTotal = Number(room.totalAmount || 0) + amount;
-  const nextCollected = Number(room.collectedAmount || 0) + (assignedToMe ? amount : 0);
+  const nextCollected =
+    Number(room.collectedAmount || 0) + (assignedToMe ? amount : 0);
 
   return {
     ...room,
@@ -209,7 +212,8 @@ function updateOptimisticRoomItem({
   const collected = previousItem ? isItemCollected(previousItem) : false;
 
   const nextTotal = Number(room.totalAmount || 0) + difference;
-  const nextCollected = Number(room.collectedAmount || 0) + (collected ? difference : 0);
+  const nextCollected =
+    Number(room.collectedAmount || 0) + (collected ? difference : 0);
 
   return {
     ...room,
@@ -234,7 +238,8 @@ function removeOptimisticRoomItem(room: SplitRoom, itemId: string): SplitRoom {
   const collected = item ? isItemCollected(item) : false;
 
   const nextTotal = Number(room.totalAmount || 0) - amount;
-  const nextCollected = Number(room.collectedAmount || 0) - (collected ? amount : 0);
+  const nextCollected =
+    Number(room.collectedAmount || 0) - (collected ? amount : 0);
 
   return {
     ...room,
@@ -251,11 +256,14 @@ export default function SplitRooms() {
   const [rooms, setRooms] = useState<SplitRoom[]>([]);
   const [friends, setFriends] = useState<Friend[]>([]);
   const [selectedRoomId, setSelectedRoomId] = useState("");
+  const selectedRoomIdRef = useRef("");
 
   const [roomName, setRoomName] = useState("");
   const [roomCategory, setRoomCategory] = useState("restaurant");
   const [roomPaidByEmail, setRoomPaidByEmail] = useState("");
-  const [selectedFriendEmails, setSelectedFriendEmails] = useState<string[]>([]);
+  const [selectedFriendEmails, setSelectedFriendEmails] = useState<string[]>(
+    [],
+  );
   const [friendSearch, setFriendSearch] = useState("");
 
   const [itemTitle, setItemTitle] = useState("");
@@ -278,6 +286,17 @@ export default function SplitRooms() {
   const [updatingItemId, setUpdatingItemId] = useState("");
   const [deletingItemId, setDeletingItemId] = useState("");
 
+  const [netSettlements, setNetSettlements] =
+    useState<NetSettlementsResponse | null>(null);
+  const [netSettlementInfoDialog, setNetSettlementInfoDialog] = useState<
+    "payable" | "receivable" | null
+  >(null);
+  const [netSettlementTarget, setNetSettlementTarget] =
+    useState<NetSettlement | null>(null);
+  const [walletPin, setWalletPin] = useState("");
+  const [payingNetSettlementUserId, setPayingNetSettlementUserId] =
+    useState("");
+
   const selfEmail = dbUser?.email || user?.email || "";
 
   const selectedRoom = useMemo(
@@ -297,11 +316,45 @@ export default function SplitRooms() {
 
   const selectedRoomItems = selectedRoom?.items ?? [];
 
+  const allNetSettlements = netSettlements?.settlements ?? [];
+
+  const outgoingNetSettlements = allNetSettlements.filter(
+    (settlement) => settlement.isOutgoing,
+  );
+
+  const incomingNetSettlements = allNetSettlements.filter(
+    (settlement) => settlement.isIncoming,
+  );
+
+  const netSettlementOutgoingTotal =
+    netSettlements?.summary.outgoingTotal ??
+    outgoingNetSettlements.reduce(
+      (sum, settlement) => sum + Number(settlement.amount || 0),
+      0,
+    );
+
+  const netSettlementIncomingTotal =
+    netSettlements?.summary.incomingTotal ??
+    incomingNetSettlements.reduce(
+      (sum, settlement) => sum + Number(settlement.amount || 0),
+      0,
+    );
+
+  const visibleNetSettlements =
+    netSettlementInfoDialog === "payable"
+      ? outgoingNetSettlements
+      : incomingNetSettlements;
+
+  const visibleNetSettlementTotal =
+    netSettlementInfoDialog === "payable"
+      ? netSettlementOutgoingTotal
+      : netSettlementIncomingTotal;
+
   const selectedRoomClosed = Boolean(
     selectedRoom?.isArchived ||
-      selectedRoom?.isFinalized ||
-      selectedRoom?.status === "archived" ||
-      selectedRoom?.status === "finalized",
+    selectedRoom?.isFinalized ||
+    selectedRoom?.status === "archived" ||
+    selectedRoom?.status === "finalized",
   );
 
   const selectedAssignedMember = useMemo(
@@ -348,52 +401,68 @@ export default function SplitRooms() {
   }, [friends, selectedFriendEmails, selfEmail]);
 
   const paidByLabel = useMemo(() => {
-    const selected = paidByOptions.find((item) => item.email === roomPaidByEmail);
+    const selected = paidByOptions.find(
+      (item) => item.email === roomPaidByEmail,
+    );
     return selected?.name || "Me";
   }, [paidByOptions, roomPaidByEmail]);
 
   const itemPlaceholder = getItemPlaceholder(selectedRoom?.category);
 
-  async function loadSplitRoomData(preferredRoomId?: string, silent = false) {
-    try {
-      if (!silent) setLoading(true);
+  const loadSplitRoomData = useCallback(
+    async (preferredRoomId?: string, silent = false) => {
+      try {
+        if (!silent) {
+          setLoading(true);
+        }
 
-      const [roomData, friendsData] = await Promise.all([
-        getSplitRooms(),
-        getFriendsSummary(),
-      ]);
+        const [roomData, friendsData, settlementData] = await Promise.all([
+          getSplitRooms(),
+          getFriendsSummary(),
+          getNetSettlements(),
+        ]);
 
-      const nextRooms = roomData.rooms ?? [];
-      const nextRoomId =
-        preferredRoomId || selectedRoomId || nextRooms[0]?.id || "";
+        const nextRooms = roomData.rooms ?? [];
+        const currentSelectedRoomId = selectedRoomIdRef.current;
 
-      setRooms(nextRooms);
-      setFriends(friendsData.friends ?? []);
-      setSelectedRoomId(
-        nextRooms.some((room) => room.id === nextRoomId)
-          ? nextRoomId
-          : nextRooms[0]?.id || "",
-      );
-    } catch (error) {
-      if (!silent) {
-        Alert.alert(
-          "Rooms failed",
-          error instanceof Error ? error.message : "Could not load split rooms",
-        );
+        const nextRoomId =
+          preferredRoomId ||
+          (nextRooms.some((room) => room.id === currentSelectedRoomId)
+            ? currentSelectedRoomId
+            : nextRooms[0]?.id || "");
+
+        setRooms(nextRooms);
+        setFriends(friendsData.friends ?? []);
+        setNetSettlements(settlementData);
+
+        selectedRoomIdRef.current = nextRoomId;
+        setSelectedRoomId(nextRoomId);
+      } catch (error) {
+        if (!silent) {
+          Alert.alert(
+            "Rooms failed",
+            error instanceof Error
+              ? error.message
+              : "Could not load split rooms",
+          );
+        }
+      } finally {
+        if (!silent) {
+          setLoading(false);
+        }
       }
-    } finally {
-      if (!silent) setLoading(false);
-    }
-  }
+    },
+    [],
+  );
 
   useEffect(() => {
     void loadSplitRoomData();
-  }, []);
+  }, [loadSplitRoomData]);
 
   useFocusEffect(
     useCallback(() => {
       void loadSplitRoomData(undefined, true);
-    }, [selectedRoomId]),
+    }, [loadSplitRoomData]),
   );
 
   useEffect(() => {
@@ -452,7 +521,10 @@ export default function SplitRooms() {
     }
 
     if (nextFriendEmails.length === 0) {
-      Alert.alert("Select friends", "Select at least one friend for this room.");
+      Alert.alert(
+        "Select friends",
+        "Select at least one friend for this room.",
+      );
       return;
     }
 
@@ -470,6 +542,7 @@ export default function SplitRooms() {
     try {
       setSavingRoom(true);
       setRooms((previous) => [optimisticRoom, ...previous]);
+      selectedRoomIdRef.current = optimisticRoom.id;
       setSelectedRoomId(optimisticRoom.id);
       resetCreateForm();
 
@@ -664,23 +737,19 @@ export default function SplitRooms() {
       return;
     }
 
-    Alert.alert(
-      "Delete item",
-      `Remove "${item.title}" from this room?`,
-      [
-        {
-          text: "Cancel",
-          style: "cancel",
+    Alert.alert("Delete item", `Remove "${item.title}" from this room?`, [
+      {
+        text: "Cancel",
+        style: "cancel",
+      },
+      {
+        text: "Delete",
+        style: "destructive",
+        onPress: () => {
+          void handleDeleteItem(item);
         },
-        {
-          text: "Delete",
-          style: "destructive",
-          onPress: () => {
-            void handleDeleteItem(item);
-          },
-        },
-      ],
-    );
+      },
+    ]);
   }
 
   async function handleDeleteItem(item: SplitRoomItem) {
@@ -693,7 +762,9 @@ export default function SplitRooms() {
 
       setRooms((previous) =>
         previous.map((room) =>
-          room.id === selectedRoom.id ? removeOptimisticRoomItem(room, item.id) : room,
+          room.id === selectedRoom.id
+            ? removeOptimisticRoomItem(room, item.id)
+            : room,
         ),
       );
 
@@ -713,6 +784,61 @@ export default function SplitRooms() {
     }
   }
 
+  function getSettlementCounterparty(settlement: NetSettlement) {
+    return settlement.isOutgoing
+      ? settlement.toName || settlement.toEmail
+      : settlement.fromName || settlement.fromEmail;
+  }
+
+  function openNetSettlementPinDialog(settlement: NetSettlement) {
+    setNetSettlementInfoDialog(null);
+    setNetSettlementTarget(settlement);
+    setWalletPin("");
+  }
+
+  function closeNetSettlementPinDialog() {
+    setNetSettlementTarget(null);
+    setWalletPin("");
+    setPayingNetSettlementUserId("");
+  }
+
+  async function handleConfirmNetSettlementPayment() {
+    if (!netSettlementTarget) {
+      return;
+    }
+
+    const pin = walletPin.trim();
+
+    if (!pin) {
+      Alert.alert("Wallet PIN required", "Enter your wallet PIN to continue.");
+      return;
+    }
+
+    try {
+      setPayingNetSettlementUserId(netSettlementTarget.toUserId);
+
+      await payNetSettlement({
+        toUserId: netSettlementTarget.toUserId,
+        walletPin: pin,
+      });
+
+      closeNetSettlementPinDialog();
+      await loadSplitRoomData(selectedRoom?.id, true);
+
+      Alert.alert(
+        "Payment complete",
+        "Final net settlement has been paid successfully.",
+      );
+    } catch (error) {
+      Alert.alert(
+        "Payment failed",
+        error instanceof Error ? error.message : "Could not complete payment",
+      );
+    } finally {
+      setPayingNetSettlementUserId("");
+    }
+  }
+
   return (
     <Screen
       refreshing={loading}
@@ -723,7 +849,8 @@ export default function SplitRooms() {
         <Text style={styles.eyebrow}>Item-wise splitting</Text>
         <Text style={styles.title}>Rooms</Text>
         <Text style={styles.subtitle}>
-          Create rooms, assign items to the right person, and keep every bill fair.
+          Create rooms, assign items to the right person, and keep every bill
+          fair.
         </Text>
       </View>
 
@@ -760,7 +887,9 @@ export default function SplitRooms() {
         >
           <View style={styles.selectorCopy}>
             <Text style={styles.selectorLabel}>Category</Text>
-            <Text style={styles.selectorValue}>{getCategoryLabel(roomCategory)}</Text>
+            <Text style={styles.selectorValue}>
+              {getCategoryLabel(roomCategory)}
+            </Text>
           </View>
           <Text style={styles.selectorAction}>Change</Text>
         </Pressable>
@@ -811,7 +940,10 @@ export default function SplitRooms() {
                 <Pressable
                   key={room.id}
                   style={[styles.roomRow, active && styles.activeRoomRow]}
-                  onPress={() => setSelectedRoomId(room.id)}
+                  onPress={() => {
+                    selectedRoomIdRef.current = room.id;
+                    setSelectedRoomId(room.id);
+                  }}
                 >
                   <View style={styles.roomMain}>
                     <Text style={styles.roomName} numberOfLines={1}>
@@ -827,12 +959,16 @@ export default function SplitRooms() {
                     <AmountText
                       amount={room.outstandingAmount ?? 0}
                       size="sm"
-                      tone={(room.outstandingAmount ?? 0) > 0 ? "danger" : "success"}
+                      tone={
+                        (room.outstandingAmount ?? 0) > 0 ? "danger" : "success"
+                      }
                     />
                     <Text style={styles.roomDueText}>due</Text>
                   </View>
 
-                  <Text style={styles.statusPill}>{room.status || "active"}</Text>
+                  <Text style={styles.statusPill}>
+                    {room.status || "active"}
+                  </Text>
                 </Pressable>
               );
             })}
@@ -912,13 +1048,20 @@ export default function SplitRooms() {
         </Text>
 
         {!selectedRoom ? (
-          <EmptyState title="No active room" message="Create a room to see its summary." />
+          <EmptyState
+            title="No active room"
+            message="Create a room to see its summary."
+          />
         ) : (
           <>
             <View style={styles.summaryGrid}>
               <View style={styles.summaryBox}>
                 <Text style={styles.summaryLabel}>Total</Text>
-                <AmountText amount={selectedRoom.totalAmount ?? 0} size="sm" tone="primary" />
+                <AmountText
+                  amount={selectedRoom.totalAmount ?? 0}
+                  size="sm"
+                  tone="primary"
+                />
               </View>
 
               <View style={styles.summaryBox}>
@@ -926,7 +1069,11 @@ export default function SplitRooms() {
                 <AmountText
                   amount={selectedRoom.outstandingAmount ?? 0}
                   size="sm"
-                  tone={(selectedRoom.outstandingAmount ?? 0) > 0 ? "danger" : "success"}
+                  tone={
+                    (selectedRoom.outstandingAmount ?? 0) > 0
+                      ? "danger"
+                      : "success"
+                  }
                 />
               </View>
 
@@ -981,7 +1128,9 @@ export default function SplitRooms() {
                       </Text>
                     </View>
 
-                    {member.isOwner ? <Text style={styles.memberRole}>Host</Text> : null}
+                    {member.isOwner ? (
+                      <Text style={styles.memberRole}>Host</Text>
+                    ) : null}
                   </View>
                 ))}
               </View>
@@ -1026,7 +1175,10 @@ export default function SplitRooms() {
                         {item.title}
                       </Text>
                       <Text style={styles.itemSubtext} numberOfLines={1}>
-                        Assigned to {assignedMember ? getMemberName(assignedMember) : "Member"}
+                        Assigned to{" "}
+                        {assignedMember
+                          ? getMemberName(assignedMember)
+                          : "Member"}
                       </Text>
                     </View>
 
@@ -1060,11 +1212,19 @@ export default function SplitRooms() {
                         </Pressable>
 
                         <Pressable
-                          style={[styles.itemActionButton, styles.deleteActionButton]}
+                          style={[
+                            styles.itemActionButton,
+                            styles.deleteActionButton,
+                          ]}
                           onPress={() => requestDeleteItem(item)}
                           disabled={deletingItemId === item.id}
                         >
-                          <Text style={[styles.itemActionText, styles.deleteActionText]}>
+                          <Text
+                            style={[
+                              styles.itemActionText,
+                              styles.deleteActionText,
+                            ]}
+                          >
                             {deletingItemId === item.id ? "Deleting" : "Delete"}
                           </Text>
                         </Pressable>
@@ -1081,6 +1241,278 @@ export default function SplitRooms() {
           </View>
         )}
       </AppCard>
+
+      <AppCard style={styles.netSettlementCard}>
+        <View style={styles.cardHeadRow}>
+          <View style={styles.netSettlementHeadCopy}>
+            <Text style={styles.cardEyebrow}>Adjusted settlements</Text>
+            <Text style={styles.cardTitle}>Final payable after adjustment</Text>
+            <Text style={styles.netSettlementNote}>
+              SplitVerse cancels opposite dues between the same friends first,
+              then shows only the final amount that actually needs to move.
+            </Text>
+          </View>
+        </View>
+
+        <View style={styles.netSettlementSummary}>
+          <Pressable
+            style={[styles.netSettlementMetric, styles.payableMetric]}
+            onPress={() => setNetSettlementInfoDialog("payable")}
+          >
+            <Text style={styles.netMetricLabel}>Payable</Text>
+            <AmountText
+              amount={netSettlementOutgoingTotal}
+              size="md"
+              tone={netSettlementOutgoingTotal > 0 ? "danger" : "success"}
+            />
+            <Text style={styles.netMetricHelper}>You pay after offsets</Text>
+          </Pressable>
+
+          <Pressable
+            style={[styles.netSettlementMetric, styles.receivableMetric]}
+            onPress={() => setNetSettlementInfoDialog("receivable")}
+          >
+            <Text style={styles.netMetricLabel}>Receivable</Text>
+            <AmountText
+              amount={netSettlementIncomingTotal}
+              size="md"
+              tone="success"
+            />
+            <Text style={styles.netMetricHelper}>
+              You receive after offsets
+            </Text>
+          </Pressable>
+        </View>
+      </AppCard>
+
+      <Modal
+        visible={Boolean(netSettlementInfoDialog)}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setNetSettlementInfoDialog(null)}
+      >
+        <View style={styles.modalBackdrop}>
+          <View style={styles.sheet}>
+            <Text style={styles.sheetEyebrow}>Adjusted settlements</Text>
+            <Text style={styles.sheetTitle}>
+              {netSettlementInfoDialog === "payable"
+                ? "Payable details"
+                : "Receivable details"}
+            </Text>
+
+            <View style={styles.netInfoSummary}>
+              <View style={styles.netInfoBox}>
+                <Text style={styles.summaryLabel}>Final amount</Text>
+                <AmountText
+                  amount={visibleNetSettlementTotal}
+                  size="sm"
+                  tone={
+                    netSettlementInfoDialog === "payable" ? "danger" : "success"
+                  }
+                />
+                <Text style={styles.netInfoSmall}>
+                  After opposite dues adjust
+                </Text>
+              </View>
+
+              <View style={styles.netInfoBox}>
+                <Text style={styles.summaryLabel}>Direction</Text>
+                <Text style={styles.summaryValue}>
+                  {netSettlementInfoDialog === "payable"
+                    ? "You pay"
+                    : "You receive"}
+                </Text>
+                <Text style={styles.netInfoSmall}>Across split rooms</Text>
+              </View>
+
+              <View style={styles.netInfoBox}>
+                <Text style={styles.summaryLabel}>People</Text>
+                <Text style={styles.summaryValue}>
+                  {visibleNetSettlements.length}
+                </Text>
+                <Text style={styles.netInfoSmall}>Adjusted settlements</Text>
+              </View>
+            </View>
+
+            <View style={styles.netExplanationBox}>
+              <Text style={styles.netExplanationTitle}>
+                Final payable after adjustment
+              </Text>
+              <Text style={styles.netExplanationText}>
+                Opposite dues between the same friends are cancelled first. Only
+                the final amount that actually needs to move is shown here.
+              </Text>
+            </View>
+
+            {visibleNetSettlements.length === 0 ? (
+              <EmptyState
+                title={`No ${netSettlementInfoDialog} settlements`}
+                message="Adjusted settlement details will appear after room dues exist."
+              />
+            ) : (
+              <View style={styles.netSettlementList}>
+                {visibleNetSettlements.map((settlement) => {
+                  const counterparty = getSettlementCounterparty(settlement);
+
+                  const settlementTitle = settlement.isOutgoing
+                    ? `You pay ${settlement.toName || settlement.toEmail}`
+                    : `${settlement.fromName || settlement.fromEmail} pays you`;
+
+                  return (
+                    <View
+                      style={styles.netSettlementRow}
+                      key={`${settlement.fromUserId}-${settlement.toUserId}`}
+                    >
+                      <View style={styles.netSettlementRowMain}>
+                        <Text
+                          style={[
+                            styles.netDirectionPill,
+                            settlement.isOutgoing
+                              ? styles.netDirectionPayable
+                              : styles.netDirectionReceivable,
+                          ]}
+                        >
+                          {settlement.isOutgoing ? "Payable" : "Receivable"}
+                        </Text>
+
+                        <Text
+                          style={styles.netSettlementTitle}
+                          numberOfLines={1}
+                        >
+                          {settlementTitle}
+                        </Text>
+
+                        <Text style={styles.netSettlementSubtext}>
+                          {settlement.breakdown.length} room item
+                          {settlement.breakdown.length === 1 ? "" : "s"}{" "}
+                          adjusted with {counterparty}
+                        </Text>
+
+                        <View style={styles.netBreakdownList}>
+                          {settlement.breakdown.slice(0, 4).map((line) => (
+                            <View
+                              style={styles.netBreakdownRow}
+                              key={`${line.itemId}-${line.direction}`}
+                            >
+                              <Text
+                                style={styles.netBreakdownTitle}
+                                numberOfLines={1}
+                              >
+                                {line.roomName} · {line.title}
+                              </Text>
+                              <AmountText
+                                amount={line.amount}
+                                size="sm"
+                                tone={
+                                  settlement.isOutgoing ? "danger" : "success"
+                                }
+                              />
+                            </View>
+                          ))}
+                        </View>
+                      </View>
+
+                      <View style={styles.netSettlementAmountPanel}>
+                        <Text style={styles.summaryLabel}>Final amount</Text>
+                        <AmountText
+                          amount={settlement.amount}
+                          size="sm"
+                          tone={settlement.isOutgoing ? "danger" : "success"}
+                        />
+
+                        {settlement.isOutgoing ? (
+                          <AppButton
+                            title={
+                              payingNetSettlementUserId === settlement.toUserId
+                                ? "Paying"
+                                : "Pay net"
+                            }
+                            loading={
+                              payingNetSettlementUserId === settlement.toUserId
+                            }
+                            onPress={() =>
+                              openNetSettlementPinDialog(settlement)
+                            }
+                            style={styles.payNetButton}
+                          />
+                        ) : (
+                          <Text style={styles.receivablePill}>Receivable</Text>
+                        )}
+                      </View>
+                    </View>
+                  );
+                })}
+              </View>
+            )}
+
+            <AppButton
+              title="Close"
+              variant="secondary"
+              onPress={() => setNetSettlementInfoDialog(null)}
+            />
+          </View>
+        </View>
+      </Modal>
+
+      <Modal
+        visible={Boolean(netSettlementTarget)}
+        transparent
+        animationType="fade"
+        onRequestClose={closeNetSettlementPinDialog}
+      >
+        <View style={styles.modalBackdrop}>
+          <View style={styles.sheet}>
+            <Text style={styles.sheetEyebrow}>Adjusted wallet payment</Text>
+            <Text style={styles.sheetTitle}>Pay final net amount</Text>
+
+            {netSettlementTarget ? (
+              <View style={styles.pinSummaryCard}>
+                <Text style={styles.cardEyebrow}>You are paying</Text>
+                <Text style={styles.cardTitleSmall}>
+                  {netSettlementTarget.toName || netSettlementTarget.toEmail}
+                </Text>
+
+                <AmountText
+                  amount={netSettlementTarget.amount}
+                  size="lg"
+                  tone="danger"
+                />
+
+                <Text style={styles.netExplanationText}>
+                  This amount is the final balance after SplitVerse adjusts
+                  opposite dues across shared rooms.
+                </Text>
+              </View>
+            ) : null}
+
+            <AppTextInput
+              label="Wallet PIN"
+              value={walletPin}
+              onChangeText={setWalletPin}
+              placeholder="Enter wallet PIN"
+              keyboardType="number-pad"
+              secureTextEntry
+              editable={!payingNetSettlementUserId}
+            />
+
+            <AppButton
+              title={
+                payingNetSettlementUserId
+                  ? "Paying final amount"
+                  : "Confirm payment"
+              }
+              loading={Boolean(payingNetSettlementUserId)}
+              onPress={handleConfirmNetSettlementPayment}
+            />
+
+            <AppButton
+              title="Cancel"
+              variant="secondary"
+              onPress={closeNetSettlementPinDialog}
+            />
+          </View>
+        </View>
+      </Modal>
 
       <Modal
         visible={friendModalOpen}
@@ -1115,7 +1547,10 @@ export default function SplitRooms() {
                   return (
                     <Pressable
                       key={friend.id}
-                      style={[styles.friendOption, selected && styles.selectedOption]}
+                      style={[
+                        styles.friendOption,
+                        selected && styles.selectedOption,
+                      ]}
                       onPress={() => toggleSelectedFriend(friend.email)}
                     >
                       <Avatar
@@ -1169,7 +1604,10 @@ export default function SplitRooms() {
                 return (
                   <Pressable
                     key={member.id}
-                    style={[styles.friendOption, selected && styles.selectedOption]}
+                    style={[
+                      styles.friendOption,
+                      selected && styles.selectedOption,
+                    ]}
                     onPress={() => {
                       setAssignedMemberId(member.id);
                       setAssignMemberModalOpen(false);
@@ -1187,7 +1625,9 @@ export default function SplitRooms() {
                     />
 
                     <View style={styles.optionCopy}>
-                      <Text style={styles.optionTitle}>{getMemberName(member)}</Text>
+                      <Text style={styles.optionTitle}>
+                        {getMemberName(member)}
+                      </Text>
                       <Text style={styles.optionSubtext}>{member.email}</Text>
                     </View>
 
@@ -1225,7 +1665,10 @@ export default function SplitRooms() {
                 return (
                   <Pressable
                     key={category.value}
-                    style={[styles.categoryOption, selected && styles.selectedOption]}
+                    style={[
+                      styles.categoryOption,
+                      selected && styles.selectedOption,
+                    ]}
                     onPress={() => {
                       setRoomCategory(category.value);
                       setCategoryModalOpen(false);
@@ -1270,7 +1713,10 @@ export default function SplitRooms() {
                 return (
                   <Pressable
                     key={option.email}
-                    style={[styles.paidByOption, selected && styles.selectedOption]}
+                    style={[
+                      styles.paidByOption,
+                      selected && styles.selectedOption,
+                    ]}
                     onPress={() => {
                       setRoomPaidByEmail(option.email);
                       setPaidByModalOpen(false);
@@ -1711,5 +2157,173 @@ const styles = StyleSheet.create({
   },
   selectedCategoryText: {
     color: colors.primary,
+  },
+
+  netSettlementCard: {
+    gap: spacing.base,
+  },
+  netSettlementHeadCopy: {
+    flex: 1,
+    minWidth: 0,
+    gap: spacing.xs,
+  },
+  netSettlementNote: {
+    color: colors.body,
+    ...typography.bodySm,
+  },
+  netSettlementSummary: {
+    flexDirection: "row",
+    gap: spacing.sm,
+  },
+  netSettlementMetric: {
+    flex: 1,
+    minHeight: 118,
+    justifyContent: "space-between",
+    borderWidth: 1,
+    borderRadius: radius.xl,
+    padding: spacing.sm,
+  },
+  payableMetric: {
+    borderColor: colors.hairlineSoft,
+    backgroundColor: colors.surfaceSoft,
+  },
+  receivableMetric: {
+    borderColor: colors.hairlineSoft,
+    backgroundColor: colors.surfaceSoft,
+  },
+  netMetricLabel: {
+    color: colors.body,
+    ...typography.caption,
+  },
+  netMetricHelper: {
+    color: colors.body,
+    ...typography.caption,
+  },
+  sheetEyebrow: {
+    color: colors.body,
+    ...typography.caption,
+  },
+  netInfoSummary: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: spacing.sm,
+  },
+  netInfoBox: {
+    flexGrow: 1,
+    minWidth: "30%",
+    minHeight: 82,
+    justifyContent: "space-between",
+    borderWidth: 1,
+    borderColor: colors.hairlineSoft,
+    borderRadius: radius.lg,
+    backgroundColor: colors.surfaceSoft,
+    padding: spacing.sm,
+  },
+  netInfoSmall: {
+    color: colors.body,
+    fontSize: 11,
+    lineHeight: 15,
+  },
+  netExplanationBox: {
+    gap: spacing.xs,
+    borderWidth: 1,
+    borderColor: colors.hairlineSoft,
+    borderRadius: radius.lg,
+    backgroundColor: colors.surfaceSoft,
+    padding: spacing.sm,
+  },
+  netExplanationTitle: {
+    color: colors.ink,
+    ...typography.titleSm,
+  },
+  netExplanationText: {
+    color: colors.body,
+    ...typography.bodySm,
+  },
+  netSettlementList: {
+    gap: spacing.sm,
+  },
+  netSettlementRow: {
+    gap: spacing.sm,
+    borderWidth: 1,
+    borderColor: colors.hairlineSoft,
+    borderRadius: radius.xl,
+    backgroundColor: colors.surfaceSoft,
+    padding: spacing.sm,
+  },
+  netSettlementRowMain: {
+    gap: spacing.xs,
+  },
+  netDirectionPill: {
+    alignSelf: "flex-start",
+    overflow: "hidden",
+    borderRadius: radius.pill,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs,
+    ...typography.caption,
+  },
+  netDirectionPayable: {
+    color: colors.danger,
+    backgroundColor: colors.surfaceStrong,
+  },
+  netDirectionReceivable: {
+    color: colors.success,
+    backgroundColor: colors.surfaceStrong,
+  },
+  netSettlementTitle: {
+    color: colors.ink,
+    ...typography.titleSm,
+  },
+  netSettlementSubtext: {
+    color: colors.body,
+    ...typography.bodySm,
+  },
+  netBreakdownList: {
+    gap: spacing.xs,
+    marginTop: spacing.xs,
+  },
+  netBreakdownRow: {
+    minHeight: 42,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: spacing.sm,
+    borderRadius: radius.md,
+    backgroundColor: colors.canvas,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs,
+  },
+  netBreakdownTitle: {
+    flex: 1,
+    minWidth: 0,
+    color: colors.body,
+    ...typography.bodySm,
+  },
+  netSettlementAmountPanel: {
+    gap: spacing.xs,
+    borderRadius: radius.lg,
+    backgroundColor: colors.canvas,
+    padding: spacing.sm,
+  },
+  payNetButton: {
+    minHeight: 40,
+  },
+  receivablePill: {
+    alignSelf: "flex-start",
+    overflow: "hidden",
+    borderRadius: radius.pill,
+    backgroundColor: colors.surfaceStrong,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs,
+    color: colors.success,
+    ...typography.caption,
+  },
+  pinSummaryCard: {
+    gap: spacing.xs,
+    borderWidth: 1,
+    borderColor: colors.hairlineSoft,
+    borderRadius: radius.xl,
+    backgroundColor: colors.surfaceSoft,
+    padding: spacing.base,
   },
 });

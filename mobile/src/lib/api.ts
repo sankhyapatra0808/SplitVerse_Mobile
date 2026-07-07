@@ -376,3 +376,64 @@ export async function deleteSplitRoomItem(itemId: string) {
     method: "DELETE",
   });
 }
+
+// settlements api
+export type NetSettlementBreakdown = {
+  itemId: string;
+  roomId: string;
+  roomName: string;
+  title: string;
+  direction: string;
+  amount: number;
+  originalAmount: number;
+  settledAmount: number;
+  createdAt: string;
+};
+
+export type NetSettlement = {
+  fromUserId: string;
+  fromName: string | null;
+  fromEmail: string;
+  toUserId: string;
+  toName: string | null;
+  toEmail: string;
+  amount: number;
+  currency: "INR";
+  isOutgoing: boolean;
+  isIncoming: boolean;
+  breakdown: NetSettlementBreakdown[];
+};
+
+export type NetSettlementsResponse = {
+  settlements: NetSettlement[];
+  summary: {
+    outgoingTotal: number;
+    incomingTotal: number;
+    netPosition: number;
+    currency: "INR";
+  };
+};
+
+export async function getNetSettlements() {
+  return apiFetch<NetSettlementsResponse>("/api/split-rooms/net-settlements");
+}
+
+export async function payNetSettlement(payload: {
+  toUserId: string;
+  walletPin: string;
+}) {
+  return apiFetch<{
+    message: string;
+    settlement: {
+      fromUserId: string;
+      toUserId: string;
+      amount: number;
+      currency: "INR";
+      offsetAmount: number;
+      expenseId: string;
+    };
+  }>("/api/split-rooms/net-settlements/pay", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
