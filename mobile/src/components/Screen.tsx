@@ -32,6 +32,11 @@ export default function Screen({
       <ScrollView
         contentContainerStyle={[styles.scrollContent, contentStyle]}
         showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+        nestedScrollEnabled
+        scrollEventThrottle={16}
+        removeClippedSubviews
+        overScrollMode="never"
         refreshControl={
           onRefresh ? (
             <RefreshControl

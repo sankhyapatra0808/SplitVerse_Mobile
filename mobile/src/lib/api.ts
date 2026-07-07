@@ -204,6 +204,16 @@ export type SplitRoomMember = {
 
 export type SplitRoomBalance = {
   memberId: string;
+
+  name?: string | null;
+  detail?: string | null;
+  amount?: number;
+  outstandingAmount?: number;
+  collectedAmount?: number;
+  isMe?: boolean;
+  isCollected?: boolean;
+  itemCount?: number;
+
   assignedTotal?: number;
   paidTotal?: number;
   pendingTotal?: number;
@@ -375,6 +385,56 @@ export async function deleteSplitRoomItem(itemId: string) {
   return apiFetch<{ message: string }>(`/api/split-rooms/items/${itemId}`, {
     method: "DELETE",
   });
+}
+
+export async function collectSplitRoomMemberDues(
+  roomId: string,
+  memberId: string,
+) {
+  return apiFetch<{ message: string; updatedCount: number }>(
+    `/api/split-rooms/${roomId}/members/${memberId}/collect`,
+    {
+      method: "POST",
+    },
+  );
+}
+
+export async function sendSplitRoomReminder(roomId: string) {
+  return apiFetch<{ message: string; remindedCount: number }>(
+    `/api/split-rooms/${roomId}/reminders`,
+    {
+      method: "POST",
+    },
+  );
+}
+
+export async function removeSplitRoomMember(roomId: string, memberId: string) {
+  return apiFetch<{ message: string; removedMemberId: string }>(
+    `/api/split-rooms/${roomId}/members/${memberId}`,
+    {
+      method: "DELETE",
+    },
+  );
+}
+
+export async function deleteSplitRoom(roomId: string) {
+  return apiFetch<{ message: string }>(`/api/split-rooms/${roomId}`, {
+    method: "DELETE",
+  });
+}
+
+export async function finalizeSplitRoom(roomId: string) {
+  return apiFetch<{ message: string; finalizedAt: string }>(
+    `/api/split-rooms/${roomId}/finalize`,
+    { method: "POST" },
+  );
+}
+
+export async function archiveSplitRoom(roomId: string) {
+  return apiFetch<{ message: string; archivedAt: string }>(
+    `/api/split-rooms/${roomId}/archive`,
+    { method: "POST" },
+  );
 }
 
 // settlements api
