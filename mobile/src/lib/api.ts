@@ -277,10 +277,16 @@ export type TransactionItem = {
   id: string;
   type: string;
   amount: number;
+
+  title?: string | null;
   description?: string | null;
+
   status?: string | null;
+  displayStatus?: string | null;
+
   createdAt: string;
   displayDate?: string;
+
   roomName?: string | null;
   counterpartyName?: string | null;
   counterpartyEmail?: string | null;
@@ -555,4 +561,59 @@ export async function getWalletSummary() {
 
 export async function getRecentWalletTopUps() {
   return apiFetch<WalletTopUpsResponse>("/api/wallet/top-ups");
+}
+
+// razorpay api
+export type WalletOrderResponse = {
+  order: {
+    id: string;
+    amount: number;
+    currency: "INR";
+    receipt?: string;
+  };
+  keyId?: string;
+};
+
+export type RazorpayWalletOrderResponse = {
+  keyId: string;
+  orderId: string;
+  amount: number;
+  currency: string;
+  name: string;
+  description: string;
+  prefill: {
+    name?: string;
+    email?: string;
+  };
+};
+
+export async function createRazorpayWalletOrder(payload: {
+  amount: number;
+  method?: WalletTopUpMethod;
+}) {
+  return apiFetch<RazorpayWalletOrderResponse>(
+    "/api/payments/razorpay/wallet-order",
+    {
+      method: "POST",
+      body: JSON.stringify({
+        amount: payload.amount,
+        method: payload.method ?? "UPI",
+        currency: "INR",
+      }),
+    },
+  );
+}
+
+export async function verifyRazorpayWalletPayment(payload: {
+  razorpayOrderId: string;
+  razorpayPaymentId: string;
+  razorpaySignature: string;
+}) {
+  return apiFetch<{ message: string; walletBalance: number }>(
+    "/api/payments/razorpay/verify-wallet-payment",
+    {
+      method: "POST",
+      body: JSON.stringify(payload),
+    },
+  );
 }

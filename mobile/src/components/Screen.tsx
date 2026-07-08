@@ -1,11 +1,11 @@
 import {
   RefreshControl,
-  SafeAreaView,
   ScrollView,
   StyleSheet,
   type StyleProp,
   type ViewStyle,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { colors, spacing } from "../theme/tokens";
 
 type ScreenProps = {

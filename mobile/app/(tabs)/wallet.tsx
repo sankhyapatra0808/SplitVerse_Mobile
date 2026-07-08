@@ -8,15 +8,19 @@ import EmptyState from "../../src/components/EmptyState";
 import LoadingState from "../../src/components/LoadingState";
 import Screen from "../../src/components/Screen";
 import SheetModal from "../../src/components/SheetModal";
+import AppTextInput from "../../src/components/AppTextInput";
 import {
   getRecentWalletTopUps,
   getWalletSummary,
+  createRazorpayWalletOrder,
+  verifyRazorpayWalletPayment,
   type PendingWalletSettlement,
   type WalletSummaryResponse,
   type WalletTopUpItem,
   type WalletTransactionItem,
 } from "../../src/lib/api";
 import { colors, radius, spacing, typography } from "../../src/theme/tokens";
+import RazorpayCheckout from "react-native-razorpay";
 
 function formatMoney(value?: number | null) {
   return `₹${Number(value || 0).toLocaleString("en-IN", {
@@ -100,6 +104,10 @@ export default function Wallet() {
   const recentTransactions = walletData?.recentWalletTransactions ?? [];
   const pendingSettlements = walletData?.pendingSettlements ?? [];
 
+  const [topUpSheetOpen, setTopUpSheetOpen] = useState(false);
+  const [topUpAmount, setTopUpAmount] = useState("");
+  const [creatingTopUpOrder, setCreatingTopUpOrder] = useState(false);
+
   const incomingSettlements = useMemo(
     () =>
       pendingSettlements.filter(
@@ -181,11 +189,67 @@ export default function Wallet() {
   );
 
   function handleTopUpPress() {
-    Alert.alert(
-      "Coming in Step 12",
-      "Next we will connect Razorpay wallet top-up with order creation, checkout, and backend verification.",
-    );
+    setTopUpAmount("");
+    setTopUpSheetOpen(true);
   }
+
+async function handleCreateTopUpOrder() {
+  const amount = Number(topUpAmount);
+
+  if (!Number.isFinite(amount) || amount <= 0) {
+    Alert.alert("Invalid amount", "Enter a valid top-up amount.");
+    return;
+  }
+
+  if (amount < 10) {
+    Alert.alert("Minimum amount", "Minimum wallet top-up amount is ₹10.");
+    return;
+  }
+
+  try {
+    setCreatingTopUpOrder(true);
+
+    const order = await createRazorpayWalletOrder({
+      amount,
+      method: "UPI",
+    });
+
+    const payment = await RazorpayCheckout.open({
+      key: order.keyId,
+      amount: order.amount,
+      currency: order.currency || "INR",
+      name: order.name || "SplitVerse",
+      description: order.description || "Wallet top-up",
+      order_id: order.orderId,
+      prefill: {
+        name: order.prefill?.name,
+        email: order.prefill?.email,
+      },
+      theme: {
+        color: "#0052ff",
+      },
+    });
+
+    await verifyRazorpayWalletPayment({
+      razorpayOrderId: payment.razorpay_order_id,
+      razorpayPaymentId: payment.razorpay_payment_id,
+      razorpaySignature: payment.razorpay_signature,
+    });
+
+    setTopUpSheetOpen(false);
+    setTopUpAmount("");
+    await loadWallet(true);
+
+    Alert.alert("Top-up successful", "Money has been added to your wallet.");
+  } catch (error) {
+    Alert.alert(
+      "Payment failed",
+      error instanceof Error ? error.message : "Could not complete wallet top-up",
+    );
+  } finally {
+    setCreatingTopUpOrder(false);
+  }
+}
 
   if (loading && !walletData) {
     return (
@@ -339,29 +403,56 @@ export default function Wallet() {
       </AppCard>
 
       <SheetModal
-        visible={topUpsSheetOpen}
-        eyebrow="Wallet top-ups"
-        title="Top-up history"
-        onClose={() => setTopUpsSheetOpen(false)}
+        visible={topUpSheetOpen}
+        eyebrow="Wallet top-up"
+        title="Add money"
+        onClose={() => {
+          setTopUpSheetOpen(false);
+          setTopUpAmount("");
+        }}
       >
-        {topUps.length === 0 ? (
-          <EmptyState title="No top-up history" />
-        ) : (
-          <View style={styles.sheetList}>
-            {topUps.map((topUp) => (
-              <View style={styles.sheetRow} key={topUp.id}>
-                <View style={styles.rowCopy}>
-                  <Text style={styles.rowTitle}>{topUp.method}</Text>
-                  <Text style={styles.rowSubtext}>
-                    {formatDate(topUp.displayDate || topUp.createdAt)}
-                  </Text>
-                </View>
+        <View style={styles.topUpInfoCard}>
+          <Text style={styles.cardEyebrow}>Available balance</Text>
+          <Text style={styles.topUpBalance}>
+            {formatMoney(availableBalance)}
+          </Text>
+          <Text style={styles.balanceHint}>
+            Enter the amount you want to add to your SplitVerse wallet.
+          </Text>
+        </View>
 
-                <AmountText amount={topUp.amount} size="sm" tone="success" />
-              </View>
-            ))}
-          </View>
-        )}
+        <AppTextInput
+          label="Top-up amount"
+          value={topUpAmount}
+          onChangeText={setTopUpAmount}
+          placeholder="500"
+          keyboardType="decimal-pad"
+          editable={!creatingTopUpOrder}
+        />
+
+        <View style={styles.quickAmountGrid}>
+          {[100, 250, 500, 1000].map((amount) => (
+            <Pressable
+              key={amount}
+              style={styles.quickAmountButton}
+              onPress={() => setTopUpAmount(String(amount))}
+              disabled={creatingTopUpOrder}
+            >
+              <Text style={styles.quickAmountText}>{formatMoney(amount)}</Text>
+            </Pressable>
+          ))}
+        </View>
+
+        <AppButton
+          title={creatingTopUpOrder ? "Creating order" : "Continue to payment"}
+          loading={creatingTopUpOrder}
+          onPress={handleCreateTopUpOrder}
+        />
+
+        <Text style={styles.topUpNote}>
+          Razorpay checkout will open after we move from Expo Go to a
+          development build.
+        </Text>
       </SheetModal>
     </Screen>
   );
@@ -625,5 +716,43 @@ const styles = StyleSheet.create({
     borderRadius: radius.lg,
     backgroundColor: colors.surfaceSoft,
     padding: spacing.sm,
+  },
+  topUpInfoCard: {
+    gap: spacing.xs,
+    borderWidth: 1,
+    borderColor: colors.hairlineSoft,
+    borderRadius: radius.xl,
+    backgroundColor: colors.surfaceSoft,
+    padding: spacing.base,
+  },
+  topUpBalance: {
+    color: colors.ink,
+    fontSize: 30,
+    fontWeight: "800",
+    letterSpacing: -0.5,
+  },
+  quickAmountGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: spacing.sm,
+  },
+  quickAmountButton: {
+    width: "48%",
+    minHeight: 48,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: colors.hairlineSoft,
+    borderRadius: radius.pill,
+    backgroundColor: colors.surfaceSoft,
+  },
+  quickAmountText: {
+    color: colors.primary,
+    fontSize: 13,
+    fontWeight: "800",
+  },
+  topUpNote: {
+    color: colors.body,
+    ...typography.bodySm,
   },
 });
