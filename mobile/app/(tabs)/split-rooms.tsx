@@ -1,3 +1,4 @@
+import { LinearGradient } from "expo-linear-gradient";
 import {
   useFocusEffect } from "expo-router";
 import { useCallback,
@@ -341,7 +342,7 @@ function removeOptimisticRoomItem(room: SplitRoom, itemId: string): SplitRoom {
 
 export default function SplitRooms() {
   const { user, dbUser } = useAuth();
-  const { formatCurrency } = useAppSettings();
+  const { formatCurrency, theme } = useAppSettings();
 
   const [rooms, setRooms] = useState<SplitRoom[]>([]);
   const [friends, setFriends] = useState<Friend[]>([]);
@@ -1334,16 +1335,21 @@ export default function SplitRooms() {
     <Screen
       refreshing={loading}
       onRefresh={() => loadSplitRoomData()}
-      contentStyle={styles.screen}
+      safeBackgroundColor={theme.primary}
+      contentStyle={[styles.screen, { backgroundColor: theme.background }]}
     >
-      <View style={styles.header}>
-        <Text style={styles.eyebrow}>Item-wise splitting</Text>
-        <Text style={styles.title}>Rooms</Text>
-        <Text style={styles.subtitle}>
-          Create rooms, assign items to the right person, and keep every bill
-          fair.
+      <LinearGradient
+        colors={[theme.primary, theme.primaryActive]}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={styles.hero}
+      >
+        <Text style={styles.heroEyebrow}>Item-wise splitting</Text>
+        <Text style={styles.heroTitle}>Rooms</Text>
+        <Text style={styles.heroSubtitle}>
+          Create rooms, assign items to the right person, and keep every bill fair.
         </Text>
-      </View>
+      </LinearGradient>
 
       <AppCard style={styles.createCard}>
         <Text style={styles.cardEyebrow}>Create room</Text>
@@ -1358,7 +1364,7 @@ export default function SplitRooms() {
         />
 
         <Pressable
-          style={styles.selector}
+          style={[styles.selector, { borderColor: theme.border, backgroundColor: theme.surface }]}
           onPress={() => setFriendModalOpen(true)}
           disabled={savingRoom}
         >
@@ -1372,7 +1378,7 @@ export default function SplitRooms() {
         </Pressable>
 
         <Pressable
-          style={styles.selector}
+          style={[styles.selector, { borderColor: theme.border, backgroundColor: theme.surface }]}
           onPress={() => setCategoryModalOpen(true)}
           disabled={savingRoom}
         >
@@ -1386,7 +1392,7 @@ export default function SplitRooms() {
         </Pressable>
 
         <Pressable
-          style={styles.selector}
+          style={[styles.selector, { borderColor: theme.border, backgroundColor: theme.surface }]}
           onPress={() => setPaidByModalOpen(true)}
           disabled={savingRoom}
         >
@@ -1430,7 +1436,7 @@ export default function SplitRooms() {
               return (
                 <Pressable
                   key={room.id}
-                  style={[styles.roomRow, active && styles.activeRoomRow]}
+                  style={[styles.roomRow, { borderColor: theme.border, backgroundColor: theme.surface }, active && { borderColor: theme.primary, backgroundColor: theme.card }]}
                   onPress={() => {
                     selectedRoomIdRef.current = room.id;
                     setSelectedRoomId(room.id);
@@ -1457,7 +1463,7 @@ export default function SplitRooms() {
                     <Text style={styles.roomDueText}>due</Text>
                   </View>
 
-                  <Text style={styles.statusPill}>
+                  <Text style={[styles.statusPill, { backgroundColor: theme.surfaceStrong, color: theme.body }]}>
                     {room.status || "active"}
                   </Text>
                 </Pressable>
@@ -1508,7 +1514,7 @@ export default function SplitRooms() {
             />
 
             <Pressable
-              style={styles.selector}
+              style={[styles.selector, { borderColor: theme.border, backgroundColor: theme.surface }]}
               onPress={() => setAssignMemberModalOpen(true)}
               disabled={savingItem || sortedMembers.length === 0}
             >
@@ -1540,7 +1546,7 @@ export default function SplitRooms() {
 
         {selectedRoom && canManageSelectedRoom() ? (
           <Pressable
-            style={styles.roomActionsButton}
+            style={[styles.roomActionsButton, { backgroundColor: theme.surfaceStrong }]}
             onPress={() => setRoomActionsOpen(true)}
           >
             <Text style={styles.roomActionsButtonText}>Room actions</Text>
@@ -1555,7 +1561,7 @@ export default function SplitRooms() {
         ) : (
           <>
             <View style={styles.summaryGrid}>
-              <View style={styles.summaryBox}>
+              <View style={[styles.summaryBox, { borderColor: theme.border, backgroundColor: theme.surface }]}>
                 <Text style={styles.summaryLabel}>Total</Text>
                 <AmountText
                   amount={selectedRoom.totalAmount ?? 0}
@@ -1564,7 +1570,7 @@ export default function SplitRooms() {
                 />
               </View>
 
-              <View style={styles.summaryBox}>
+              <View style={[styles.summaryBox, { borderColor: theme.border, backgroundColor: theme.surface }]}>
                 <Text style={styles.summaryLabel}>Outstanding</Text>
                 <AmountText
                   amount={selectedRoom.outstandingAmount ?? 0}
@@ -1577,7 +1583,7 @@ export default function SplitRooms() {
                 />
               </View>
 
-              <View style={styles.summaryBox}>
+              <View style={[styles.summaryBox, { borderColor: theme.border, backgroundColor: theme.surface }]}>
                 <Text style={styles.summaryLabel}>Collected</Text>
                 <AmountText
                   amount={selectedRoom.collectedAmount ?? 0}
@@ -1586,7 +1592,7 @@ export default function SplitRooms() {
                 />
               </View>
 
-              <View style={styles.summaryBox}>
+              <View style={[styles.summaryBox, { borderColor: theme.border, backgroundColor: theme.surface }]}>
                 <Text style={styles.summaryLabel}>Paid by</Text>
                 <Text style={styles.summaryValue} numberOfLines={1}>
                   {getRoomPaidByEmail(selectedRoom) || "Host"}
@@ -1681,7 +1687,8 @@ export default function SplitRooms() {
                   key={balance.memberId}
                   style={[
                     styles.memberBalanceRow,
-                    pendingAmount > 0 && styles.memberBalanceRowPending,
+                    { borderColor: theme.border, backgroundColor: theme.surface },
+                    pendingAmount > 0 && { borderColor: theme.primary, backgroundColor: theme.card },
                   ]}
                   onPress={() => setMemberBalanceTarget(balance)}
                 >
@@ -2555,11 +2562,40 @@ export default function SplitRooms() {
 const styles = StyleSheet.create({
   screen: {
     gap: spacing.base,
+    padding: 0,
+    paddingBottom: spacing.xxl,
     backgroundColor: colors.surfaceSoft,
+  },
+  hero: {
+    minHeight: 218,
+    borderBottomLeftRadius: 32,
+    borderBottomRightRadius: 32,
+    paddingHorizontal: spacing.base,
+    paddingTop: spacing.xl,
+    paddingBottom: spacing.xxl,
+    justifyContent: "flex-end",
+  },
+  heroEyebrow: {
+    color: "rgba(255,255,255,0.76)",
+    ...typography.caption,
+  },
+  heroTitle: {
+    marginTop: spacing.xs,
+    color: colors.onPrimary,
+    fontSize: 34,
+    fontWeight: "600",
+    lineHeight: 40,
+  },
+  heroSubtitle: {
+    maxWidth: 320,
+    marginTop: spacing.sm,
+    color: "rgba(255,255,255,0.82)",
+    ...typography.bodySm,
   },
   header: {
     gap: spacing.xs,
     paddingTop: spacing.lg,
+    paddingHorizontal: spacing.base,
   },
   eyebrow: {
     color: colors.primary,
@@ -2575,18 +2611,24 @@ const styles = StyleSheet.create({
   },
   createCard: {
     gap: spacing.base,
+    marginHorizontal: spacing.base,
+    marginTop: -spacing.xl,
   },
   roomsCard: {
     gap: spacing.base,
+    marginHorizontal: spacing.base,
   },
   addItemCard: {
     gap: spacing.base,
+    marginHorizontal: spacing.base,
   },
   detailsCard: {
     gap: spacing.base,
+    marginHorizontal: spacing.base,
   },
   historyCard: {
     gap: spacing.base,
+    marginHorizontal: spacing.base,
   },
   cardHeadRow: {
     flexDirection: "row",
@@ -2673,11 +2715,13 @@ const styles = StyleSheet.create({
   },
   roomAmountBox: {
     alignSelf: "flex-start",
-    gap: 2,
+    gap: 1,
+    backgroundColor: "transparent",
   },
   roomDueText: {
     color: colors.body,
     ...typography.caption,
+    backgroundColor: "transparent",
   },
   statusPill: {
     alignSelf: "flex-start",
@@ -2919,6 +2963,7 @@ const styles = StyleSheet.create({
 
   netSettlementCard: {
     gap: spacing.base,
+    marginHorizontal: spacing.base,
   },
   netSettlementHeadCopy: {
     flex: 1,
@@ -3087,9 +3132,11 @@ const styles = StyleSheet.create({
 
   memberBalanceCard: {
     gap: spacing.base,
+    marginHorizontal: spacing.base,
   },
   pendingDuesCard: {
     gap: spacing.base,
+    marginHorizontal: spacing.base,
   },
   reminderButton: {
     minHeight: 38,

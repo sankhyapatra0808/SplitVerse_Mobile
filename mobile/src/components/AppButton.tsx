@@ -6,7 +6,8 @@ import {
   type StyleProp,
   type ViewStyle,
 } from "react-native";
-import { colors, radius, spacing, typography } from "../theme/tokens";
+import { useAppSettings } from "../context/useAppSettings";
+import { radius, spacing, typography } from "../theme/tokens";
 import Text from "./LocalizedText";
 
 type AppButtonProps = Omit<PressableProps, "style"> & {
@@ -24,31 +25,34 @@ export default function AppButton({
   style,
   ...props
 }: AppButtonProps) {
+  const { theme } = useAppSettings();
   const isDisabled = disabled || loading;
+  const primary = variant === "primary";
 
   return (
     <Pressable
       {...props}
       disabled={isDisabled}
+      android_ripple={{ color: primary ? theme.primaryActive : theme.borderSoft, borderless: false }}
       style={({ pressed }) => [
         styles.button,
-        variant === "primary" ? styles.primary : styles.secondary,
-        pressed && !isDisabled ? styles.pressed : null,
-        isDisabled ? styles.disabled : null,
+        {
+          backgroundColor: isDisabled
+            ? theme.surfaceStrong
+            : primary
+              ? theme.primary
+              : theme.surfaceStrong,
+          borderColor: primary ? theme.primary : theme.borderSoft,
+          opacity: isDisabled ? 0.72 : 1,
+          transform: [{ scale: pressed && !isDisabled ? 0.985 : 1 }],
+        },
         style,
       ]}
     >
       {loading ? (
-        <ActivityIndicator
-          color={variant === "primary" ? colors.onPrimary : colors.ink}
-        />
+        <ActivityIndicator color={primary ? theme.onPrimary : theme.text} />
       ) : (
-        <Text
-          style={[
-            styles.text,
-            variant === "primary" ? styles.primaryText : styles.secondaryText,
-          ]}
-        >
+        <Text style={[styles.text, { color: primary ? theme.onPrimary : theme.primary }]}>
           {title}
         </Text>
       )}
@@ -58,32 +62,14 @@ export default function AppButton({
 
 const styles = StyleSheet.create({
   button: {
-    minHeight: 44,
+    minHeight: 46,
+    borderWidth: 1,
     borderRadius: radius.pill,
     paddingHorizontal: spacing.md,
     alignItems: "center",
     justifyContent: "center",
   },
-  primary: {
-    backgroundColor: colors.primary,
-  },
-  secondary: {
-    backgroundColor: colors.surfaceStrong,
-  },
-  pressed: {
-    transform: [{ translateY: 1 }],
-    opacity: 0.92,
-  },
-  disabled: {
-    backgroundColor: colors.primaryDisabled,
-  },
   text: {
     ...typography.button,
-  },
-  primaryText: {
-    color: colors.onPrimary,
-  },
-  secondaryText: {
-    color: colors.ink,
   },
 });

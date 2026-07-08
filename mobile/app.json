@@ -5,7 +5,7 @@
     "version": "1.0.0",
     "scheme": "splitverse",
     "orientation": "portrait",
-    "icon": "./assets/splitverse-logo.png",
+    "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
     "ios": {
       "supportsTablet": true
@@ -14,9 +14,8 @@
       "package": "com.sankhyapatra.splitverse",
       "googleServicesFile": "./google-services.json",
       "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
+        "backgroundColor": "#ffffff",
         "foregroundImage": "./assets/android-icon-foreground.png",
-        "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
       "predictiveBackGestureEnabled": false
@@ -36,6 +35,11 @@
       "eas": {
         "projectId": "ecf61e3e-c8a1-4f88-b1b0-9dde655ccb03"
       }
+    },
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#ffffff"
     }
   }
 }

@@ -1,15 +1,16 @@
 import {
   KeyboardAvoidingView,
   Modal,
+  PanResponder,
   Platform,
   Pressable,
-  ScrollView,
   StyleSheet,
   View,
   type GestureResponderEvent,
 } from "react-native";
-import AppButton from "./AppButton";
-import { colors, spacing, typography } from "../theme/tokens";
+import { useMemo } from "react";
+import { useAppSettings } from "../context/useAppSettings";
+import { spacing, typography } from "../theme/tokens";
 import Text from "./LocalizedText";
 
 type SheetModalSize = "auto" | "medium" | "large";
@@ -31,66 +32,40 @@ export default function SheetModal({
   eyebrow,
   children,
   onClose,
-  closeTitle = "Close",
-  size = "medium",
-  scroll = true,
+  size = "large",
 }: SheetModalProps) {
+  const { theme } = useAppSettings();
+
   function stopSheetPress(event: GestureResponderEvent) {
     event.stopPropagation();
   }
 
-  const sheetSizeStyle =
-    size === "large"
-      ? styles.sheetLarge
-      : size === "auto"
-        ? styles.sheetAuto
-        : styles.sheetMedium;
+  const panResponder = useMemo(
+    () =>
+      PanResponder.create({
+        onMoveShouldSetPanResponder: (_, gesture) => Math.abs(gesture.dy) > 10,
+        onPanResponderRelease: (_, gesture) => {
+          if (gesture.dy > 36) onClose();
+        },
+      }),
+    [onClose],
+  );
+
+  const sheetSizeStyle = size === "auto" ? styles.sheetAuto : size === "medium" ? styles.sheetMedium : styles.sheetLarge;
 
   return (
-    <Modal
-      visible={visible}
-      transparent
-      animationType="slide"
-      onRequestClose={onClose}
-    >
-      <Pressable style={styles.backdrop} onPress={onClose}>
-        <KeyboardAvoidingView
-          behavior={Platform.OS === "ios" ? "padding" : undefined}
-          style={styles.keyboardView}
-        >
-          <Pressable
-            style={[styles.sheet, sheetSizeStyle]}
-            onPress={stopSheetPress}
-          >
-            <View style={styles.grabber} />
-
-            {eyebrow ? <Text style={styles.eyebrow}>{eyebrow}</Text> : null}
-            <Text style={styles.title}>{title}</Text>
-
-            {scroll ? (
-              <ScrollView
-                style={styles.scroll}
-                contentContainerStyle={styles.scrollContent}
-                showsVerticalScrollIndicator={false}
-                keyboardShouldPersistTaps="handled"
-                nestedScrollEnabled
-                scrollEventThrottle={16}
-                bounces={false}
-                overScrollMode="never"
-              >
-                {children}
-              </ScrollView>
-            ) : (
-              <View style={styles.staticContent}>{children}</View>
-            )}
-
-            <View style={styles.footer}>
-              <AppButton
-                title={closeTitle}
-                variant="secondary"
-                onPress={onClose}
-              />
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+      <Pressable style={[styles.backdrop, { backgroundColor: theme.backdrop }]} onPress={onClose}>
+        <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={styles.keyboardView}>
+          <Pressable style={[styles.sheet, sheetSizeStyle, { backgroundColor: theme.canvas }]} onPress={stopSheetPress}>
+            <View style={styles.dragArea} {...panResponder.panHandlers}>
+              <View style={[styles.grabber, { backgroundColor: theme.border }]} />
             </View>
+
+            {eyebrow ? <Text style={[styles.eyebrow, { color: theme.body }]}>{eyebrow}</Text> : null}
+            <Text style={[styles.title, { color: theme.text }]}>{title}</Text>
+
+            <View style={styles.staticContent}>{children}</View>
           </Pressable>
         </KeyboardAvoidingView>
       </Pressable>
@@ -102,7 +77,6 @@ const styles = StyleSheet.create({
   backdrop: {
     flex: 1,
     justifyContent: "flex-end",
-    backgroundColor: "rgba(10, 11, 13, 0.45)",
   },
   keyboardView: {
     flex: 1,
@@ -113,52 +87,40 @@ const styles = StyleSheet.create({
     width: "100%",
     borderTopLeftRadius: 28,
     borderTopRightRadius: 28,
-    backgroundColor: colors.canvas,
-    padding: spacing.base,
+    paddingHorizontal: spacing.base,
+    paddingTop: spacing.xs,
+    paddingBottom: spacing.lg,
   },
   sheetAuto: {
     maxHeight: "92%",
   },
   sheetMedium: {
-    minHeight: "58%",
+    minHeight: "64%",
     maxHeight: "92%",
   },
   sheetLarge: {
-    minHeight: "76%",
-    maxHeight: "94%",
+    minHeight: "82%",
+    maxHeight: "96%",
+  },
+  dragArea: {
+    minHeight: 28,
+    alignItems: "center",
+    justifyContent: "center",
   },
   grabber: {
-    alignSelf: "center",
-    width: 42,
-    height: 4,
+    width: 44,
+    height: 5,
     borderRadius: 999,
-    backgroundColor: colors.hairline,
-    marginBottom: spacing.sm,
   },
   eyebrow: {
-    color: colors.body,
     ...typography.caption,
   },
   title: {
     marginTop: spacing.xs,
-    color: colors.ink,
     ...typography.titleMd,
-  },
-  scroll: {
-    flex: 1,
-    marginTop: spacing.base,
-  },
-  scrollContent: {
-    gap: spacing.base,
-    paddingBottom: spacing.base,
   },
   staticContent: {
     gap: spacing.base,
     marginTop: spacing.base,
-  },
-  footer: {
-    paddingTop: spacing.sm,
-    borderTopWidth: 1,
-    borderTopColor: colors.hairlineSoft,
   },
 });

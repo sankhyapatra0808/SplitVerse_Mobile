@@ -13,10 +13,34 @@ export type CurrencyCode =
   | "SGD"
   | "CHF"
   | "CNY";
+
 export type AvatarId = "current" | "initials";
 export type WalletTopUpMethod = "UPI" | "Card" | "Net banking";
 export type ExchangeRatesSource = "live" | "cache" | "stale-cache" | "fallback";
+export type ThemeMode = "light" | "dark";
 export type { AppLanguageCode };
+
+export type ThemeColors = {
+  mode: ThemeMode;
+  primary: string;
+  primaryActive: string;
+  primarySoft: string;
+  background: string;
+  canvas: string;
+  card: string;
+  surface: string;
+  surfaceStrong: string;
+  text: string;
+  body: string;
+  muted: string;
+  border: string;
+  borderSoft: string;
+  onPrimary: string;
+  success: string;
+  danger: string;
+  warning: string;
+  backdrop: string;
+};
 
 export type CurrencyOption = {
   code: CurrencyCode;
@@ -49,6 +73,9 @@ export type AppSettingsValue = {
   avatarId: AvatarId;
   compactMode: boolean;
   privacyMode: boolean;
+  darkMode: boolean;
+  themeMode: ThemeMode;
+  theme: ThemeColors;
   settlementReminders: boolean;
   appCurrency: CurrencyCode;
   detectedCurrency: CurrencyCode;
@@ -65,11 +92,13 @@ export type AppSettingsValue = {
   exchangeRatesExpiresAt: string | null;
   exchangeRatesLoading: boolean;
   exchangeRatesError: string;
+  timeZone: string;
   currencies: CurrencyOption[];
   languages: LanguageOption[];
   setAvatarId: (avatarId: AvatarId) => void;
   setCompactMode: (enabled: boolean) => void;
   setPrivacyMode: (enabled: boolean) => void;
+  setDarkMode: (enabled: boolean) => void;
   setSettlementReminders: (enabled: boolean) => void;
   setAppCurrency: (currency: CurrencyCode) => void;
   setAppLanguage: (language: AppLanguageCode) => void;

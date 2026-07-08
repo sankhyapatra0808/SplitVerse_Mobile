@@ -1,6 +1,5 @@
 import { StyleSheet, Text, type TextProps } from "react-native";
 import { useAppSettings, type CurrencyCode } from "../context/useAppSettings";
-import { colors } from "../theme/tokens";
 
 type AmountTextProps = TextProps & {
   amount?: number | null;
@@ -19,10 +18,18 @@ export default function AmountText({
   style,
   ...props
 }: AmountTextProps) {
-  const { appCurrency, convertCurrency, formatCurrencyValue } = useAppSettings();
+  const { appCurrency, convertCurrency, formatCurrencyValue, theme } = useAppSettings();
   const targetCurrency = currency && currency.length === 3 ? (currency as CurrencyCode) : appCurrency;
   const convertedAmount = convertCurrency(Number(amount || 0), sourceCurrency, targetCurrency);
   const value = formatCurrencyValue(convertedAmount, targetCurrency);
+  const toneColor =
+    tone === "success"
+      ? theme.success
+      : tone === "danger"
+        ? theme.danger
+        : tone === "primary"
+          ? theme.primary
+          : theme.text;
 
   return (
     <Text
@@ -32,9 +39,7 @@ export default function AmountText({
         size === "sm" && styles.sm,
         size === "md" && styles.md,
         size === "lg" && styles.lg,
-        tone === "success" && styles.success,
-        tone === "danger" && styles.danger,
-        tone === "primary" && styles.primary,
+        { color: toneColor },
         style,
       ]}
     >
@@ -45,7 +50,6 @@ export default function AmountText({
 
 const styles = StyleSheet.create({
   base: {
-    color: colors.ink,
     fontWeight: "600",
   },
   sm: {
@@ -60,14 +64,5 @@ const styles = StyleSheet.create({
     fontSize: 30,
     lineHeight: 36,
     fontWeight: "400",
-  },
-  success: {
-    color: colors.success,
-  },
-  danger: {
-    color: colors.danger,
-  },
-  primary: {
-    color: colors.primary,
   },
 });

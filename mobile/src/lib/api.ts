@@ -160,6 +160,29 @@ export async function getDashboardSummary() {
   return apiFetch<DashboardSummary>("/api/dashboard/summary");
 }
 
+export type CreateExpensePayload = {
+  title: string;
+  category?: string | null;
+  amount: number;
+  expenseDate?: string | null;
+};
+
+export type ExpenseItem = {
+  id: string;
+  title: string;
+  category?: string | null;
+  amount: number;
+  expense_date?: string;
+  created_at?: string;
+};
+
+export async function createExpense(payload: CreateExpensePayload) {
+  return apiFetch<{ message: string; expense: ExpenseItem }>("/api/expenses", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
 // friends api
 export type Friend = {
   id: string;

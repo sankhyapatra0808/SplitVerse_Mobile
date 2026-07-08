@@ -1,6 +1,6 @@
-import {
-  LinearGradient } from "expo-linear-gradient";
-import { router } from "expo-router";
+import { LinearGradient } from "expo-linear-gradient";
+import { Ionicons } from "@expo/vector-icons";
+import { router, useFocusEffect } from "expo-router";
 import { useCallback,
   useEffect,
   useMemo,
@@ -13,6 +13,7 @@ import { Alert,
 import AmountText from "../../src/components/AmountText";
 import AppButton from "../../src/components/AppButton";
 import AppCard from "../../src/components/AppCard";
+import AppTextInput from "../../src/components/AppTextInput";
 import Avatar from "../../src/components/Avatar";
 import Screen from "../../src/components/Screen";
 import SpendBarChart, {
@@ -24,15 +25,19 @@ import StatCard from "../../src/components/StatCard";
 import { useAuth } from "../../src/context/AuthContext";
 import { useAppSettings } from "../../src/context/useAppSettings";
 import {
+  createExpense,
   getDashboardSummary,
   getFriendsSummary,
   getSplitRooms,
   getTransactions,
+  type FriendRequest,
   type DashboardSummary,
   type FriendsSummary,
   type SplitRoom,
   type TransactionItem,
 } from "../../src/lib/api";
+import { getNotificationSignature, getSeenNotificationSignature, buildFriendNotifications, buildRoomNotifications } from "../../src/lib/notificationSignals";
+import { getSpendTransactions, getTransactionDisplayAmount, normalizeTransactionsForDisplay } from "../../src/lib/transactionDisplay";
 import { colors, radius, spacing, typography } from "../../src/theme/tokens";
 
 const MONTH_LABELS = [
@@ -50,6 +55,21 @@ const MONTH_LABELS = [
   "Dec",
 ];
 
+let dashboardCache: {
+  summary: DashboardSummary | null;
+  friendsSummary: FriendsSummary | null;
+  rooms: SplitRoom[];
+  transactions: TransactionItem[];
+} | null = null;
+
+function getTodayIsoDate() {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, "0");
+  const day = String(now.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
 function formatMoney(value?: number | null) {
   return `₹${Number(value || 0).toLocaleString("en-IN", {
     maximumFractionDigits: 2,
@@ -62,23 +82,6 @@ function getDateKey(date: Date) {
   const day = String(date.getDate()).padStart(2, "0");
 
   return `${year}-${month}-${day}`;
-}
-
-function isSpendTransaction(transaction: TransactionItem) {
-  const text = `${transaction.status} ${transaction.displayStatus ?? ""} ${
-    transaction.type ?? ""
-  } ${transaction.title ?? ""}`.toLowerCase();
-
-  if (
-    text.includes("top-up") ||
-    text.includes("added") ||
-    text.includes("credit") ||
-    text.includes("received")
-  ) {
-    return false;
-  }
-
-  return Number(transaction.amount || 0) !== 0;
 }
 
 function buildWeeklySpend(transactions: TransactionItem[]): SpendGraphPoint[] {
@@ -102,12 +105,8 @@ function buildWeeklySpend(transactions: TransactionItem[]): SpendGraphPoint[] {
 
   const dayMap = new Map(days.map((day) => [day.key, day]));
 
-  transactions.forEach((transaction) => {
-    if (!isSpendTransaction(transaction)) {
-      return;
-    }
-
-    const createdAt = new Date(transaction.createdAt);
+  getSpendTransactions(transactions).forEach((transaction) => {
+    const createdAt = new Date(transaction.createdAt || transaction.displayDate || new Date().toISOString());
 
     if (Number.isNaN(createdAt.getTime())) {
       return;
@@ -120,7 +119,7 @@ function buildWeeklySpend(transactions: TransactionItem[]): SpendGraphPoint[] {
       return;
     }
 
-    day.amount += Math.abs(Number(transaction.amount || 0));
+    day.amount += Math.abs(getTransactionDisplayAmount(transaction));
   });
 
   return days.map((day) => ({
@@ -147,15 +146,18 @@ function buildYearlySpend(summary: DashboardSummary | null): SpendGraphPoint[] {
 
 export default function Dashboard() {
   const { user, dbUser } = useAuth();
-  const { formatCurrency } = useAppSettings();
-  const [summary, setSummary] = useState<DashboardSummary | null>(null);
-  const [friendsSummary, setFriendsSummary] = useState<FriendsSummary | null>(
-    null,
-  );
-  const [rooms, setRooms] = useState<SplitRoom[]>([]);
-  const [transactions, setTransactions] = useState<TransactionItem[]>([]);
+  const { formatCurrency, theme } = useAppSettings();
+  const [summary, setSummary] = useState<DashboardSummary | null>(dashboardCache?.summary ?? null);
+  const [friendsSummary, setFriendsSummary] = useState<FriendsSummary | null>(dashboardCache?.friendsSummary ?? null);
+  const [rooms, setRooms] = useState<SplitRoom[]>(dashboardCache?.rooms ?? []);
+  const [transactions, setTransactions] = useState<TransactionItem[]>(dashboardCache?.transactions ?? []);
   const [graphMode, setGraphMode] = useState<SpendGraphMode>("yearly");
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(!dashboardCache);
+  const [expenseTitle, setExpenseTitle] = useState("");
+  const [expenseCategory, setExpenseCategory] = useState("General");
+  const [expenseAmount, setExpenseAmount] = useState("");
+  const [savingExpense, setSavingExpense] = useState(false);
+  const [hasUnreadNotifications, setHasUnreadNotifications] = useState(false);
 
   const displayName =
     dbUser?.display_name || dbUser?.name || user?.displayName || "SplitVerse user";
@@ -201,9 +203,9 @@ export default function Dashboard() {
     0,
   );
 
-  const loadDashboardData = useCallback(async () => {
+  const loadDashboardData = useCallback(async (silent = false) => {
     try {
-      setLoading(true);
+      if (!silent && !dashboardCache) setLoading(true);
 
       const [dashboardData, friendsData, roomsData, transactionData] =
         await Promise.all([
@@ -213,32 +215,108 @@ export default function Dashboard() {
           getTransactions({ limit: 1000 }),
         ]);
 
+      const displayTransactions = normalizeTransactionsForDisplay(transactionData.transactions ?? []);
+      const notificationItems = [
+        ...buildFriendNotifications((friendsData.receivedRequests ?? []) as FriendRequest[]),
+        ...buildRoomNotifications(roomsData.rooms ?? []),
+        ...(Number(dashboardData.walletHealth?.receivable || 0) > 0
+          ? [{
+              id: `wallet-incoming-${Number(dashboardData.walletHealth?.receivable || 0).toFixed(2)}`,
+              title: "Money to receive",
+              detail: "You have pending incoming settlements.",
+              amount: Number(dashboardData.walletHealth?.receivable || 0),
+              kind: "wallet" as const,
+              route: "/(tabs)/wallet" as const,
+            }]
+          : []),
+        ...(Number(dashboardData.walletHealth?.payable || 0) > 0
+          ? [{
+              id: `wallet-outgoing-${Number(dashboardData.walletHealth?.payable || 0).toFixed(2)}`,
+              title: "Money to pay",
+              detail: "You have pending outgoing settlements.",
+              amount: Number(dashboardData.walletHealth?.payable || 0),
+              kind: "wallet" as const,
+              route: "/(tabs)/wallet" as const,
+            }]
+          : []),
+      ];
+      const notificationSignature = getNotificationSignature(notificationItems);
+      const seenNotificationSignature = await getSeenNotificationSignature();
+
+      dashboardCache = {
+        summary: dashboardData,
+        friendsSummary: friendsData,
+        rooms: roomsData.rooms,
+        transactions: displayTransactions,
+      };
       setSummary(dashboardData);
       setFriendsSummary(friendsData);
       setRooms(roomsData.rooms);
-      setTransactions(transactionData.transactions);
+      setTransactions(displayTransactions);
+      setHasUnreadNotifications(Boolean(notificationSignature && notificationSignature !== seenNotificationSignature));
     } catch (error) {
-      Alert.alert(
-        "Dashboard failed",
-        error instanceof Error ? error.message : "Could not load dashboard",
-      );
+      if (!silent) {
+        Alert.alert(
+          "Dashboard failed",
+          error instanceof Error ? error.message : "Could not load dashboard",
+        );
+      }
     } finally {
       setLoading(false);
     }
   }, []);
 
   useEffect(() => {
-    void loadDashboardData();
+    void loadDashboardData(Boolean(dashboardCache));
   }, [loadDashboardData]);
+
+  useFocusEffect(
+    useCallback(() => {
+      void loadDashboardData(true);
+    }, [loadDashboardData]),
+  );
+
+
+  async function handleCreateExpense() {
+    const amount = Number(expenseAmount);
+    if (!expenseTitle.trim()) {
+      Alert.alert("Expense title required", "Enter what you spent on today.");
+      return;
+    }
+    if (!Number.isFinite(amount) || amount <= 0) {
+      Alert.alert("Invalid amount", "Enter a valid expense amount.");
+      return;
+    }
+
+    try {
+      setSavingExpense(true);
+      await createExpense({
+        title: expenseTitle.trim(),
+        category: expenseCategory.trim() || "General",
+        amount,
+        expenseDate: getTodayIsoDate(),
+      });
+      setExpenseTitle("");
+      setExpenseCategory("General");
+      setExpenseAmount("");
+      await loadDashboardData(true);
+      Alert.alert("Expense added", "Today's expense, graph, and transaction history were updated.");
+    } catch (error) {
+      Alert.alert("Expense failed", error instanceof Error ? error.message : "Could not add expense.");
+    } finally {
+      setSavingExpense(false);
+    }
+  }
 
   return (
     <Screen
       refreshing={loading}
-      onRefresh={loadDashboardData}
-      contentStyle={styles.screen}
+      onRefresh={() => loadDashboardData()}
+      safeBackgroundColor={theme.primary}
+      contentStyle={[styles.screen, { backgroundColor: theme.background }]}
     >
       <LinearGradient
-        colors={[colors.primary, colors.primaryActive]}
+        colors={[theme.primary, theme.primaryActive]}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
         style={styles.hero}
@@ -250,10 +328,11 @@ export default function Dashboard() {
           </View>
 
           <Pressable
-            style={styles.profileShortcut}
-            onPress={() => router.push("/(tabs)/profile")}
+            style={[styles.notificationButton, { backgroundColor: "rgba(255,255,255,0.16)", borderColor: "rgba(255,255,255,0.28)" }]}
+            onPress={() => router.push("/(tabs)/notifications")}
           >
-            <Text style={styles.profileShortcutText}>Profile</Text>
+            <Ionicons name="notifications-outline" size={22} color="#fff" />
+            {hasUnreadNotifications ? <View style={styles.notificationDot} /> : null}
           </Pressable>
         </View>
 
@@ -280,20 +359,20 @@ export default function Dashboard() {
         </View>
       </LinearGradient>
 
-      <View style={styles.identityStats}>
+      <View style={[styles.identityStats, { borderColor: theme.border, backgroundColor: theme.card }]}>
         <View style={styles.identityStat}>
           <Text style={styles.identityValue}>{friendCount}</Text>
           <Text style={styles.identityLabel}>Friends</Text>
         </View>
 
-        <View style={styles.identityDivider} />
+        <View style={[styles.identityDivider, { backgroundColor: theme.borderSoft }]} />
 
         <View style={styles.identityStat}>
           <Text style={styles.identityValue}>{roomCount}</Text>
           <Text style={styles.identityLabel}>Rooms</Text>
         </View>
 
-        <View style={styles.identityDivider} />
+        <View style={[styles.identityDivider, { backgroundColor: theme.borderSoft }]} />
 
         <View style={styles.identityStat}>
           <Text
@@ -382,21 +461,30 @@ export default function Dashboard() {
       </AppCard>
 
       <AppCard style={styles.quickCard}>
-        <Text style={styles.cardEyebrow}>Quick actions</Text>
-        <Text style={styles.cardTitle}>Keep your splits updated</Text>
+        <Text style={styles.cardEyebrow}>Expense form</Text>
+        <Text style={styles.cardTitle}>Did you spend anything today?</Text>
+        <Text style={styles.cardText}>Add the expense here and it will update today's expense, graph data, and transaction history.</Text>
 
-        <View style={styles.actions}>
-          <AppButton
-            title="Profile and friends"
-            variant="secondary"
-            onPress={() => router.push("/(tabs)/profile")}
-          />
-          <AppButton
-            title="View wallet"
-            variant="secondary"
-            onPress={() => router.push("/(tabs)/wallet")}
-          />
-        </View>
+        <AppTextInput
+          label="Expense title"
+          value={expenseTitle}
+          onChangeText={setExpenseTitle}
+          placeholder="Lunch, fuel, groceries"
+        />
+        <AppTextInput
+          label="Category"
+          value={expenseCategory}
+          onChangeText={setExpenseCategory}
+          placeholder="Food"
+        />
+        <AppTextInput
+          label="Amount"
+          value={expenseAmount}
+          onChangeText={setExpenseAmount}
+          keyboardType="decimal-pad"
+          placeholder="250"
+        />
+        <AppButton title={savingExpense ? "Adding expense" : "Add expense"} loading={savingExpense} onPress={handleCreateExpense} />
       </AppCard>
     </Screen>
   );
@@ -434,17 +522,24 @@ const styles = StyleSheet.create({
     lineHeight: 38,
     letterSpacing: -0.7,
   },
-  profileShortcut: {
-    minHeight: 40,
+  notificationButton: {
+    minHeight: 42,
+    minWidth: 42,
+    borderWidth: 1,
     borderRadius: radius.pill,
     backgroundColor: "rgba(255,255,255,0.16)",
     paddingHorizontal: spacing.base,
     alignItems: "center",
     justifyContent: "center",
   },
-  profileShortcutText: {
-    color: colors.onPrimary,
-    ...typography.caption,
+  notificationDot: {
+    position: "absolute",
+    right: 11,
+    top: 10,
+    width: 8,
+    height: 8,
+    borderRadius: 8,
+    backgroundColor: "#ff5a5f",
   },
   profileBlock: {
     flexDirection: "row",

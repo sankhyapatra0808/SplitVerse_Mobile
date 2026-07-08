@@ -7,6 +7,7 @@ import AppCard from "../../src/components/AppCard";
 import AppTextInput from "../../src/components/AppTextInput";
 import Avatar from "../../src/components/Avatar";
 import EmptyState from "../../src/components/EmptyState";
+import DropdownSelect from "../../src/components/DropdownSelect";
 import LoadingState from "../../src/components/LoadingState";
 import Screen from "../../src/components/Screen";
 import SheetModal from "../../src/components/SheetModal";
@@ -78,6 +79,8 @@ export default function Settings() {
     appCurrency,
     appLanguage,
     compactMode,
+    darkMode,
+    theme,
     confirmBeforeWalletPayment,
     converterAmount,
     converterFrom,
@@ -100,6 +103,7 @@ export default function Settings() {
     setAppLanguage,
     setAvatarId,
     setCompactMode,
+    setDarkMode,
     setConfirmBeforeWalletPayment,
     setConverterAmount,
     setConverterFrom,
@@ -195,13 +199,13 @@ export default function Settings() {
 
   async function saveProfileDisplay(
     nextAvatarId = avatarId,
-    nextPhotoUrl = profilePhotoUrl.trim(),
+    nextPhotoUrl = profilePhotoUrl.trim() || dbUser?.profile_photo_url || dbUser?.display_photo_url || dbUser?.photo_url || "",
   ) {
     try {
       setProfileSaving(true);
       const response = await updateProfileSettings({
         avatarMode: nextAvatarId === "initials" ? "initials" : "photo",
-        profilePhotoUrl: nextPhotoUrl || null,
+        profilePhotoUrl: nextPhotoUrl || dbUser?.profile_photo_url || dbUser?.display_photo_url || dbUser?.photo_url || null,
       });
       setAvatarId(nextAvatarId);
       setProfilePhotoUrl("");
@@ -225,7 +229,7 @@ export default function Settings() {
   async function handleAvatarModeChange(useInitials: boolean) {
     const nextAvatarId = useInitials ? "initials" : "current";
     setAvatarId(nextAvatarId);
-    await saveProfileDisplay(nextAvatarId, "");
+    await saveProfileDisplay(nextAvatarId, dbUser?.profile_photo_url || dbUser?.display_photo_url || dbUser?.photo_url || "");
   }
 
   async function handlePickProfilePhoto() {
@@ -467,13 +471,13 @@ export default function Settings() {
   }
 
   return (
-    <Screen contentStyle={styles.screen}>
+    <Screen contentStyle={[styles.screen, { backgroundColor: theme.background }]}>
       <View style={styles.topBar}>
         <Pressable
-          style={styles.iconButton}
+          style={[styles.iconButton, { backgroundColor: theme.surfaceStrong }]}
           onPress={() => router.push("/(tabs)/profile")}
         >
-          <Text style={styles.iconButtonText}>Back</Text>
+          <Text style={[styles.iconButtonText, { color: theme.text }]}>Back</Text>
         </Pressable>
       </View>
 
@@ -495,7 +499,7 @@ export default function Settings() {
           onValueChange={(value) => void handleAvatarModeChange(value)}
           disabled={profileSaving}
         />
-        <View style={styles.profilePreviewRow}>
+        <View style={[styles.profilePreviewRow, { borderColor: theme.border, backgroundColor: theme.surface }]}>
           <Avatar
             name={displayName}
             email={email}
@@ -539,31 +543,29 @@ export default function Settings() {
         <Text style={styles.cardText}>
           Use this currency and language across the app.
         </Text>
-        <Text style={styles.optionLabel}>Application currency</Text>
-        <View style={styles.chipRow}>
-          {currencies.map((currency) => (
-            <Chip
-              key={currency.code}
-              label={currency.code}
-              active={appCurrency === currency.code}
-              onPress={() => void handleAppCurrencyChange(currency.code)}
-            />
-          ))}
-        </View>
-        <Text style={styles.optionLabel}>Application language</Text>
-        <View style={styles.chipRow}>
-          {languages.map((language) => (
-            <Chip
-              key={language.code}
-              label={language.nativeLabel}
-              active={appLanguage === language.code}
-              onPress={() => void handleAppLanguageChange(language.code)}
-            />
-          ))}
-        </View>
-        <View style={styles.previewBox}>
-          <Text style={styles.summaryLabel}>Example display</Text>
-          <Text style={styles.previewValue}>{formatCurrency(2480)}</Text>
+        <DropdownSelect
+          label="Application currency"
+          value={appCurrency}
+          options={currencies.map((currency) => ({
+            label: `${currency.code} · ${currency.label}`,
+            value: currency.code,
+            helper: currency.countryHint,
+          }))}
+          onChange={(currency) => void handleAppCurrencyChange(currency)}
+        />
+        <DropdownSelect
+          label="Application language"
+          value={appLanguage}
+          options={languages.map((language) => ({
+            label: `${language.nativeLabel} · ${language.label}`,
+            value: language.code,
+            helper: language.locale,
+          }))}
+          onChange={(language) => void handleAppLanguageChange(language)}
+        />
+        <View style={[styles.previewBox, { borderColor: theme.border, backgroundColor: theme.surface }]}>
+          <Text style={[styles.summaryLabel, { color: theme.body }]}>Example display</Text>
+          <Text style={[styles.previewValue, { color: theme.text }]}>{formatCurrency(2480)}</Text>
         </View>
       </AppCard>
 
@@ -576,31 +578,21 @@ export default function Settings() {
           onChangeText={(value) => setConverterAmount(Number(value || 0))}
           keyboardType="decimal-pad"
         />
-        <Text style={styles.optionLabel}>From</Text>
-        <View style={styles.chipRow}>
-          {currencies.map((currency) => (
-            <Chip
-              key={currency.code}
-              label={currency.code}
-              active={converterFrom === currency.code}
-              onPress={() => setConverterFrom(currency.code)}
-            />
-          ))}
-        </View>
-        <Text style={styles.optionLabel}>To</Text>
-        <View style={styles.chipRow}>
-          {currencies.map((currency) => (
-            <Chip
-              key={currency.code}
-              label={currency.code}
-              active={converterTo === currency.code}
-              onPress={() => setConverterTo(currency.code)}
-            />
-          ))}
-        </View>
-        <View style={styles.previewBox}>
-          <Text style={styles.summaryLabel}>Converted amount</Text>
-          <Text style={styles.previewValue}>
+        <DropdownSelect
+          label="From"
+          value={converterFrom}
+          options={currencies.map((currency) => ({ label: `${currency.code} · ${currency.label}`, value: currency.code }))}
+          onChange={setConverterFrom}
+        />
+        <DropdownSelect
+          label="To"
+          value={converterTo}
+          options={currencies.map((currency) => ({ label: `${currency.code} · ${currency.label}`, value: currency.code }))}
+          onChange={setConverterTo}
+        />
+        <View style={[styles.previewBox, { borderColor: theme.border, backgroundColor: theme.surface }]}>
+          <Text style={[styles.summaryLabel, { color: theme.body }]}>Converted amount</Text>
+          <Text style={[styles.previewValue, { color: theme.text }]}>
             {formatCurrencyValue(convertedAmount, converterTo)}
           </Text>
         </View>
@@ -628,22 +620,23 @@ export default function Settings() {
           value={compactMode}
           onValueChange={setCompactMode}
         />
+        <SettingSwitch
+          title="Dark mode"
+          description="Use black surfaces, grey cards, and orange primary actions."
+          value={darkMode}
+          onValueChange={setDarkMode}
+        />
       </AppCard>
 
       <AppCard style={styles.card}>
         <Text style={styles.cardEyebrow}>Wallet defaults</Text>
         <Text style={styles.cardTitle}>Payment safety</Text>
-        <Text style={styles.optionLabel}>Default wallet top-up method</Text>
-        <View style={styles.chipRow}>
-          {topUpMethods.map((method) => (
-            <Chip
-              key={method}
-              label={method}
-              active={defaultTopUpMethod === method}
-              onPress={() => setDefaultTopUpMethod(method)}
-            />
-          ))}
-        </View>
+        <DropdownSelect
+          label="Default wallet top-up method"
+          value={defaultTopUpMethod}
+          options={topUpMethods.map((method) => ({ label: method, value: method }))}
+          onChange={setDefaultTopUpMethod}
+        />
         <SettingSwitch
           title="Ask before wallet payment"
           description="Show a confirmation before paying split-room dues from wallet."
@@ -751,7 +744,7 @@ export default function Settings() {
         ) : (
           <View style={styles.list}>
             {visibleFriends.map((friend) => (
-              <View style={styles.friendRow} key={friend.id}>
+              <View style={[styles.friendRow, { borderColor: theme.border, backgroundColor: theme.surface }]} key={friend.id}>
                 <Avatar
                   name={friend.name}
                   email={friend.email}
@@ -765,13 +758,11 @@ export default function Settings() {
                 <View style={styles.rowCopy}>
                   <Text style={styles.rowTitle}>{getFriendLabel(friend)}</Text>
                   <Text style={styles.rowSubtext}>
-                    {friend.email} ·{" "}
                     {formatFriendshipAge(friend.friendship_days)}
                   </Text>
                 </View>
                 <AppButton
                   title={deletingFriendId === friend.id ? "Removing" : "Remove"}
-                  variant="secondary"
                   loading={deletingFriendId === friend.id}
                   onPress={() => void handleDeleteFriend(friend)}
                   style={styles.smallButton}
@@ -886,12 +877,16 @@ type ChipProps = {
 };
 
 function Chip({ label, active, onPress }: ChipProps) {
+  const { theme } = useAppSettings();
   return (
     <Pressable
-      style={[styles.chip, active && styles.activeChip]}
+      style={[
+        styles.chip,
+        { borderColor: active ? theme.primary : theme.border, backgroundColor: active ? theme.primary : theme.surface },
+      ]}
       onPress={onPress}
     >
-      <Text style={[styles.chipText, active && styles.activeChipText]}>
+      <Text style={[styles.chipText, { color: active ? theme.onPrimary : theme.text }]}>
         {label}
       </Text>
     </Pressable>
@@ -913,18 +908,19 @@ function SettingSwitch({
   onValueChange,
   disabled,
 }: SettingSwitchProps) {
+  const { theme } = useAppSettings();
   return (
-    <View style={styles.switchRow}>
+    <View style={[styles.switchRow, { borderColor: theme.border, backgroundColor: theme.surface }]}>
       <View style={styles.switchCopy}>
-        <Text style={styles.switchTitle}>{title}</Text>
-        <Text style={styles.switchDescription}>{description}</Text>
+        <Text style={[styles.switchTitle, { color: theme.text }]}>{title}</Text>
+        <Text style={[styles.switchDescription, { color: theme.body }]}>{description}</Text>
       </View>
       <Switch
         value={value}
         onValueChange={onValueChange}
         disabled={disabled}
-        trackColor={{ false: colors.hairlineSoft, true: colors.primary }}
-        thumbColor={colors.canvas}
+        trackColor={{ false: theme.borderSoft, true: theme.primary }}
+        thumbColor={theme.canvas}
       />
     </View>
   );

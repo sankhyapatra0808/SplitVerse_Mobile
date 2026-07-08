@@ -1,8 +1,6 @@
-import {
-  StyleSheet,
-  View,
-} from "react-native";
-import { colors, radius, spacing, typography } from "../theme/tokens";
+import { StyleSheet, View } from "react-native";
+import { radius, spacing, typography } from "../theme/tokens";
+import { useAppSettings } from "../context/useAppSettings";
 import Text from "./LocalizedText";
 
 type MiniBarChartProps = {
@@ -11,18 +9,15 @@ type MiniBarChartProps = {
   data: number[];
 };
 
-export default function MiniBarChart({
-  title,
-  valueLabel,
-  data,
-}: MiniBarChartProps) {
+export default function MiniBarChart({ title, valueLabel, data }: MiniBarChartProps) {
+  const { theme } = useAppSettings();
   const max = Math.max(...data, 1);
 
   return (
-    <View style={styles.card}>
+    <View style={[styles.card, { borderColor: theme.border, backgroundColor: theme.card }]}> 
       <View style={styles.head}>
-        <Text style={styles.title}>{title}</Text>
-        {valueLabel ? <Text style={styles.value}>{valueLabel}</Text> : null}
+        <Text style={[styles.title, { color: theme.text }]}>{title}</Text>
+        {valueLabel ? <Text style={[styles.value, { color: theme.body }]}>{valueLabel}</Text> : null}
       </View>
 
       <View style={styles.chart}>
@@ -30,8 +25,8 @@ export default function MiniBarChart({
           const height = Math.max(10, (item / max) * 96);
 
           return (
-            <View style={styles.barTrack} key={`${item}-${index}`}>
-              <View style={[styles.bar, { height }]} />
+            <View style={[styles.barTrack, { backgroundColor: theme.surfaceStrong }]} key={`${item}-${index}`}>
+              <View style={[styles.bar, { height, backgroundColor: theme.primary }]} />
             </View>
           );
         })}
@@ -44,20 +39,16 @@ const styles = StyleSheet.create({
   card: {
     gap: spacing.base,
     borderWidth: 1,
-    borderColor: colors.hairlineSoft,
     borderRadius: radius.xl,
-    backgroundColor: colors.canvas,
     padding: spacing.base,
   },
   head: {
     gap: spacing.xs,
   },
   title: {
-    color: colors.ink,
     ...typography.titleMd,
   },
   value: {
-    color: colors.body,
     ...typography.bodySm,
   },
   chart: {
@@ -71,11 +62,9 @@ const styles = StyleSheet.create({
     height: "100%",
     justifyContent: "flex-end",
     borderRadius: radius.pill,
-    backgroundColor: colors.surfaceStrong,
     overflow: "hidden",
   },
   bar: {
     borderRadius: radius.pill,
-    backgroundColor: colors.primary,
   },
 });

@@ -1,9 +1,6 @@
-import {
-  StyleSheet,
-  View,
-  type ViewProps,
-} from "react-native";
-import { colors, spacing, typography } from "../theme/tokens";
+import { StyleSheet, View, type ViewProps } from "react-native";
+import { spacing } from "../theme/tokens";
+import { useAppSettings } from "../context/useAppSettings";
 import Text from "./LocalizedText";
 
 type ProfileMetricProps = ViewProps & {
@@ -17,12 +14,19 @@ export default function ProfileMetric({
   style,
   ...props
 }: ProfileMetricProps) {
+  const { theme } = useAppSettings();
+
   return (
     <View {...props} style={[styles.metric, style]}>
-      <Text style={styles.value} numberOfLines={1}>
+      <Text
+        style={[styles.value, { color: theme.text }]}
+        numberOfLines={1}
+        adjustsFontSizeToFit
+        minimumFontScale={0.58}
+      >
         {value}
       </Text>
-      <Text style={styles.label} numberOfLines={1}>
+      <Text style={[styles.label, { color: theme.body }]} numberOfLines={1}>
         {label}
       </Text>
     </View>
@@ -32,17 +36,18 @@ export default function ProfileMetric({
 const styles = StyleSheet.create({
   metric: {
     flex: 1,
+    minWidth: 0,
     alignItems: "center",
     gap: spacing.xs,
   },
   value: {
-    color: colors.ink,
     fontSize: 18,
     fontWeight: "700",
     lineHeight: 22,
   },
   label: {
-    color: colors.body,
-    ...typography.caption,
+    fontSize: 12,
+    fontWeight: "600",
+    lineHeight: 18,
   },
 });

@@ -1,6 +1,6 @@
 import { router } from "expo-router";
-import { useEffect, useState } from "react";
-import { Alert, Pressable, StyleSheet, View } from "react-native";
+import { useState } from "react";
+import { Alert, Image, Pressable, StyleSheet, View } from "react-native";
 import AppButton from "../../src/components/AppButton";
 import AppCard from "../../src/components/AppCard";
 import AppTextInput from "../../src/components/AppTextInput";
@@ -165,7 +165,7 @@ export default function Login() {
           onPress={handleGoogleLogin}
           disabled={googleSubmitting}
         >
-          <Text style={styles.googleMark}>G</Text>
+          <Image source={require("../../assets/google-logo.png")} style={styles.googleLogo} resizeMode="contain" />
           <Text style={styles.googleText}>
             {googleSubmitting ? "Signing in" : "Continue with Google"}
           </Text>
@@ -255,10 +255,9 @@ const styles = StyleSheet.create({
     borderRadius: radius.pill,
     backgroundColor: colors.canvas,
   },
-  googleMark: {
-    color: colors.primary,
-    fontSize: 18,
-    fontWeight: "800",
+  googleLogo: {
+    width: 22,
+    height: 22,
   },
   googleText: {
     color: colors.ink,

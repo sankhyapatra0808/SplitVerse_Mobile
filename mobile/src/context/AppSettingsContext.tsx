@@ -12,10 +12,56 @@ import {
   type ExchangeRatesSource,
   type LanguageOption,
   type NotificationPreferences,
+  type ThemeColors,
+  type ThemeMode,
   type WalletTopUpMethod,
 } from "./useAppSettings";
 
 const settingsStorageKey = "splitverse-app-settings";
+
+const lightTheme: ThemeColors = {
+  mode: "light",
+  primary: "#0052ff",
+  primaryActive: "#003ecc",
+  primarySoft: "#e8f0ff",
+  background: "#f7f7f7",
+  canvas: "#ffffff",
+  card: "#ffffff",
+  surface: "#f7f7f7",
+  surfaceStrong: "#eef0f3",
+  text: "#0a0b0d",
+  body: "#5b616e",
+  muted: "#7c828a",
+  border: "#dee1e6",
+  borderSoft: "#eef0f3",
+  onPrimary: "#ffffff",
+  success: "#05b169",
+  danger: "#cf202f",
+  warning: "#f4b000",
+  backdrop: "rgba(10, 11, 13, 0.45)",
+};
+
+const darkTheme: ThemeColors = {
+  mode: "dark",
+  primary: "#ff8a1f",
+  primaryActive: "#e66f00",
+  primarySoft: "rgba(255, 138, 31, 0.16)",
+  background: "#050608",
+  canvas: "#0b0d10",
+  card: "#15171c",
+  surface: "#0b0d10",
+  surfaceStrong: "#252932",
+  text: "#f4f5f7",
+  body: "#c2c7d0",
+  muted: "#8b929f",
+  border: "#2a2f39",
+  borderSoft: "#20242c",
+  onPrimary: "#111111",
+  success: "#24d58a",
+  danger: "#ff6875",
+  warning: "#ffc857",
+  backdrop: "rgba(0, 0, 0, 0.68)",
+};
 
 const currencies: CurrencyOption[] = [
   { code: "INR", label: "Indian Rupee", symbol: "₹", rateFromInr: 1, countryHint: "India" },
@@ -55,6 +101,7 @@ type StoredSettings = Partial<{
   avatarId: AvatarId;
   compactMode: boolean;
   privacyMode: boolean;
+  darkMode: boolean;
   settlementReminders: boolean;
   appCurrency: CurrencyCode;
   appLanguage: AppLanguageCode;
@@ -65,6 +112,10 @@ type StoredSettings = Partial<{
   confirmBeforeWalletPayment: boolean;
   notificationPreferences: Partial<NotificationPreferences>;
 }>;
+
+function getDeviceTimeZone() {
+  return Intl.DateTimeFormat().resolvedOptions().timeZone || "Asia/Kolkata";
+}
 
 function isCurrencyCode(value: unknown): value is CurrencyCode {
   return currencies.some((currency) => currency.code === value);
@@ -112,7 +163,10 @@ function getCurrencyFractionDigits(currencyCode: CurrencyCode) {
 }
 
 function getStaticExchangeRates(): Record<CurrencyCode, number> {
-  return currencies.reduce((rates, currency) => ({ ...rates, [currency.code]: currency.rateFromInr }), {} as Record<CurrencyCode, number>);
+  return currencies.reduce(
+    (rates, currency) => ({ ...rates, [currency.code]: currency.rateFromInr }),
+    {} as Record<CurrencyCode, number>,
+  );
 }
 
 function normalizeExchangeRates(rates: Record<string, number> | undefined): Record<CurrencyCode, number> {
@@ -125,14 +179,58 @@ function normalizeExchangeRates(rates: Record<string, number> | undefined): Reco
   return nextRates;
 }
 
+function dateLooksUsable(date: Date) {
+  const year = date.getFullYear();
+  const currentYear = new Date().getFullYear();
+  return !Number.isNaN(date.getTime()) && year >= 2020 && year <= currentYear + 1;
+}
+
+function parseAppDate(value?: string | null) {
+  if (!value) return null;
+  const raw = String(value).trim();
+  if (!raw) return null;
+
+  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) {
+    const date = new Date(`${raw}T00:00:00+05:30`);
+    return dateLooksUsable(date) ? date : null;
+  }
+
+  const dmy = raw.match(/^(\d{1,2})[-\s/]([A-Za-z]{3,}|\d{1,2})[-\s/](\d{2,4})(?:[,\s]+(\d{1,2}:\d{2}(?::\d{2})?\s?(?:AM|PM|am|pm)?))?$/);
+  if (dmy) {
+    const monthNames: Record<string, number> = {
+      jan: 0, january: 0, feb: 1, february: 1, mar: 2, march: 2,
+      apr: 3, april: 3, may: 4, jun: 5, june: 5, jul: 6, july: 6,
+      aug: 7, august: 7, sep: 8, sept: 8, september: 8, oct: 9, october: 9,
+      nov: 10, november: 10, dec: 11, december: 11,
+    };
+    const day = Number(dmy[1]);
+    const monthToken = dmy[2].toLowerCase();
+    const month = /^\d+$/.test(monthToken) ? Number(monthToken) - 1 : monthNames[monthToken];
+    let year = Number(dmy[3]);
+    if (year < 100) year += year < 70 ? 2000 : 1900;
+    if (Number.isInteger(day) && Number.isInteger(month) && Number.isInteger(year)) {
+      const date = new Date(Date.UTC(year, month, day));
+      if (dateLooksUsable(date)) return date;
+    }
+  }
+
+  const normalized = raw.replace(" ", "T");
+  const hasTimezone = /z$|[+-]\d{2}:?\d{2}$/i.test(normalized);
+  const parsed = new Date(hasTimezone ? normalized : `${normalized}Z`);
+  return dateLooksUsable(parsed) ? parsed : null;
+}
+
 export function AppSettingsProvider({ children }: { children: ReactNode }) {
   const detectedCurrency: CurrencyCode = "INR";
   const detectedLanguage: AppLanguageCode = "en";
+  const timeZone = getDeviceTimeZone();
 
   const [settingsLoaded, setSettingsLoaded] = useState(false);
   const [avatarId, setAvatarIdState] = useState<AvatarId>("current");
   const [compactMode, setCompactModeState] = useState(false);
   const [privacyMode, setPrivacyModeState] = useState(false);
+  const defaultDarkMode = true;
+  const [darkMode, setDarkModeState] = useState(defaultDarkMode);
   const [settlementReminders, setSettlementRemindersState] = useState(true);
   const [appCurrency, setAppCurrencyState] = useState<CurrencyCode>(detectedCurrency);
   const [appLanguage, setAppLanguageState] = useState<AppLanguageCode>(detectedLanguage);
@@ -157,6 +255,7 @@ export function AppSettingsProvider({ children }: { children: ReactNode }) {
       setAvatarIdState(isAvatarId(storedSettings.avatarId) ? storedSettings.avatarId : "current");
       setCompactModeState(storedSettings.compactMode ?? false);
       setPrivacyModeState(storedSettings.privacyMode ?? false);
+      setDarkModeState(storedSettings.darkMode ?? defaultDarkMode);
       setSettlementRemindersState(storedSettings.settlementReminders ?? true);
       setAppCurrencyState(isCurrencyCode(storedSettings.appCurrency) ? storedSettings.appCurrency : detectedCurrency);
       setAppLanguageState(isAppLanguageCode(storedSettings.appLanguage) ? storedSettings.appLanguage : detectedLanguage);
@@ -211,6 +310,7 @@ export function AppSettingsProvider({ children }: { children: ReactNode }) {
         avatarId,
         compactMode,
         privacyMode,
+        darkMode,
         settlementReminders,
         appCurrency,
         appLanguage,
@@ -223,7 +323,7 @@ export function AppSettingsProvider({ children }: { children: ReactNode }) {
         ...updates,
       });
     },
-    [appCurrency, appLanguage, avatarId, compactMode, confirmBeforeWalletPayment, converterAmount, converterFrom, converterTo, defaultTopUpMethod, notificationPreferences, privacyMode, settlementReminders, settingsLoaded],
+    [appCurrency, appLanguage, avatarId, compactMode, confirmBeforeWalletPayment, converterAmount, converterFrom, converterTo, darkMode, defaultTopUpMethod, notificationPreferences, privacyMode, settlementReminders, settingsLoaded],
   );
 
   const clearLocalAppSettings = useCallback(async () => {
@@ -231,6 +331,7 @@ export function AppSettingsProvider({ children }: { children: ReactNode }) {
     setAvatarIdState("current");
     setCompactModeState(false);
     setPrivacyModeState(false);
+    setDarkModeState(defaultDarkMode);
     setSettlementRemindersState(true);
     setAppCurrencyState(detectedCurrency);
     setAppLanguageState(detectedLanguage);
@@ -240,19 +341,26 @@ export function AppSettingsProvider({ children }: { children: ReactNode }) {
     setDefaultTopUpMethodState("UPI");
     setConfirmBeforeWalletPaymentState(true);
     setNotificationPreferencesState(defaultNotificationPreferences);
-  }, []);
+  }, [detectedCurrency, detectedLanguage]);
 
-  const currenciesWithLiveRates = useMemo<CurrencyOption[]>(() => currencies.map((currency) => ({ ...currency, rateFromInr: exchangeRates[currency.code] ?? currency.rateFromInr })), [exchangeRates]);
+  const currenciesWithLiveRates = useMemo<CurrencyOption[]>(
+    () => currencies.map((currency) => ({ ...currency, rateFromInr: exchangeRates[currency.code] ?? currency.rateFromInr })),
+    [exchangeRates],
+  );
 
   const value = useMemo<AppSettingsValue>(() => {
     const activeLocale = getLanguage(appLanguage).locale;
+    const themeMode: ThemeMode = darkMode ? "dark" : "light";
+    const theme = darkMode ? darkTheme : lightTheme;
+
     function getRateFromInr(currencyCode: CurrencyCode) {
       const fallbackRate = getCurrency(currencyCode).rateFromInr;
       const liveRate = exchangeRates[currencyCode];
       return Number.isFinite(liveRate) && liveRate > 0 ? liveRate : fallbackRate;
     }
+
     function formatCurrencyValue(amount: number, currency: CurrencyCode, options: CurrencyFormatOptions = {}) {
-      if (privacyMode) return "Hidden";
+      if (privacyMode) return translateUiText("Hidden", appLanguage);
       const numericAmount = Number.isFinite(amount) ? amount : 0;
       const sign = options.signed ? (numericAmount > 0 ? "+" : numericAmount < 0 ? "-" : "") : "";
       const formatter = new Intl.NumberFormat(activeLocale, {
@@ -263,33 +371,40 @@ export function AppSettingsProvider({ children }: { children: ReactNode }) {
       });
       return `${sign}${formatter.format(Math.abs(numericAmount))}`;
     }
+
     function convertCurrency(amount: number, fromCurrency: CurrencyCode, toCurrency: CurrencyCode) {
       const sourceRate = getRateFromInr(fromCurrency);
       const targetRate = getRateFromInr(toCurrency);
       if (!sourceRate || !targetRate) return amount;
       return (amount / sourceRate) * targetRate;
     }
+
     function formatCurrency(amountInInr: number, options: CurrencyFormatOptions = {}) {
       return formatCurrencyValue(convertCurrency(amountInInr, "INR", appCurrency), appCurrency, options);
     }
+
     function formatDate(dateValue?: string | null, options: Intl.DateTimeFormatOptions = {}) {
-      if (!dateValue) return translateUiText("Unknown", appLanguage);
-      const rawValue = String(dateValue);
-      if (/^\d{4}-\d{2}-\d{2}$/.test(rawValue)) {
-        const [year, month, day] = rawValue.split("-");
-        return new Intl.DateTimeFormat(activeLocale, { day: "2-digit", month: "short", year: "numeric", ...options }).format(new Date(`${year}-${month}-${day}T00:00:00+05:30`));
-      }
-      const normalizedValue = rawValue.replace(" ", "T");
-      const hasTimezone = /z$|[+-]\d{2}:?\d{2}$/i.test(normalizedValue);
-      const date = new Date(hasTimezone ? normalizedValue : `${normalizedValue}Z`);
-      if (Number.isNaN(date.getTime())) return translateUiText("Unknown", appLanguage);
-      return new Intl.DateTimeFormat(activeLocale, { day: "2-digit", month: "short", year: "numeric", timeZone: "Asia/Kolkata", ...options }).format(date);
+      const date = parseAppDate(dateValue) ?? new Date();
+      return new Intl.DateTimeFormat(activeLocale, {
+        day: "2-digit",
+        month: "short",
+        year: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+        timeZone,
+        ...options,
+      }).format(date);
     }
+
     const t = (text: string) => translateUiText(text, appLanguage);
+
     return {
       avatarId,
       compactMode,
       privacyMode,
+      darkMode,
+      themeMode,
+      theme,
       settlementReminders,
       appCurrency,
       detectedCurrency,
@@ -306,6 +421,7 @@ export function AppSettingsProvider({ children }: { children: ReactNode }) {
       exchangeRatesExpiresAt,
       exchangeRatesLoading,
       exchangeRatesError,
+      timeZone,
       currencies: currenciesWithLiveRates,
       languages,
       setAvatarId(nextAvatarId) {
@@ -319,6 +435,10 @@ export function AppSettingsProvider({ children }: { children: ReactNode }) {
       setPrivacyMode(enabled) {
         setPrivacyModeState(enabled);
         void persist({ privacyMode: enabled });
+      },
+      setDarkMode(enabled) {
+        setDarkModeState(enabled);
+        void persist({ darkMode: enabled });
       },
       setSettlementReminders(enabled) {
         setSettlementRemindersState(enabled);
@@ -364,7 +484,7 @@ export function AppSettingsProvider({ children }: { children: ReactNode }) {
       formatDate,
       t,
     };
-  }, [appCurrency, appLanguage, avatarId, clearLocalAppSettings, compactMode, confirmBeforeWalletPayment, converterAmount, converterFrom, converterTo, currenciesWithLiveRates, defaultTopUpMethod, detectedCurrency, detectedLanguage, exchangeRates, exchangeRatesError, exchangeRatesExpiresAt, exchangeRatesFetchedAt, exchangeRatesLoading, exchangeRatesSource, notificationPreferences, persist, privacyMode, settlementReminders]);
+  }, [appCurrency, appLanguage, avatarId, clearLocalAppSettings, compactMode, confirmBeforeWalletPayment, converterAmount, converterFrom, converterTo, currenciesWithLiveRates, darkMode, defaultTopUpMethod, detectedCurrency, exchangeRates, exchangeRatesError, exchangeRatesExpiresAt, exchangeRatesFetchedAt, exchangeRatesLoading, exchangeRatesSource, notificationPreferences, persist, privacyMode, settlementReminders, timeZone]);
 
   return <AppSettingsContext.Provider value={value}>{children}</AppSettingsContext.Provider>;
 }

@@ -1,5 +1,5 @@
-import {
-  useFocusEffect } from "expo-router";
+import { LinearGradient } from "expo-linear-gradient";
+import { useFocusEffect } from "expo-router";
 import { useCallback,
   useEffect,
   useMemo,
@@ -92,14 +92,14 @@ function getSettlementTitle(settlement: PendingWalletSettlement) {
     : `You owe ${getSettlementPerson(settlement)}`;
 }
 
-export default function Wallet() {
-  const { formatCurrency, formatDate: formatLiveDate } = useAppSettings();
-  const [walletData, setWalletData] = useState<WalletSummaryResponse | null>(
-    null,
-  );
-  const [topUps, setTopUps] = useState<WalletTopUpItem[]>([]);
+let walletCache: { walletData: WalletSummaryResponse | null; topUps: WalletTopUpItem[] } | null = null;
 
-  const [loading, setLoading] = useState(true);
+export default function Wallet() {
+  const { appCurrency, formatCurrency, formatDate: formatLiveDate, theme } = useAppSettings();
+  const [walletData, setWalletData] = useState<WalletSummaryResponse | null>(walletCache?.walletData ?? null);
+  const [topUps, setTopUps] = useState<WalletTopUpItem[]>(walletCache?.topUps ?? []);
+
+  const [loading, setLoading] = useState(!walletCache);
   const [refreshingSilent, setRefreshingSilent] = useState(false);
   const [error, setError] = useState("");
   const [settlementsSheetOpen, setSettlementsSheetOpen] = useState(false);
@@ -157,7 +157,7 @@ export default function Wallet() {
 
   const loadWallet = useCallback(async (silent = false) => {
     try {
-      if (!silent) {
+      if (!silent && !walletCache) {
         setLoading(true);
       } else {
         setRefreshingSilent(true);
@@ -170,6 +170,7 @@ export default function Wallet() {
         getRecentWalletTopUps(),
       ]);
 
+      walletCache = { walletData: walletResponse, topUps: topUpsResponse.topUps ?? [] };
       setWalletData(walletResponse);
       setTopUps(topUpsResponse.topUps ?? []);
     } catch (loadError) {
@@ -190,7 +191,7 @@ export default function Wallet() {
   }, []);
 
   useEffect(() => {
-    void loadWallet();
+    void loadWallet(Boolean(walletCache));
   }, [loadWallet]);
 
   useFocusEffect(
@@ -265,7 +266,7 @@ async function handleCreateTopUpOrder() {
   if (loading && !walletData) {
     return (
       <Screen scroll={false}>
-        <LoadingState label="Loading wallet..." />
+        <LoadingState />
       </Screen>
     );
   }
@@ -274,15 +275,19 @@ async function handleCreateTopUpOrder() {
     <Screen
       refreshing={loading || refreshingSilent}
       onRefresh={() => loadWallet()}
-      contentStyle={styles.screen}
+      safeBackgroundColor={theme.primary}
+      contentStyle={[styles.screen, { backgroundColor: theme.background }]}
     >
-      <View style={styles.header}>
-        <Text style={styles.eyebrow}>Wallet</Text>
-        <Text style={styles.title}>SplitVerse balance</Text>
-        <Text style={styles.subtitle}>
-          Track wallet balance, dues, settlements, and recent wallet activity.
-        </Text>
-      </View>
+      <LinearGradient
+        colors={[theme.primary, theme.primaryActive]}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={styles.hero}
+      >
+        <Text style={styles.heroEyebrow}>Wallet</Text>
+        <Text style={styles.heroTitle}>SplitVerse balance</Text>
+        <Text style={styles.heroSubtitle}>Track balance, dues, top-ups, and wallet activity.</Text>
+      </LinearGradient>
 
       {error ? (
         <AppCard style={styles.errorCard}>
@@ -304,8 +309,8 @@ async function handleCreateTopUpOrder() {
             </Text>
           </View>
 
-          <View style={styles.walletBadge}>
-            <Text style={styles.walletBadgeText}>INR</Text>
+          <View style={[styles.walletBadge, { backgroundColor: theme.surfaceStrong }]}>
+            <Text style={styles.walletBadgeText}>{appCurrency}</Text>
           </View>
         </View>
 
@@ -339,13 +344,13 @@ async function handleCreateTopUpOrder() {
       </AppCard>
 
       <View style={styles.metricGrid}>
-        <View style={styles.metricCard}>
+        <View style={[styles.metricCard, { borderColor: theme.border, backgroundColor: theme.card }]}>
           <Text style={styles.metricLabel}>Pending incoming</Text>
           <AmountText amount={pendingIncoming} size="md" tone="success" />
           <Text style={styles.metricHelper}>Others owe you</Text>
         </View>
 
-        <View style={styles.metricCard}>
+        <View style={[styles.metricCard, { borderColor: theme.border, backgroundColor: theme.card }]}>
           <Text style={styles.metricLabel}>Pending outgoing</Text>
           <AmountText
             amount={pendingOutgoing}
@@ -355,7 +360,7 @@ async function handleCreateTopUpOrder() {
           <Text style={styles.metricHelper}>You need to pay</Text>
         </View>
 
-        <View style={[styles.metricCard, styles.netMetricCard]}>
+        <View style={[styles.metricCard, styles.netMetricCard, { borderColor: theme.border, backgroundColor: theme.card }]}>
           <Text style={styles.metricLabel}>Net position</Text>
           <Text
             style={[
@@ -392,8 +397,8 @@ async function handleCreateTopUpOrder() {
         ) : (
           <View style={styles.list}>
             {latestTopUps.map((topUp) => (
-              <View style={styles.transactionRow} key={topUp.id}>
-                <View style={styles.transactionIcon}>
+              <View style={[styles.transactionRow, { borderColor: theme.border, backgroundColor: theme.surface }]} key={topUp.id}>
+                <View style={[styles.transactionIcon, { backgroundColor: theme.canvas }]}>
                   <Text style={styles.transactionIconText}>+</Text>
                 </View>
 
@@ -402,7 +407,7 @@ async function handleCreateTopUpOrder() {
                     {topUp.method || "Wallet top-up"}
                   </Text>
                   <Text style={styles.rowSubtext}>
-                    {formatLiveDate(topUp.displayDate || topUp.createdAt)}
+                    {formatLiveDate(topUp.createdAt || topUp.displayDate)}
                   </Text>
                 </View>
 
@@ -422,7 +427,7 @@ async function handleCreateTopUpOrder() {
           setTopUpAmount("");
         }}
       >
-        <View style={styles.topUpInfoCard}>
+        <View style={[styles.topUpInfoCard, { borderColor: theme.border, backgroundColor: theme.surface }]}>
           <Text style={styles.cardEyebrow}>Available balance</Text>
           <Text style={styles.topUpBalance}>
             {formatCurrency(availableBalance)}
@@ -445,7 +450,7 @@ async function handleCreateTopUpOrder() {
           {[100, 250, 500, 1000].map((amount) => (
             <Pressable
               key={amount}
-              style={styles.quickAmountButton}
+              style={[styles.quickAmountButton, { borderColor: theme.border, backgroundColor: theme.surface }]}
               onPress={() => setTopUpAmount(String(amount))}
               disabled={creatingTopUpOrder}
             >
@@ -460,10 +465,29 @@ async function handleCreateTopUpOrder() {
           onPress={handleCreateTopUpOrder}
         />
 
-        <Text style={styles.topUpNote}>
-          Razorpay checkout will open after we move from Expo Go to a
-          development build.
-        </Text>
+      </SheetModal>
+
+      <SheetModal
+        visible={topUpsSheetOpen}
+        eyebrow="Top-up history"
+        title="Wallet top-up history"
+        onClose={() => setTopUpsSheetOpen(false)}
+      >
+        {topUps.length === 0 ? (
+          <EmptyState title="No top-ups yet" />
+        ) : (
+          <View style={styles.sheetList}>
+            {topUps.map((topUp) => (
+              <View style={[styles.sheetRow, { borderColor: theme.border, backgroundColor: theme.surface }]} key={topUp.id}>
+                <View style={styles.rowCopy}>
+                  <Text style={styles.rowTitle}>{topUp.method || "Wallet top-up"}</Text>
+                  <Text style={styles.rowSubtext}>{formatLiveDate(topUp.createdAt || topUp.displayDate)}</Text>
+                </View>
+                <AmountText amount={topUp.amount} size="sm" tone="success" />
+              </View>
+            ))}
+          </View>
+        )}
       </SheetModal>
     </Screen>
   );
@@ -472,7 +496,32 @@ async function handleCreateTopUpOrder() {
 const styles = StyleSheet.create({
   screen: {
     gap: spacing.base,
+    padding: 0,
+    paddingBottom: spacing.xxl,
     backgroundColor: colors.surfaceSoft,
+  },
+  hero: {
+    minHeight: 180,
+    justifyContent: "flex-end",
+    borderBottomLeftRadius: 32,
+    borderBottomRightRadius: 32,
+    paddingHorizontal: spacing.base,
+    paddingTop: spacing.xl,
+    paddingBottom: spacing.xl,
+  },
+  heroEyebrow: {
+    color: "rgba(255,255,255,0.74)",
+    ...typography.caption,
+  },
+  heroTitle: {
+    marginTop: spacing.xs,
+    color: colors.onPrimary,
+    ...typography.titleLg,
+  },
+  heroSubtitle: {
+    marginTop: spacing.xs,
+    color: "rgba(255,255,255,0.82)",
+    ...typography.bodySm,
   },
   header: {
     gap: spacing.xs,
@@ -504,6 +553,8 @@ const styles = StyleSheet.create({
   },
   balanceCard: {
     gap: spacing.base,
+    marginHorizontal: spacing.base,
+    marginTop: -spacing.lg,
     backgroundColor: colors.canvas,
   },
   balanceHeader: {
@@ -579,6 +630,7 @@ const styles = StyleSheet.create({
   },
   metricGrid: {
     flexDirection: "row",
+    paddingHorizontal: spacing.base,
     flexWrap: "wrap",
     gap: spacing.sm,
   },
@@ -615,6 +667,7 @@ const styles = StyleSheet.create({
   },
   sectionCard: {
     gap: spacing.base,
+    marginHorizontal: spacing.base,
   },
   cardHeadRow: {
     flexDirection: "row",

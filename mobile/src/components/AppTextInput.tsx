@@ -6,7 +6,7 @@ import {
 } from "react-native";
 import Text from "./LocalizedText";
 import { useAppSettings } from "../context/useAppSettings";
-import { colors, radius, spacing, typography } from "../theme/tokens";
+import { radius, spacing, typography } from "../theme/tokens";
 
 type AppTextInputProps = TextInputProps & {
   label: string;
@@ -18,16 +18,25 @@ export default function AppTextInput({
   style,
   ...props
 }: AppTextInputProps) {
-  const { t } = useAppSettings();
+  const { t, theme } = useAppSettings();
 
   return (
     <View style={styles.field}>
-      <Text style={styles.label}>{label}</Text>
+      <Text style={[styles.label, { color: theme.text }]}>{label}</Text>
       <TextInput
         {...props}
         placeholder={placeholder ? t(String(placeholder)) : undefined}
-        placeholderTextColor={colors.muted}
-        style={[styles.input, style]}
+        placeholderTextColor={theme.muted}
+        selectionColor={theme.primary}
+        style={[
+          styles.input,
+          {
+            borderColor: theme.border,
+            color: theme.text,
+            backgroundColor: theme.surface,
+          },
+          style,
+        ]}
       />
     </View>
   );
@@ -38,17 +47,13 @@ const styles = StyleSheet.create({
     gap: spacing.xs,
   },
   label: {
-    color: colors.ink,
     ...typography.caption,
   },
   input: {
     minHeight: 48,
     borderWidth: 1,
-    borderColor: colors.hairline,
-    borderRadius: radius.md,
+    borderRadius: radius.lg,
     paddingHorizontal: spacing.base,
-    color: colors.ink,
-    backgroundColor: colors.canvas,
     ...typography.bodySm,
   },
 });

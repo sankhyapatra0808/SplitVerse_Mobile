@@ -1,5 +1,6 @@
 import { StyleSheet, View, type ViewStyle, type StyleProp } from "react-native";
-import { colors, radius, spacing } from "../theme/tokens";
+import { useAppSettings } from "../context/useAppSettings";
+import { radius, spacing } from "../theme/tokens";
 
 type SkeletonLineProps = {
   width?: number | `${number}%`;
@@ -8,12 +9,14 @@ type SkeletonLineProps = {
 };
 
 export function SkeletonLine({ width = "100%", height = 14, style }: SkeletonLineProps) {
-  return <View style={[styles.line, { width, height }, style]} />;
+  const { theme } = useAppSettings();
+  return <View style={[styles.line, { width, height, backgroundColor: theme.surfaceStrong }, style]} />;
 }
 
 export function SkeletonCard() {
+  const { theme } = useAppSettings();
   return (
-    <View style={styles.card}>
+    <View style={[styles.card, { borderColor: theme.borderSoft, backgroundColor: theme.card }]}>
       <SkeletonLine width="38%" height={12} />
       <SkeletonLine width="72%" height={26} />
       <SkeletonLine width="100%" height={14} />
@@ -39,14 +42,11 @@ const styles = StyleSheet.create({
   card: {
     gap: spacing.sm,
     borderWidth: 1,
-    borderColor: colors.hairlineSoft,
     borderRadius: radius.xl,
-    backgroundColor: colors.canvas,
     padding: spacing.base,
   },
   line: {
     overflow: "hidden",
     borderRadius: radius.pill,
-    backgroundColor: colors.surfaceStrong,
   },
 });

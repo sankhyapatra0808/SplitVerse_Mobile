@@ -1,15 +1,9 @@
-import {
-  Ionicons } from "@expo/vector-icons";
+import { Ionicons } from "@expo/vector-icons";
 import type { BottomTabBarProps } from "@react-navigation/bottom-tabs";
-import { useEffect,
-  useRef } from "react";
-import {
-  Animated,
-  Pressable,
-  StyleSheet,
-  View,
-} from "react-native";
-import { colors, radius, spacing, typography } from "../theme/tokens";
+import { useEffect, useMemo, useRef } from "react";
+import { Animated, Easing, Platform, Pressable, StyleSheet, View } from "react-native";
+import { useAppSettings } from "../context/useAppSettings";
+import { radius, spacing } from "../theme/tokens";
 import Text from "./LocalizedText";
 
 const iconMap: Record<
@@ -20,76 +14,80 @@ const iconMap: Record<
     label: string;
   }
 > = {
-  dashboard: {
-    inactive: "home-outline",
-    active: "home",
-    label: "Home",
-  },
-  "split-rooms": {
-    inactive: "receipt-outline",
-    active: "receipt",
-    label: "Rooms",
-  },
-  wallet: {
-    inactive: "wallet-outline",
-    active: "wallet",
-    label: "Wallet",
-  },
-  profile: {
-    inactive: "person-outline",
-    active: "person",
-    label: "Profile",
-  },
+  dashboard: { inactive: "home-outline", active: "home", label: "Home" },
+  "split-rooms": { inactive: "receipt-outline", active: "receipt", label: "Rooms" },
+  wallet: { inactive: "wallet-outline", active: "wallet", label: "Wallet" },
+  profile: { inactive: "person-outline", active: "person", label: "Profile" },
 };
 
-export default function AnimatedTabBar({
-  state,
-  descriptors,
-  navigation,
-}: BottomTabBarProps) {
-  const visibleRoutes = state.routes.filter((route) => Boolean(iconMap[route.name]));
+export default function AnimatedTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
+  const { theme } = useAppSettings();
+  const visibleRoutes = useMemo(
+    () => state.routes.filter((route) => Boolean(iconMap[route.name])),
+    [state.routes],
+  );
 
-  const animations = useRef(
-    visibleRoutes.reduce<Record<string, Animated.Value>>((acc, route) => {
-      acc[route.key] = new Animated.Value(route.name === state.routes[state.index]?.name ? 1 : 0);
-      return acc;
-    }, {}),
-  ).current;
+  const animations = useRef<Record<string, Animated.Value>>({}).current;
+
+  visibleRoutes.forEach((route) => {
+    if (!animations[route.key]) {
+      animations[route.key] = new Animated.Value(
+        route.key === state.routes[state.index]?.key ? 1 : 0,
+      );
+    }
+  });
 
   useEffect(() => {
     visibleRoutes.forEach((route) => {
       const isFocused = state.routes[state.index]?.key === route.key;
 
-      Animated.spring(animations[route.key], {
+      Animated.timing(animations[route.key], {
         toValue: isFocused ? 1 : 0,
+        duration: 240,
+        easing: Easing.out(Easing.cubic),
         useNativeDriver: false,
-        friction: 7,
-        tension: 90,
       }).start();
     });
   }, [animations, state.index, state.routes, visibleRoutes]);
 
   return (
-    <View style={styles.wrapper}>
-      <View style={styles.bar}>
+    <View style={[styles.wrapper, { backgroundColor: theme.background }]}> 
+      <View
+        style={[
+          styles.bar,
+          {
+            borderColor: theme.mode === "dark" ? "rgba(255,255,255,0.08)" : "rgba(255,255,255,0.10)",
+            backgroundColor: theme.mode === "dark" ? "#050608" : "#0a0b0d",
+            shadowOpacity: theme.mode === "dark" ? 0.34 : 0.14,
+          },
+        ]}
+      >
         {visibleRoutes.map((route) => {
           const options = descriptors[route.key]?.options;
           const isFocused = state.routes[state.index]?.key === route.key;
           const icon = iconMap[route.name];
+          const animatedValue = animations[route.key];
 
-          const scale = animations[route.key].interpolate({
+          const itemWidth = animatedValue.interpolate({
             inputRange: [0, 1],
-            outputRange: [1, 1.08],
+            outputRange: [54, 126],
           });
-
-          const circleSize = animations[route.key].interpolate({
+          const activeOpacity = animatedValue;
+          const inactiveOpacity = animatedValue.interpolate({
             inputRange: [0, 1],
-            outputRange: [44, 54],
+            outputRange: [1, 0],
           });
-
-          const backgroundColor = animations[route.key].interpolate({
+          const activeScale = animatedValue.interpolate({
             inputRange: [0, 1],
-            outputRange: [colors.canvas, colors.primary],
+            outputRange: [0.92, 1],
+          });
+          const inactiveScale = animatedValue.interpolate({
+            inputRange: [0, 1],
+            outputRange: [1, 0.86],
+          });
+          const activeTranslate = animatedValue.interpolate({
+            inputRange: [0, 1],
+            outputRange: [8, 0],
           });
 
           const onPress = () => {
@@ -105,42 +103,53 @@ export default function AnimatedTabBar({
           };
 
           return (
-            <Pressable
-              key={route.key}
-              accessibilityRole="button"
-              accessibilityState={isFocused ? { selected: true } : {}}
-              accessibilityLabel={options.tabBarAccessibilityLabel}
-              onPress={onPress}
-              style={styles.item}
-            >
-              <Animated.View
-                style={[
-                  styles.iconCircle,
-                  {
-                    width: circleSize,
-                    height: circleSize,
-                    backgroundColor,
-                    transform: [{ scale }],
-                  },
-                ]}
+            <Animated.View key={route.key} style={[styles.itemShell, { width: itemWidth }]}> 
+              <Pressable
+                accessibilityRole="button"
+                accessibilityState={isFocused ? { selected: true } : {}}
+                accessibilityLabel={options.tabBarAccessibilityLabel}
+                android_ripple={{ color: "rgba(255,255,255,0.10)", borderless: true, radius: 34 }}
+                onPress={onPress}
+                style={styles.itemPressable}
               >
-                <Ionicons
-                  name={isFocused ? icon.active : icon.inactive}
-                  size={23}
-                  color={isFocused ? colors.canvas : colors.ink}
-                />
-              </Animated.View>
+                <Animated.View
+                  pointerEvents="none"
+                  style={[
+                    styles.activePill,
+                    {
+                      backgroundColor: theme.primary,
+                      opacity: activeOpacity,
+                      transform: [{ scale: activeScale }, { translateY: activeTranslate }],
+                    },
+                  ]}
+                >
+                  <Ionicons
+                    name={icon.active}
+                    size={theme.mode === "dark" ? 18 : 17}
+                    color={theme.onPrimary}
+                  />
+                  <Text
+                    style={[
+                      styles.activeLabel,
+                      { color: theme.onPrimary },
+                    ]}
+                    numberOfLines={1}
+                  >
+                    {icon.label}
+                  </Text>
+                </Animated.View>
 
-              <Text
-                style={[
-                  styles.label,
-                  isFocused ? styles.activeLabel : styles.inactiveLabel,
-                ]}
-                numberOfLines={1}
-              >
-                {icon.label}
-              </Text>
-            </Pressable>
+                <Animated.View
+                  pointerEvents="none"
+                  style={[
+                    styles.inactiveIcon,
+                    { opacity: inactiveOpacity, transform: [{ scale: inactiveScale }] },
+                  ]}
+                >
+                  <Ionicons name={icon.inactive} size={22} color="rgba(255,255,255,0.92)" />
+                </Animated.View>
+              </Pressable>
+            </Animated.View>
           );
         })}
       </View>
@@ -150,46 +159,57 @@ export default function AnimatedTabBar({
 
 const styles = StyleSheet.create({
   wrapper: {
-    backgroundColor: colors.surfaceSoft,
     paddingHorizontal: spacing.base,
     paddingTop: spacing.xs,
-    paddingBottom: spacing.sm,
+    paddingBottom: Platform.OS === "ios" ? spacing.sm : spacing.xs,
   },
   bar: {
-    minHeight: 78,
+    height: 62,
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-around",
+    justifyContent: "space-between",
     borderWidth: 1,
-    borderColor: colors.hairlineSoft,
     borderRadius: 34,
-    backgroundColor: colors.canvas,
-    paddingHorizontal: spacing.sm,
+    paddingHorizontal: spacing.xs,
     shadowColor: "#000",
-    shadowOpacity: 0.08,
     shadowRadius: 18,
     shadowOffset: { width: 0, height: 8 },
-    elevation: 8,
+    elevation: 10,
   },
-  item: {
-    flex: 1,
+  itemShell: {
+    height: 50,
     alignItems: "center",
     justifyContent: "center",
-    gap: 4,
   },
-  iconCircle: {
+  itemPressable: {
+    width: "100%",
+    height: 50,
     alignItems: "center",
     justifyContent: "center",
     borderRadius: radius.pill,
   },
-  label: {
-    fontSize: 11,
-    fontWeight: "700",
+  activePill: {
+    position: "absolute",
+    minWidth: 112,
+    height: 42,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    borderRadius: radius.pill,
+    paddingHorizontal: spacing.base,
   },
   activeLabel: {
-    color: colors.primary,
+    fontSize: 12,
+    fontWeight: "700",
+    lineHeight: 16,
   },
-  inactiveLabel: {
-    color: colors.body,
+  inactiveIcon: {
+    position: "absolute",
+    width: 44,
+    height: 42,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: radius.pill,
   },
 });

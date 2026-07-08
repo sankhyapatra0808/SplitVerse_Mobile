@@ -77,7 +77,7 @@ export default function SpendBarChart({
   style,
   ...props
 }: SpendBarChartProps) {
-  const { formatCurrency } = useAppSettings();
+  const { formatCurrency, theme } = useAppSettings();
   const formatAmount = (amount: number) => formatCurrency(amount, { compact: true });
   const normalizedData =
     mode === "yearly"
@@ -95,22 +95,22 @@ export default function SpendBarChart({
   const halfAmount = maxAmount / 2;
 
   return (
-    <View {...props} style={[styles.card, style]}>
+    <View {...props} style={[styles.card, { borderColor: theme.border, backgroundColor: theme.card }, style]}>
       <View style={styles.head}>
         <View style={styles.headCopy}>
           <Text style={styles.title}>{title}</Text>
           <Text style={styles.total}>{totalLabel}</Text>
         </View>
 
-        <View style={styles.switcher}>
+        <View style={[styles.switcher, { backgroundColor: theme.surfaceStrong }]}>
           <Pressable
-            style={[styles.switchButton, mode === "weekly" && styles.activeSwitch]}
+            style={[styles.switchButton, mode === "weekly" && { backgroundColor: theme.canvas }]}
             onPress={() => onModeChange("weekly")}
           >
             <Text
               style={[
                 styles.switchText,
-                mode === "weekly" && styles.activeSwitchText,
+                mode === "weekly" && { color: theme.text },
               ]}
             >
               Week
@@ -118,13 +118,13 @@ export default function SpendBarChart({
           </Pressable>
 
           <Pressable
-            style={[styles.switchButton, mode === "yearly" && styles.activeSwitch]}
+            style={[styles.switchButton, mode === "yearly" && { backgroundColor: theme.canvas }]}
             onPress={() => onModeChange("yearly")}
           >
             <Text
               style={[
                 styles.switchText,
-                mode === "yearly" && styles.activeSwitchText,
+                mode === "yearly" && { color: theme.text },
               ]}
             >
               Year
@@ -155,8 +155,8 @@ export default function SpendBarChart({
                   {amount > 0 ? formatAmount(amount) : ""}
                 </Text>
 
-                <View style={styles.barTrack}>
-                  <View style={[styles.barFill, { height: `${barHeight}%` }]} />
+                <View style={[styles.barTrack, { backgroundColor: theme.surfaceStrong }]}>
+                  <View style={[styles.barFill, { height: `${barHeight}%`, backgroundColor: theme.primary }]} />
                 </View>
 
                 <Text style={styles.xLabel}>{item.label}</Text>
