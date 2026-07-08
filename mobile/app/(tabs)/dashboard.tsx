@@ -1,7 +1,15 @@
-import { LinearGradient } from "expo-linear-gradient";
+import {
+  LinearGradient } from "expo-linear-gradient";
 import { router } from "expo-router";
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { Alert, Pressable, StyleSheet, Text, View } from "react-native";
+import { useCallback,
+  useEffect,
+  useMemo,
+  useState } from "react";
+import { Alert,
+  Pressable,
+  StyleSheet,
+  View,
+} from "react-native";
 import AmountText from "../../src/components/AmountText";
 import AppButton from "../../src/components/AppButton";
 import AppCard from "../../src/components/AppCard";
@@ -11,8 +19,10 @@ import SpendBarChart, {
   type SpendGraphMode,
   type SpendGraphPoint,
 } from "../../src/components/SpendBarChart";
+import Text from "../../src/components/LocalizedText";
 import StatCard from "../../src/components/StatCard";
 import { useAuth } from "../../src/context/AuthContext";
+import { useAppSettings } from "../../src/context/useAppSettings";
 import {
   getDashboardSummary,
   getFriendsSummary,
@@ -137,6 +147,7 @@ function buildYearlySpend(summary: DashboardSummary | null): SpendGraphPoint[] {
 
 export default function Dashboard() {
   const { user, dbUser } = useAuth();
+  const { formatCurrency } = useAppSettings();
   const [summary, setSummary] = useState<DashboardSummary | null>(null);
   const [friendsSummary, setFriendsSummary] = useState<FriendsSummary | null>(
     null,
@@ -291,7 +302,7 @@ export default function Dashboard() {
               netPosition >= 0 ? styles.positiveValue : styles.negativeValue,
             ]}
           >
-            {formatMoney(netPosition)}
+            {formatCurrency(netPosition, { signed: true })}
           </Text>
           <Text style={styles.identityLabel}>Net</Text>
         </View>
@@ -334,7 +345,7 @@ export default function Dashboard() {
       <SpendBarChart
         style={styles.chartCard}
         title={graphMode === "weekly" ? "Weekly spending graph" : "Yearly spending graph"}
-        totalLabel={`Total: ${formatMoney(graphTotal)}`}
+        totalLabel={`Total: ${formatCurrency(graphTotal)}`}
         mode={graphMode}
         onModeChange={setGraphMode}
         data={graphData}

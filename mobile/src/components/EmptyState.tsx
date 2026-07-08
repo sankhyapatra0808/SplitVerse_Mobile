@@ -1,5 +1,9 @@
-import { StyleSheet, Text, View } from "react-native";
+import {
+  StyleSheet,
+  View,
+} from "react-native";
 import { colors, radius, spacing, typography } from "../theme/tokens";
+import Text from "./LocalizedText";
 
 type EmptyStateProps = {
   title: string;

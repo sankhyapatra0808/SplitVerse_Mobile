@@ -1,20 +1,44 @@
 import { router } from "expo-router";
-import { useState } from "react";
-import { Alert, StyleSheet, Text, View } from "react-native";
+import { useEffect, useState } from "react";
+import { Alert, Pressable, StyleSheet, View } from "react-native";
 import AppButton from "../../src/components/AppButton";
 import AppCard from "../../src/components/AppCard";
 import AppTextInput from "../../src/components/AppTextInput";
 import Screen from "../../src/components/Screen";
+import Text from "../../src/components/LocalizedText";
 import { useAuth } from "../../src/context/AuthContext";
-import { colors, spacing, typography } from "../../src/theme/tokens";
+import { signInWithGoogleAndGetIdToken } from "../../src/lib/googleAuth";
+import { colors, radius, spacing, typography } from "../../src/theme/tokens";
+
+function getPasswordStrength(password: string) {
+  let score = 0;
+  if (password.length >= 6) score += 1;
+  if (password.length >= 10) score += 1;
+  if (/[a-z]/.test(password) && /[A-Z]/.test(password)) score += 1;
+  if (/\d/.test(password)) score += 1;
+  if (/[^A-Za-z0-9]/.test(password)) score += 1;
+
+  if (!password) return { label: "Password strength", score };
+  if (score <= 2) return { label: "Weak password", score };
+  if (score <= 4) return { label: "Good password", score };
+  return { label: "Strong password", score };
+}
 
 export default function Signup() {
-  const { signup } = useAuth();
+  const { signup, loginWithGoogleIdToken } = useAuth();
+  const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [googleSubmitting, setGoogleSubmitting] = useState(false);
+  const strength = getPasswordStrength(password);
 
   async function handleSignup() {
+    if (!name.trim()) {
+      Alert.alert("Name required", "Enter your name.");
+      return;
+    }
+
     if (password.length < 6) {
       Alert.alert("Weak password", "Password must be at least 6 characters.");
       return;
@@ -22,7 +46,7 @@ export default function Signup() {
 
     try {
       setSubmitting(true);
-      await signup(email, password);
+      await signup(email, password, name);
       router.replace("/(tabs)/dashboard");
     } catch (error) {
       Alert.alert(
@@ -31,6 +55,26 @@ export default function Signup() {
       );
     } finally {
       setSubmitting(false);
+    }
+  }
+
+  async function handleGoogleSignup() {
+    try {
+      setGoogleSubmitting(true);
+
+      const idToken = await signInWithGoogleAndGetIdToken();
+      await loginWithGoogleIdToken(idToken);
+
+      router.replace("/(tabs)/dashboard");
+    } catch (error) {
+      Alert.alert(
+        "Google sign-in failed",
+        error instanceof Error
+          ? error.message
+          : "Could not continue with Google",
+      );
+    } finally {
+      setGoogleSubmitting(false);
     }
   }
 
@@ -45,6 +89,14 @@ export default function Signup() {
       </View>
 
       <AppCard style={styles.card}>
+        <AppTextInput
+          label="Name"
+          value={name}
+          onChangeText={setName}
+          autoCapitalize="words"
+          placeholder="Your name"
+        />
+
         <AppTextInput
           label="Email"
           value={email}
@@ -62,11 +114,38 @@ export default function Signup() {
           placeholder="At least 6 characters"
         />
 
+        <View style={styles.strengthTrack}>
+          <View
+            style={[
+              styles.strengthFill,
+              { width: `${Math.max(strength.score, 1) * 20}%` },
+            ]}
+          />
+        </View>
+        <Text style={styles.strengthText}>{strength.label}</Text>
+
         <AppButton
           title="Create account"
           loading={submitting}
           onPress={handleSignup}
         />
+
+        <View style={styles.dividerRow}>
+          <View style={styles.divider} />
+          <Text style={styles.dividerText}>or</Text>
+          <View style={styles.divider} />
+        </View>
+
+        <Pressable
+          style={styles.googleButton}
+          onPress={handleGoogleSignup}
+          disabled={googleSubmitting}
+        >
+          <Text style={styles.googleMark}>G</Text>
+          <Text style={styles.googleText}>
+            {googleSubmitting ? "Signing up" : "Continue with Google"}
+          </Text>
+        </Pressable>
 
         <AppButton
           title="Already have an account?"
@@ -98,5 +177,55 @@ const styles = StyleSheet.create({
   card: {
     gap: spacing.base,
     marginTop: spacing.xl,
+  },
+  strengthTrack: {
+    height: 6,
+    overflow: "hidden",
+    borderRadius: 999,
+    backgroundColor: colors.surfaceStrong,
+  },
+  strengthFill: {
+    height: "100%",
+    borderRadius: 999,
+    backgroundColor: colors.primary,
+  },
+  strengthText: {
+    marginTop: -spacing.sm,
+    color: colors.body,
+    ...typography.caption,
+  },
+  dividerRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+  },
+  divider: {
+    flex: 1,
+    height: 1,
+    backgroundColor: colors.hairlineSoft,
+  },
+  dividerText: {
+    color: colors.body,
+    ...typography.caption,
+  },
+  googleButton: {
+    minHeight: 48,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: spacing.sm,
+    borderWidth: 1,
+    borderColor: colors.hairlineSoft,
+    borderRadius: radius.pill,
+    backgroundColor: colors.canvas,
+  },
+  googleMark: {
+    color: colors.primary,
+    fontSize: 18,
+    fontWeight: "800",
+  },
+  googleText: {
+    color: colors.ink,
+    ...typography.button,
   },
 });

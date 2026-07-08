@@ -1,0 +1,39 @@
+{
+  "project_info": {
+    "project_number": "868994045552",
+    "project_id": "splitverse-84b62",
+    "storage_bucket": "splitverse-84b62.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:868994045552:android:0ebf73a9666366c1f906b5",
+        "android_client_info": {
+          "package_name": "com.sankhyapatra.splitverse"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "868994045552-pqbsndg1f1cihk6deg13671pb77lgksk.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBE44LXspz6seWxrkojex2X0v9XnDQn2Do"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "868994045552-pqbsndg1f1cihk6deg13671pb77lgksk.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

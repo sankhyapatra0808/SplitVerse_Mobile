@@ -9,7 +9,9 @@ import {
 import { AppState } from "react-native";
 import {
   createUserWithEmailAndPassword,
+  GoogleAuthProvider,
   onAuthStateChanged,
+  signInWithCredential,
   signInWithEmailAndPassword,
   signOut,
   updateProfile,
@@ -18,8 +20,11 @@ import {
 import { auth } from "../lib/firebase";
 import {
   getCurrentDbUser,
+  requestEmailLoginOtp,
   syncCurrentUser,
+  verifyEmailLoginOtp,
   type DbUser,
+  type EmailLoginOtpSession,
 } from "../lib/api";
 import {
   clearSessionActivity,
@@ -33,6 +38,14 @@ type AuthContextValue = {
   initializing: boolean;
   login: (email: string, password: string) => Promise<void>;
   signup: (email: string, password: string, name?: string) => Promise<void>;
+  loginWithGoogleIdToken: (idToken: string) => Promise<void>;
+  startEmailLoginOtp: (email: string, password: string) => Promise<EmailLoginOtpSession>;
+  completeEmailLoginWithOtp: (
+    email: string,
+    password: string,
+    sessionId: string,
+    otp: string,
+  ) => Promise<void>;
   refreshDbUser: () => Promise<DbUser | null>;
   logout: () => Promise<void>;
 };
@@ -65,6 +78,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setDbUser(null);
     await clearSessionActivity();
     await signOut(auth);
+  }
+
+  async function syncSignedInUser() {
+    await touchSessionActivity();
+    const response = await syncCurrentUser();
+    setDbUser(response.user);
   }
 
   useEffect(() => {
@@ -130,10 +149,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       login: async (email, password) => {
         await signInWithEmailAndPassword(auth, email.trim(), password);
-        await touchSessionActivity();
-
-        const response = await syncCurrentUser();
-        setDbUser(response.user);
+        await syncSignedInUser();
       },
 
       signup: async (email, password, name) => {
@@ -151,10 +167,36 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           await credential.user.getIdToken(true);
         }
 
-        await touchSessionActivity();
+        await syncSignedInUser();
+      },
 
-        const response = await syncCurrentUser();
-        setDbUser(response.user);
+      loginWithGoogleIdToken: async (idToken) => {
+        const credential = GoogleAuthProvider.credential(idToken);
+        await signInWithCredential(auth, credential);
+        await syncSignedInUser();
+      },
+
+      startEmailLoginOtp: async (email, password) => {
+        let signedInForOtp = false;
+
+        try {
+          await signInWithEmailAndPassword(auth, email.trim(), password);
+          signedInForOtp = true;
+          const session = await requestEmailLoginOtp();
+          return session;
+        } finally {
+          if (signedInForOtp) {
+            setDbUser(null);
+            await clearSessionActivity();
+            await signOut(auth);
+          }
+        }
+      },
+
+      completeEmailLoginWithOtp: async (email, password, sessionId, otp) => {
+        await verifyEmailLoginOtp(sessionId, otp);
+        await signInWithEmailAndPassword(auth, email.trim(), password);
+        await syncSignedInUser();
       },
 
       refreshDbUser,

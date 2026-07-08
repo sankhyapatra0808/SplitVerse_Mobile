@@ -1,5 +1,10 @@
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import {
+  Pressable,
+  StyleSheet,
+  View,
+} from "react-native";
 import { colors, radius, spacing, typography } from "../theme/tokens";
+import Text from "./LocalizedText";
 
 type Tab = {
   label: string;

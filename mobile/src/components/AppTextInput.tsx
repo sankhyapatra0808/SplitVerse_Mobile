@@ -1,10 +1,11 @@
 import {
   StyleSheet,
-  Text,
   TextInput,
   type TextInputProps,
   View,
 } from "react-native";
+import Text from "./LocalizedText";
+import { useAppSettings } from "../context/useAppSettings";
 import { colors, radius, spacing, typography } from "../theme/tokens";
 
 type AppTextInputProps = TextInputProps & {
@@ -13,14 +14,18 @@ type AppTextInputProps = TextInputProps & {
 
 export default function AppTextInput({
   label,
+  placeholder,
   style,
   ...props
 }: AppTextInputProps) {
+  const { t } = useAppSettings();
+
   return (
     <View style={styles.field}>
       <Text style={styles.label}>{label}</Text>
       <TextInput
         {...props}
+        placeholder={placeholder ? t(String(placeholder)) : undefined}
         placeholderTextColor={colors.muted}
         style={[styles.input, style]}
       />

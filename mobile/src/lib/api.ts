@@ -41,6 +41,52 @@ export async function apiFetch<T>(
   return data as T;
 }
 
+
+export async function publicApiFetch<T>(
+  path: string,
+  options: RequestInit = {},
+): Promise<T> {
+  const response = await fetch(`${API_URL}${path}`, {
+    ...options,
+    headers: {
+      Accept: "application/json",
+      "Content-Type": "application/json",
+      ...(options.headers ?? {}),
+    },
+  });
+
+  const data = await response.json().catch(() => null);
+
+  if (!response.ok) {
+    throw new Error(data?.message || data?.error || "Request failed");
+  }
+
+  return data as T;
+}
+
+export type ExchangeRatesSource = "live" | "cache" | "stale-cache" | "fallback";
+
+export type ExchangeRatesResponse = {
+  base: string;
+  rates: Record<string, number>;
+  source: ExchangeRatesSource;
+  provider: string;
+  fetchedAt: string | null;
+  expiresAt: string | null;
+};
+
+export async function getExchangeRates(base = "INR", symbols: string[] = []) {
+  const searchParams = new URLSearchParams({ base });
+
+  if (symbols.length > 0) {
+    searchParams.set("symbols", symbols.join(","));
+  }
+
+  return publicApiFetch<ExchangeRatesResponse>(
+    `/api/exchange-rates?${searchParams.toString()}`,
+  );
+}
+
 export type DashboardSummary = {
   metrics?: {
     todayExpense?: number;
@@ -95,6 +141,9 @@ export type DbUser = {
   display_photo_url?: string | null;
   avatar_mode?: string | null;
   wallet_balance?: number;
+  has_wallet_pin?: boolean;
+  app_currency?: string | null;
+  app_language?: string | null;
 };
 
 export async function syncCurrentUser() {
@@ -616,4 +665,145 @@ export async function verifyRazorpayWalletPayment(payload: {
       body: JSON.stringify(payload),
     },
   );
+}
+
+// auth OTP and settings API
+export type EmailLoginOtpSession = {
+  sessionId: string;
+  email: string;
+  expiresAt: string;
+};
+
+export async function requestEmailLoginOtp() {
+  return apiFetch<EmailLoginOtpSession>("/api/auth/email-login-otp/request", {
+    method: "POST",
+  });
+}
+
+export async function verifyEmailLoginOtp(sessionId: string, otp: string) {
+  return publicApiFetch<{ verified: boolean }>(
+    "/api/auth/email-login-otp/verify",
+    {
+      method: "POST",
+      body: JSON.stringify({ sessionId, otp }),
+    },
+  );
+}
+
+export type UpdateProfileSettingsPayload = {
+  avatarMode?: "photo" | "initials";
+  profilePhotoUrl?: string | null;
+  appCurrency?: string;
+  appLanguage?: string;
+};
+
+export async function updateProfileSettings(payload: UpdateProfileSettingsPayload) {
+  return apiFetch<{ message: string; user: DbUser }>("/api/auth/profile", {
+    method: "PATCH",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function uploadProfilePhoto(photo: { uri: string; name: string; type: string }) {
+  const token = await getAuthToken();
+  const formData = new FormData();
+  formData.append("photo", photo as unknown as Blob);
+
+  const response = await fetch(`${API_URL}/api/auth/profile-photo`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+    body: formData,
+  });
+
+  const data = await response.json().catch(() => null);
+
+  if (!response.ok) {
+    throw new Error(data?.message || data?.error || "Failed to upload profile photo");
+  }
+
+  return data as { message: string; user: DbUser };
+}
+
+export type SaveWalletPinPayload = {
+  pin: string;
+  currentPin?: string;
+};
+
+export async function saveWalletPin(payload: SaveWalletPinPayload) {
+  return apiFetch<{ message: string; user: DbUser }>("/api/auth/wallet-pin", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function requestWalletPinResetOtp() {
+  return apiFetch<{ message: string; expiresInSeconds: number }>(
+    "/api/auth/wallet-pin/reset-otp/request",
+    {
+      method: "POST",
+      body: JSON.stringify({}),
+    },
+  );
+}
+
+export type ResetWalletPinWithOtpPayload = {
+  otp: string;
+  pin: string;
+};
+
+export async function resetWalletPinWithOtp(payload: ResetWalletPinWithOtpPayload) {
+  return apiFetch<{ message: string; user: DbUser }>(
+    "/api/auth/wallet-pin/reset",
+    {
+      method: "POST",
+      body: JSON.stringify(payload),
+    },
+  );
+}
+
+export async function deleteFriend(friendId: string) {
+  return apiFetch<{ message: string }>(`/api/friends/${friendId}`, {
+    method: "DELETE",
+  });
+}
+
+export async function deleteAccount(confirmationText: string) {
+  return apiFetch<{ message: string }>("/api/auth/account", {
+    method: "DELETE",
+    body: JSON.stringify({ confirmationText }),
+  });
+}
+
+export async function downloadMyData() {
+  const [
+    userResponse,
+    dashboard,
+    wallet,
+    topUps,
+    friends,
+    splitRooms,
+    transactions,
+  ] = await Promise.all([
+    getCurrentDbUser(),
+    getDashboardSummary(),
+    getWalletSummary(),
+    getRecentWalletTopUps(),
+    getFriendsSummary(),
+    getSplitRooms(),
+    getTransactions({ exportMode: "count", limit: 1000 }),
+  ]);
+
+  return {
+    exportedAt: new Date().toISOString(),
+    user: userResponse.user,
+    dashboard,
+    wallet,
+    walletTopUps: topUps.topUps,
+    friends,
+    splitRooms: splitRooms.rooms,
+    transactions: transactions.transactions,
+    transactionSummary: transactions.summary,
+  };
 }

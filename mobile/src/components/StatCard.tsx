@@ -1,6 +1,11 @@
-import { StyleSheet, Text, View, type ViewProps } from "react-native";
+import {
+  StyleSheet,
+  View,
+  type ViewProps,
+} from "react-native";
 import { colors, radius, spacing, typography } from "../theme/tokens";
 import AmountText from "./AmountText";
+import Text from "./LocalizedText";
 
 type StatCardProps = ViewProps & {
   label: string;

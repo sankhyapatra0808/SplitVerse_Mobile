@@ -1,6 +1,15 @@
-import { router, useFocusEffect } from "expo-router";
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { Alert, Pressable, StyleSheet, Text, View } from "react-native";
+import {
+  router,
+  useFocusEffect } from "expo-router";
+import { useCallback,
+  useEffect,
+  useMemo,
+  useState } from "react";
+import { Alert,
+  Pressable,
+  StyleSheet,
+  View,
+} from "react-native";
 import AmountText from "../../src/components/AmountText";
 import AppButton from "../../src/components/AppButton";
 import AppCard from "../../src/components/AppCard";
@@ -9,10 +18,12 @@ import Avatar from "../../src/components/Avatar";
 import EmptyState from "../../src/components/EmptyState";
 import LoadingState from "../../src/components/LoadingState";
 import ProfileMetric from "../../src/components/ProfileMetric";
+import Text from "../../src/components/LocalizedText";
 import Screen from "../../src/components/Screen";
 import SegmentedTabs from "../../src/components/SegmentedTabs";
 import SheetModal from "../../src/components/SheetModal";
 import { useAuth } from "../../src/context/AuthContext";
+import { useAppSettings } from "../../src/context/useAppSettings";
 import {
   acceptFriendRequest,
   getFriendActivity,
@@ -113,6 +124,7 @@ function isTransactionCredit(transaction: ProfileTransaction) {
 
 export default function Profile() {
   const { user, dbUser, logout } = useAuth();
+  const { formatCurrency, formatDate: formatLiveDate } = useAppSettings();
 
   const [activeTab, setActiveTab] = useState<ProfileTab>("account");
   const [friendsSummary, setFriendsSummary] =
@@ -321,7 +333,7 @@ export default function Profile() {
         <View style={styles.metricDivider} />
         <ProfileMetric label="Rooms" value={rooms.length} />
         <View style={styles.metricDivider} />
-        <ProfileMetric label="Wallet" value={formatMoney(walletBalance)} />
+        <ProfileMetric label="Wallet" value={formatCurrency(walletBalance)} />
       </AppCard>
 
       <SegmentedTabs
@@ -625,7 +637,7 @@ export default function Profile() {
 
                         <Text style={styles.transactionMeta} numberOfLines={1}>
                           {(item.status || "completed").toString()} ·{" "}
-                          {getTransactionDate(item)}
+                          {formatLiveDate(item.displayDate || item.createdAt || item.created_at)}
                         </Text>
                       </View>
 
@@ -662,14 +674,14 @@ export default function Profile() {
           <View style={styles.activityStat}>
             <Text style={styles.statLabel}>Settled</Text>
             <Text style={styles.statValue}>
-              {formatMoney(activity?.summary.totalSettled ?? 0)}
+              {formatCurrency(activity?.summary.totalSettled ?? 0)}
             </Text>
           </View>
 
           <View style={styles.activityStat}>
             <Text style={styles.statLabel}>Net</Text>
             <Text style={styles.statValue}>
-              {formatMoney(activity?.summary.netPosition ?? 0)}
+              {formatCurrency(activity?.summary.netPosition ?? 0)}
             </Text>
           </View>
         </View>

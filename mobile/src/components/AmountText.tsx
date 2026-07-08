@@ -1,24 +1,28 @@
 import { StyleSheet, Text, type TextProps } from "react-native";
+import { useAppSettings, type CurrencyCode } from "../context/useAppSettings";
 import { colors } from "../theme/tokens";
 
 type AmountTextProps = TextProps & {
   amount?: number | null;
-  currency?: string;
+  currency?: string | CurrencyCode;
+  sourceCurrency?: CurrencyCode;
   size?: "sm" | "md" | "lg";
   tone?: "default" | "success" | "danger" | "primary";
 };
 
 export default function AmountText({
   amount = 0,
-  currency = "₹",
+  currency,
+  sourceCurrency = "INR",
   size = "md",
   tone = "default",
   style,
   ...props
 }: AmountTextProps) {
-  const value = `${currency}${Number(amount || 0).toLocaleString("en-IN", {
-    maximumFractionDigits: 2,
-  })}`;
+  const { appCurrency, convertCurrency, formatCurrencyValue } = useAppSettings();
+  const targetCurrency = currency && currency.length === 3 ? (currency as CurrencyCode) : appCurrency;
+  const convertedAmount = convertCurrency(Number(amount || 0), sourceCurrency, targetCurrency);
+  const value = formatCurrencyValue(convertedAmount, targetCurrency);
 
   return (
     <Text

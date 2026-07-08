@@ -1,5 +1,10 @@
-import { Image, StyleSheet, Text, View } from "react-native";
+import {
+  Image,
+  StyleSheet,
+  View,
+} from "react-native";
 import { colors, radius, typography } from "../theme/tokens";
+import Text from "./LocalizedText";
 
 type AvatarProps = {
   name?: string | null;

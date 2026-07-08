@@ -1,5 +1,6 @@
 import { Redirect, Tabs } from "expo-router";
 import { ActivityIndicator, View } from "react-native";
+import AnimatedTabBar from "../../src/components/AnimatedTabBar";
 import { useAuth } from "../../src/context/AuthContext";
 import { colors } from "../../src/theme/tokens";
 
@@ -27,17 +28,15 @@ export default function TabsLayout() {
 
   return (
     <Tabs
+      tabBar={(props) => <AnimatedTabBar {...props} />}
       screenOptions={{
         headerShown: false,
-        tabBarActiveTintColor: colors.primary,
-        tabBarInactiveTintColor: colors.muted,
       }}
     >
       <Tabs.Screen name="dashboard" options={{ title: "Home" }} />
       <Tabs.Screen name="split-rooms" options={{ title: "Rooms" }} />
       <Tabs.Screen name="wallet" options={{ title: "Wallet" }} />
       <Tabs.Screen name="profile" options={{ title: "Profile" }} />
-
       <Tabs.Screen name="friends" options={{ href: null }} />
       <Tabs.Screen name="settings" options={{ href: null }} />
     </Tabs>

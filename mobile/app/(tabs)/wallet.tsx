@@ -1,6 +1,14 @@
-import { useFocusEffect } from "expo-router";
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { Alert, Pressable, StyleSheet, Text, View } from "react-native";
+import {
+  useFocusEffect } from "expo-router";
+import { useCallback,
+  useEffect,
+  useMemo,
+  useState } from "react";
+import { Alert,
+  Pressable,
+  StyleSheet,
+  View,
+} from "react-native";
 import AmountText from "../../src/components/AmountText";
 import AppButton from "../../src/components/AppButton";
 import AppCard from "../../src/components/AppCard";
@@ -9,6 +17,7 @@ import LoadingState from "../../src/components/LoadingState";
 import Screen from "../../src/components/Screen";
 import SheetModal from "../../src/components/SheetModal";
 import AppTextInput from "../../src/components/AppTextInput";
+import Text from "../../src/components/LocalizedText";
 import {
   getRecentWalletTopUps,
   getWalletSummary,
@@ -21,6 +30,7 @@ import {
 } from "../../src/lib/api";
 import { colors, radius, spacing, typography } from "../../src/theme/tokens";
 import RazorpayCheckout from "react-native-razorpay";
+import { useAppSettings } from "../../src/context/useAppSettings";
 
 function formatMoney(value?: number | null) {
   return `₹${Number(value || 0).toLocaleString("en-IN", {
@@ -83,6 +93,7 @@ function getSettlementTitle(settlement: PendingWalletSettlement) {
 }
 
 export default function Wallet() {
+  const { formatCurrency, formatDate: formatLiveDate } = useAppSettings();
   const [walletData, setWalletData] = useState<WalletSummaryResponse | null>(
     null,
   );
@@ -286,7 +297,7 @@ async function handleCreateTopUpOrder() {
           <View style={styles.balanceCopy}>
             <Text style={styles.cardEyebrow}>Available balance</Text>
             <Text style={styles.balanceAmount}>
-              {formatMoney(availableBalance)}
+              {formatCurrency(availableBalance)}
             </Text>
             <Text style={styles.balanceHint}>
               Based on wallet credits and debits recorded in SplitVerse.
@@ -352,7 +363,7 @@ async function handleCreateTopUpOrder() {
               netPosition >= 0 ? styles.positiveText : styles.negativeText,
             ]}
           >
-            {formatSignedMoney(netPosition)}
+            {formatCurrency(netPosition, { signed: true })}
           </Text>
           <Text style={styles.metricHelper}>Balance + incoming - outgoing</Text>
         </View>
@@ -391,7 +402,7 @@ async function handleCreateTopUpOrder() {
                     {topUp.method || "Wallet top-up"}
                   </Text>
                   <Text style={styles.rowSubtext}>
-                    {formatDate(topUp.displayDate || topUp.createdAt)}
+                    {formatLiveDate(topUp.displayDate || topUp.createdAt)}
                   </Text>
                 </View>
 
@@ -414,7 +425,7 @@ async function handleCreateTopUpOrder() {
         <View style={styles.topUpInfoCard}>
           <Text style={styles.cardEyebrow}>Available balance</Text>
           <Text style={styles.topUpBalance}>
-            {formatMoney(availableBalance)}
+            {formatCurrency(availableBalance)}
           </Text>
           <Text style={styles.balanceHint}>
             Enter the amount you want to add to your SplitVerse wallet.
@@ -438,7 +449,7 @@ async function handleCreateTopUpOrder() {
               onPress={() => setTopUpAmount(String(amount))}
               disabled={creatingTopUpOrder}
             >
-              <Text style={styles.quickAmountText}>{formatMoney(amount)}</Text>
+              <Text style={styles.quickAmountText}>{formatCurrency(amount)}</Text>
             </Pressable>
           ))}
         </View>

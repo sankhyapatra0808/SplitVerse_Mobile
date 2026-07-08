@@ -5,13 +5,14 @@
     "version": "1.0.0",
     "scheme": "splitverse",
     "orientation": "portrait",
-    "icon": "./assets/icon.png",
+    "icon": "./assets/splitverse-logo.png",
     "userInterfaceStyle": "light",
     "ios": {
       "supportsTablet": true
     },
     "android": {
       "package": "com.sankhyapatra.splitverse",
+      "googleServicesFile": "./google-services.json",
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/android-icon-foreground.png",
@@ -27,7 +28,8 @@
       "expo-router",
       "expo-secure-store",
       "expo-font",
-      "expo-web-browser"
+      "expo-web-browser",
+      "@react-native-google-signin/google-signin"
     ],
     "extra": {
       "router": {},

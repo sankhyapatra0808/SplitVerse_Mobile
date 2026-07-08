@@ -1,5 +1,12 @@
-import { Pressable, StyleSheet, Text, View, type ViewProps } from "react-native";
+import {
+  Pressable,
+  StyleSheet,
+  View,
+  type ViewProps,
+} from "react-native";
 import { colors, radius, spacing, typography } from "../theme/tokens";
+import { useAppSettings } from "../context/useAppSettings";
+import Text from "./LocalizedText";
 
 export type SpendGraphMode = "weekly" | "yearly";
 
@@ -15,12 +22,6 @@ type SpendBarChartProps = ViewProps & {
   onModeChange: (mode: SpendGraphMode) => void;
   data: SpendGraphPoint[];
 };
-
-function formatAmount(amount: number) {
-  return `₹${Number(amount || 0).toLocaleString("en-IN", {
-    maximumFractionDigits: 0,
-  })}`;
-}
 
 function getMonthLabel(label: string) {
   const cleanLabel = String(label || "").trim();
@@ -76,6 +77,8 @@ export default function SpendBarChart({
   style,
   ...props
 }: SpendBarChartProps) {
+  const { formatCurrency } = useAppSettings();
+  const formatAmount = (amount: number) => formatCurrency(amount, { compact: true });
   const normalizedData =
     mode === "yearly"
       ? data.map((item) => ({
@@ -134,7 +137,7 @@ export default function SpendBarChart({
         <View style={styles.yAxis}>
           <Text style={styles.axisText}>{formatAmount(maxAmount)}</Text>
           <Text style={styles.axisText}>{formatAmount(halfAmount)}</Text>
-          <Text style={styles.axisText}>₹0</Text>
+          <Text style={styles.axisText}>{formatAmount(0)}</Text>
         </View>
 
         <View style={styles.chart}>

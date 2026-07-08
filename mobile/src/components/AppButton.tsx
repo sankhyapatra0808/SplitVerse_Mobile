@@ -2,12 +2,12 @@ import {
   ActivityIndicator,
   Pressable,
   StyleSheet,
-  Text,
   type PressableProps,
   type StyleProp,
   type ViewStyle,
 } from "react-native";
 import { colors, radius, spacing, typography } from "../theme/tokens";
+import Text from "./LocalizedText";
 
 type AppButtonProps = Omit<PressableProps, "style"> & {
   title: string;

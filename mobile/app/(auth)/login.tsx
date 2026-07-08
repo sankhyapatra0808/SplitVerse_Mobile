@@ -1,18 +1,32 @@
 import { router } from "expo-router";
-import { useState } from "react";
-import { Alert, StyleSheet, Text, View } from "react-native";
+import { useEffect, useState } from "react";
+import { Alert, Pressable, StyleSheet, View } from "react-native";
 import AppButton from "../../src/components/AppButton";
 import AppCard from "../../src/components/AppCard";
 import AppTextInput from "../../src/components/AppTextInput";
 import Screen from "../../src/components/Screen";
+import SheetModal from "../../src/components/SheetModal";
+import Text from "../../src/components/LocalizedText";
 import { useAuth } from "../../src/context/AuthContext";
-import { colors, spacing, typography } from "../../src/theme/tokens";
+import { signInWithGoogleAndGetIdToken } from "../../src/lib/googleAuth";
+import { colors, radius, spacing, typography } from "../../src/theme/tokens";
 
 export default function Login() {
-  const { login } = useAuth();
+  const {
+    login,
+    loginWithGoogleIdToken,
+    startEmailLoginOtp,
+    completeEmailLoginWithOtp,
+  } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [googleSubmitting, setGoogleSubmitting] = useState(false);
+  const [otpSubmitting, setOtpSubmitting] = useState(false);
+  const [otpSessionId, setOtpSessionId] = useState("");
+  const [otp, setOtp] = useState("");
+  const [otpEmail, setOtpEmail] = useState("");
+  const [otpPassword, setOtpPassword] = useState("");
 
   async function handleLogin() {
     try {
@@ -26,6 +40,80 @@ export default function Login() {
       );
     } finally {
       setSubmitting(false);
+    }
+  }
+
+  async function handleStartOtpLogin() {
+    const trimmedEmail = email.trim().toLowerCase();
+
+    if (!trimmedEmail || !password) {
+      Alert.alert(
+        "Email and password required",
+        "Enter email and password first, then request the email login code.",
+      );
+      return;
+    }
+
+    try {
+      setOtpSubmitting(true);
+      const session = await startEmailLoginOtp(trimmedEmail, password);
+      setOtpSessionId(session.sessionId);
+      setOtpEmail(trimmedEmail);
+      setOtpPassword(password);
+      setOtp("");
+      Alert.alert(
+        "Code sent",
+        `A 6-digit login code was sent to ${session.email}.`,
+      );
+    } catch (error) {
+      Alert.alert(
+        "OTP failed",
+        error instanceof Error ? error.message : "Could not send login code",
+      );
+    } finally {
+      setOtpSubmitting(false);
+    }
+  }
+
+  async function handleCompleteOtpLogin() {
+    if (!otpSessionId || otp.length !== 6) {
+      Alert.alert("Code required", "Enter the 6-digit login code.");
+      return;
+    }
+
+    try {
+      setOtpSubmitting(true);
+      await completeEmailLoginWithOtp(otpEmail, otpPassword, otpSessionId, otp);
+      setOtpSessionId("");
+      setOtp("");
+      router.replace("/(tabs)/dashboard");
+    } catch (error) {
+      Alert.alert(
+        "OTP login failed",
+        error instanceof Error ? error.message : "Could not verify login code",
+      );
+    } finally {
+      setOtpSubmitting(false);
+    }
+  }
+
+  async function handleGoogleLogin() {
+    try {
+      setGoogleSubmitting(true);
+
+      const idToken = await signInWithGoogleAndGetIdToken();
+      await loginWithGoogleIdToken(idToken);
+
+      router.replace("/(tabs)/dashboard");
+    } catch (error) {
+      Alert.alert(
+        "Google sign-in failed",
+        error instanceof Error
+          ? error.message
+          : "Could not sign in with Google",
+      );
+    } finally {
+      setGoogleSubmitting(false);
     }
   }
 
@@ -60,11 +148,63 @@ export default function Login() {
         <AppButton title="Sign in" loading={submitting} onPress={handleLogin} />
 
         <AppButton
+          title="Send email login code"
+          variant="secondary"
+          loading={otpSubmitting && !otpSessionId}
+          onPress={handleStartOtpLogin}
+        />
+
+        <View style={styles.dividerRow}>
+          <View style={styles.divider} />
+          <Text style={styles.dividerText}>or</Text>
+          <View style={styles.divider} />
+        </View>
+
+        <Pressable
+          style={styles.googleButton}
+          onPress={handleGoogleLogin}
+          disabled={googleSubmitting}
+        >
+          <Text style={styles.googleMark}>G</Text>
+          <Text style={styles.googleText}>
+            {googleSubmitting ? "Signing in" : "Continue with Google"}
+          </Text>
+        </Pressable>
+
+        <AppButton
           title="Create account"
           variant="secondary"
           onPress={() => router.push("/(auth)/signup")}
         />
       </AppCard>
+
+      <SheetModal
+        visible={Boolean(otpSessionId)}
+        eyebrow="Email login code"
+        title="Verify your login"
+        onClose={() => {
+          setOtpSessionId("");
+          setOtp("");
+        }}
+      >
+        <Text style={styles.otpCopy}>
+          Enter the 6-digit code sent to {otpEmail}. The code expires in a few
+          minutes.
+        </Text>
+        <AppTextInput
+          label="Login code"
+          value={otp}
+          onChangeText={(value) => setOtp(value.replace(/\D/g, "").slice(0, 6))}
+          keyboardType="number-pad"
+          placeholder="123456"
+          editable={!otpSubmitting}
+        />
+        <AppButton
+          title={otpSubmitting ? "Verifying" : "Verify and sign in"}
+          loading={otpSubmitting}
+          onPress={handleCompleteOtpLogin}
+        />
+      </SheetModal>
     </Screen>
   );
 }
@@ -89,5 +229,43 @@ const styles = StyleSheet.create({
   card: {
     gap: spacing.base,
     marginTop: spacing.xl,
+  },
+  dividerRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+  },
+  divider: {
+    flex: 1,
+    height: 1,
+    backgroundColor: colors.hairlineSoft,
+  },
+  dividerText: {
+    color: colors.body,
+    ...typography.caption,
+  },
+  googleButton: {
+    minHeight: 48,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: spacing.sm,
+    borderWidth: 1,
+    borderColor: colors.hairlineSoft,
+    borderRadius: radius.pill,
+    backgroundColor: colors.canvas,
+  },
+  googleMark: {
+    color: colors.primary,
+    fontSize: 18,
+    fontWeight: "800",
+  },
+  googleText: {
+    color: colors.ink,
+    ...typography.button,
+  },
+  otpCopy: {
+    color: colors.body,
+    ...typography.bodySm,
   },
 });

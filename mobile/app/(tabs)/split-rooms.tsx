@@ -1,6 +1,15 @@
-import { useFocusEffect } from "expo-router";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Alert, Pressable, StyleSheet, Text, View } from "react-native";
+import {
+  useFocusEffect } from "expo-router";
+import { useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState } from "react";
+import { Alert,
+  Pressable,
+  StyleSheet,
+  View,
+} from "react-native";
 import AmountText from "../../src/components/AmountText";
 import AppButton from "../../src/components/AppButton";
 import AppCard from "../../src/components/AppCard";
@@ -9,8 +18,10 @@ import Avatar from "../../src/components/Avatar";
 import EmptyState from "../../src/components/EmptyState";
 import LoadingState from "../../src/components/LoadingState";
 import Screen from "../../src/components/Screen";
+import Text from "../../src/components/LocalizedText";
 import SheetModal from "../../src/components/SheetModal";
 import { useAuth } from "../../src/context/AuthContext";
+import { useAppSettings } from "../../src/context/useAppSettings";
 import {
   createSplitRoom,
   createSplitRoomItem,
@@ -330,6 +341,7 @@ function removeOptimisticRoomItem(room: SplitRoom, itemId: string): SplitRoom {
 
 export default function SplitRooms() {
   const { user, dbUser } = useAuth();
+  const { formatCurrency } = useAppSettings();
 
   const [rooms, setRooms] = useState<SplitRoom[]>([]);
   const [friends, setFriends] = useState<Friend[]>([]);
@@ -1490,7 +1502,7 @@ export default function SplitRooms() {
               label="Amount"
               value={itemAmount}
               onChangeText={setItemAmount}
-              placeholder={formatMoney(420)}
+              placeholder={formatCurrency(420)}
               keyboardType="decimal-pad"
               editable={!savingItem}
             />
@@ -2525,7 +2537,7 @@ export default function SplitRooms() {
           label="Amount"
           value={editItemAmount}
           onChangeText={setEditItemAmount}
-          placeholder={formatMoney(420)}
+          placeholder={formatCurrency(420)}
           keyboardType="decimal-pad"
           editable={!updatingItemId}
         />

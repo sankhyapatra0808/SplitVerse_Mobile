@@ -1,5 +1,10 @@
-import { StyleSheet, Text, View, type ViewProps } from "react-native";
+import {
+  StyleSheet,
+  View,
+  type ViewProps,
+} from "react-native";
 import { colors, spacing, typography } from "../theme/tokens";
+import Text from "./LocalizedText";
 
 type ProfileMetricProps = ViewProps & {
   label: string;

@@ -1,10 +1,11 @@
 import { router } from "expo-router";
-import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Image, StyleSheet, View } from "react-native";
 import AppButton from "../src/components/AppButton";
 import AppCard from "../src/components/AppCard";
 import Screen from "../src/components/Screen";
+import Text from "../src/components/LocalizedText";
 import { useAuth } from "../src/context/AuthContext";
-import { colors, spacing, typography } from "../src/theme/tokens";
+import { colors, radius, spacing, typography } from "../src/theme/tokens";
 
 export default function Index() {
   const { user, initializing } = useAuth();
@@ -20,95 +21,121 @@ export default function Index() {
   }
 
   return (
-    <Screen>
-      <View style={styles.hero}>
-        <Text style={styles.badge}>SplitVerse</Text>
+    <Screen contentStyle={styles.screen}>
+      <View style={styles.heroCard}>
+        <View style={styles.logoShell}>
+          <Image source={require("../assets/splitverse-logo.png")} style={styles.logo} resizeMode="contain" />
+        </View>
+
+        <Text style={styles.badge}>SplitVerse mobile</Text>
         <Text style={styles.title}>Split bills fairly, item by item.</Text>
         <Text style={styles.subtitle}>
-          Track shared expenses, assign items, settle dues, manage friends, and
-          use your wallet from one clean mobile app.
+          Create rooms, assign exact items, settle wallet dues, and keep every friend balance clean.
         </Text>
 
         <View style={styles.actions}>
           {user ? (
-            <AppButton
-              title="Continue to dashboard"
-              onPress={() => router.replace("/(tabs)/dashboard")}
-            />
+            <AppButton title="Continue to dashboard" onPress={() => router.replace("/(tabs)/dashboard")} />
           ) : (
             <>
-              <AppButton
-                title="Get started"
-                onPress={() => router.push("/(auth)/signup")}
-              />
-              <AppButton
-                title="Sign in"
-                variant="secondary"
-                onPress={() => router.push("/(auth)/login")}
-              />
+              <AppButton title="Get started" onPress={() => router.push("/(auth)/signup")} />
+              <AppButton title="Sign in" variant="secondary" onPress={() => router.push("/(auth)/login")} />
             </>
           )}
         </View>
       </View>
 
-      <AppCard style={styles.previewCard}>
-        <Text style={styles.cardEyebrow}>Fair splitting</Text>
-        <Text style={styles.cardTitle}>Pay only for what you used</Text>
-        <Text style={styles.cardText}>
-          Restaurant bills, room expenses, wallet dues, and friend settlements
-          stay clean and transparent.
-        </Text>
-      </AppCard>
+      <View style={styles.featureGrid}>
+        <AppCard style={styles.featureCard}>
+          <Text style={styles.cardEyebrow}>Fair splitting</Text>
+          <Text style={styles.cardTitle}>Pay only for what you used</Text>
+          <Text style={styles.cardText}>Assign each item to the right member instead of dividing blindly.</Text>
+        </AppCard>
+
+        <AppCard style={styles.featureCard}>
+          <Text style={styles.cardEyebrow}>Wallet ready</Text>
+          <Text style={styles.cardTitle}>Top up and settle</Text>
+          <Text style={styles.cardText}>Use Razorpay wallet top-up and pay adjusted net dues from mobile.</Text>
+        </AppCard>
+      </View>
     </Screen>
   );
 }
 
 const styles = StyleSheet.create({
+  screen: {
+    gap: spacing.base,
+    backgroundColor: colors.surfaceSoft,
+  },
   center: {
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
   },
-  hero: {
+  heroCard: {
+    minHeight: 520,
+    alignItems: "center",
+    justifyContent: "center",
     gap: spacing.base,
-    paddingTop: spacing.xxl,
+    borderWidth: 1,
+    borderColor: colors.hairlineSoft,
+    borderRadius: 34,
+    backgroundColor: colors.canvas,
+    padding: spacing.lg,
+    marginTop: spacing.lg,
+  },
+  logoShell: {
+    width: 116,
+    height: 116,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 34,
+    backgroundColor: colors.surfaceSoft,
+    marginBottom: spacing.sm,
+  },
+  logo: {
+    width: 92,
+    height: 92,
   },
   badge: {
-    alignSelf: "flex-start",
     overflow: "hidden",
-    borderRadius: 100,
+    borderRadius: radius.pill,
     backgroundColor: colors.surfaceStrong,
     paddingHorizontal: spacing.sm,
     paddingVertical: spacing.xs,
-    color: colors.ink,
+    color: colors.primary,
     ...typography.caption,
   },
   title: {
+    textAlign: "center",
     color: colors.ink,
     ...typography.titleLg,
   },
   subtitle: {
+    textAlign: "center",
     color: colors.body,
     ...typography.body,
   },
   actions: {
+    width: "100%",
     gap: spacing.sm,
     marginTop: spacing.sm,
   },
-  previewCard: {
-    marginTop: spacing.xl,
+  featureGrid: {
+    gap: spacing.base,
+  },
+  featureCard: {
+    gap: spacing.xs,
   },
   cardEyebrow: {
     color: colors.body,
     ...typography.caption,
   },
   cardTitle: {
-    marginTop: spacing.xs,
     color: colors.ink,
     ...typography.titleMd,
   },
   cardText: {
-    marginTop: spacing.xs,
     color: colors.body,
     ...typography.bodySm,
   },

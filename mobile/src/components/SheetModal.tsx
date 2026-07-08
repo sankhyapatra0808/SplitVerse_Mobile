@@ -5,12 +5,12 @@ import {
   Pressable,
   ScrollView,
   StyleSheet,
-  Text,
   View,
   type GestureResponderEvent,
 } from "react-native";
 import AppButton from "./AppButton";
 import { colors, spacing, typography } from "../theme/tokens";
+import Text from "./LocalizedText";
 
 type SheetModalSize = "auto" | "medium" | "large";
 
