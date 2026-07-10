@@ -16,9 +16,6 @@ import {
   TextInput,
   View,
 } from "react-native";
-import AmountText from "../../src/components/AmountText";
-import AppButton from "../../src/components/AppButton";
-import AppCard from "../../src/components/AppCard";
 import Avatar from "../../src/components/Avatar";
 import Screen from "../../src/components/Screen";
 import SpendBarChart, {
@@ -507,7 +504,7 @@ export default function Dashboard() {
         styles.screen,
         {
           backgroundColor: theme.background,
-          paddingBottom: spacing.xxl,
+          paddingBottom: spacing.xxl + 50,
         },
       ]}
     >
@@ -533,7 +530,6 @@ export default function Dashboard() {
               >
                 <View style={styles.heroTop}>
                   <View>
-                    <Text style={styles.heroEyebrow}>SplitVerse</Text>
                     <Text style={styles.heroTitle}>Dashboard</Text>
                   </View>
 
@@ -572,7 +568,6 @@ export default function Dashboard() {
             >
               <View style={styles.heroTop}>
                 <View>
-                  <Text style={styles.heroEyebrow}>SplitVerse</Text>
                   <Text style={styles.heroTitle}>Dashboard</Text>
                 </View>
 
@@ -887,7 +882,7 @@ export default function Dashboard() {
 const styles = StyleSheet.create({
   screen: {
     padding: 0,
-    paddingBottom: spacing.xxl,
+    paddingBottom: spacing.xxl + 50,
     backgroundColor: colors.surfaceSoft,
   },
   heroTop: {
@@ -907,6 +902,7 @@ const styles = StyleSheet.create({
     fontWeight: "400",
     lineHeight: 38,
     letterSpacing: -0.7,
+    fontFamily: "Instrument Serif",
   },
   heroActions: {
     flexDirection: "row",

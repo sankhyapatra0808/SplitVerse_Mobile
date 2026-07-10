@@ -1,4 +1,6 @@
 import * as ImagePicker from "expo-image-picker";
+import { File, Paths } from "expo-file-system";
+import * as Sharing from "expo-sharing";
 import { Ionicons } from "@expo/vector-icons";
 import { router, useFocusEffect } from "expo-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -6,6 +8,7 @@ import {
   Alert,
   BackHandler,
   Pressable,
+  ScrollView,
   StyleSheet,
   Switch,
   View,
@@ -457,17 +460,46 @@ export default function Settings() {
   async function handleDownloadMyData() {
     try {
       setDownloadingData(true);
+
+      // The backend returns the authenticated user's export object.
       const data = await downloadMyData();
-      Alert.alert(
-        "Data export ready",
-        `Export prepared at ${formatDate(data.exportedAt, { hour: "2-digit", minute: "2-digit" })}. Mobile download sharing will be added next.`,
+      const exportedAt = data.exportedAt
+        ? new Date(data.exportedAt)
+        : new Date();
+
+      const timestamp = exportedAt
+        .toISOString()
+        .replace(/[:.]/g, "-");
+
+      const file = new File(
+        Paths.cache,
+        `splitverse-data-${timestamp}.json`,
       );
+
+      file.create();
+      file.write(JSON.stringify(data, null, 2));
+
+      const sharingAvailable = await Sharing.isAvailableAsync();
+
+      if (!sharingAvailable) {
+        Alert.alert(
+          "Data export created",
+          `Your SplitVerse data file was created successfully.\n\n${file.uri}`,
+        );
+        return;
+      }
+
+      await Sharing.shareAsync(file.uri, {
+        dialogTitle: "Save or share your SplitVerse data",
+        mimeType: "application/json",
+        UTI: "public.json",
+      });
     } catch (error) {
       Alert.alert(
         "Export failed",
         error instanceof Error
           ? error.message
-          : "Could not prepare data export.",
+          : "Could not create your SplitVerse data file.",
       );
     } finally {
       setDownloadingData(false);
@@ -815,7 +847,18 @@ export default function Settings() {
         ) : visibleFriends.length === 0 ? (
           <EmptyState title="No friends to delete" />
         ) : (
-          <View style={styles.list}>
+          <ScrollView
+            style={
+              visibleFriends.length > 4
+                ? styles.friendListViewport
+                : undefined
+            }
+            contentContainerStyle={styles.list}
+            nestedScrollEnabled
+            scrollEnabled={visibleFriends.length > 4}
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+          >
             {visibleFriends.map((friend) => (
               <View
                 style={[
@@ -848,7 +891,7 @@ export default function Settings() {
                 />
               </View>
             ))}
-          </View>
+          </ScrollView>
         )}
       </AppCard>
 
@@ -1098,6 +1141,9 @@ const styles = StyleSheet.create({
   switchTitle: { color: colors.ink, ...typography.titleSm },
   switchDescription: { color: colors.body, ...typography.bodySm },
   list: { gap: spacing.sm },
+  friendListViewport: {
+    maxHeight: 4 * 76 + 4 * spacing.sm,
+  },
   friendRow: {
     minHeight: 76,
     flexDirection: "row",

@@ -367,7 +367,7 @@ export default function Profile() {
         styles.screen,
         {
           backgroundColor: theme.background,
-          paddingBottom: spacing.xxl + 160,
+          paddingBottom: spacing.xxl + 50,
         },
       ]}
     >

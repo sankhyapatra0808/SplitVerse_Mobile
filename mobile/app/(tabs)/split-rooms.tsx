@@ -1378,7 +1378,7 @@ export default function SplitRooms() {
         styles.screen,
         {
           backgroundColor: theme.background,
-          paddingBottom: spacing.xxl + 160,
+          paddingBottom: spacing.xxl + 50,
         },
       ]}
     >
