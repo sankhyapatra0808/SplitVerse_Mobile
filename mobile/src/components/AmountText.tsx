@@ -1,4 +1,5 @@
-import { StyleSheet, Text, type TextProps } from "react-native";
+import { StyleSheet, type TextProps } from "react-native";
+import Text from "./LocalizedText";
 import { useAppSettings, type CurrencyCode } from "../context/useAppSettings";
 
 type AmountTextProps = TextProps & {

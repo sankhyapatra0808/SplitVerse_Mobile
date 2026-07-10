@@ -50,6 +50,7 @@ import {
   getTransactionDisplayAmount,
   normalizeTransactionsForDisplay,
 } from "../../src/lib/transactionDisplay";
+import { fontFamilies } from "../../src/theme/fonts";
 import { colors, radius, spacing, typography } from "../../src/theme/tokens";
 
 const MONTH_LABELS = [
@@ -902,7 +903,6 @@ const styles = StyleSheet.create({
     fontWeight: "400",
     lineHeight: 38,
     letterSpacing: -0.7,
-    fontFamily: "Instrument Serif",
   },
   heroActions: {
     flexDirection: "row",
@@ -1149,6 +1149,8 @@ const styles = StyleSheet.create({
     fontSize: 16,
     lineHeight: 20,
     textAlignVertical: "center",
+    fontFamily: fontFamilies.libreRegular,
+    fontWeight: "400",
   },
   expenseSubmitButton: {
     minHeight: 52,

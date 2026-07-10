@@ -467,14 +467,9 @@ export default function Settings() {
         ? new Date(data.exportedAt)
         : new Date();
 
-      const timestamp = exportedAt
-        .toISOString()
-        .replace(/[:.]/g, "-");
+      const timestamp = exportedAt.toISOString().replace(/[:.]/g, "-");
 
-      const file = new File(
-        Paths.cache,
-        `splitverse-data-${timestamp}.json`,
-      );
+      const file = new File(Paths.cache, `splitverse-data-${timestamp}.json`);
 
       file.create();
       file.write(JSON.stringify(data, null, 2));
@@ -849,9 +844,7 @@ export default function Settings() {
         ) : (
           <ScrollView
             style={
-              visibleFriends.length > 4
-                ? styles.friendListViewport
-                : undefined
+              visibleFriends.length > 4 ? styles.friendListViewport : undefined
             }
             contentContainerStyle={styles.list}
             nestedScrollEnabled
@@ -1080,7 +1073,13 @@ const styles = StyleSheet.create({
   },
   header: { gap: spacing.xs, paddingTop: spacing.sm },
   eyebrow: { color: colors.primary, ...typography.caption },
-  title: { color: colors.ink, ...typography.titleLg },
+  title: {
+    ...typography.titleLg,
+    color: colors.ink,
+    lineHeight: 42,
+    paddingBottom: 3,
+    includeFontPadding: true,
+  },
   subtitle: { color: colors.body, ...typography.bodySm },
   card: { gap: spacing.base },
   cardEyebrow: { color: colors.body, ...typography.caption },

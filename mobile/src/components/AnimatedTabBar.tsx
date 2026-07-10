@@ -10,6 +10,7 @@ import {
   View,
 } from "react-native";
 import { useAppSettings } from "../context/useAppSettings";
+import { fontFamilies } from "../theme/fonts";
 import { radius, spacing } from "../theme/tokens";
 import Text from "./LocalizedText";
 
@@ -253,8 +254,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.base,
   },
   activeLabel: {
-    fontSize: 12,
-    fontWeight: "700",
+    fontSize: 13,
+    fontWeight: "400",
     lineHeight: 16,
   },
   inactiveIcon: {

@@ -6,6 +6,7 @@ import {
 } from "react-native";
 import Text from "./LocalizedText";
 import { useAppSettings } from "../context/useAppSettings";
+import { fontFamilies } from "../theme/fonts";
 import { radius, spacing, typography } from "../theme/tokens";
 
 type AppTextInputProps = TextInputProps & {
@@ -36,6 +37,10 @@ export default function AppTextInput({
             backgroundColor: theme.surface,
           },
           style,
+          {
+            fontFamily: fontFamilies.libreRegular,
+            fontWeight: "normal",
+          },
         ]}
       />
     </View>
