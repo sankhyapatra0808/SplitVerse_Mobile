@@ -7,6 +7,7 @@ import AppTextInput from "../../src/components/AppTextInput";
 import Screen from "../../src/components/Screen";
 import Text from "../../src/components/LocalizedText";
 import { useAuth } from "../../src/context/AuthContext";
+import { useAppSettings } from "../../src/context/useAppSettings";
 import { signInWithGoogleAndGetIdToken } from "../../src/lib/googleAuth";
 import { colors, radius, spacing, typography } from "../../src/theme/tokens";
 
@@ -25,6 +26,7 @@ function getPasswordStrength(password: string) {
 }
 
 export default function Signup() {
+  const { theme } = useAppSettings();
   const { signup, loginWithGoogleIdToken } = useAuth();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -115,12 +117,14 @@ export default function Signup() {
         />
 
         <View style={styles.strengthTrack}>
-          <View
-            style={[
-              styles.strengthFill,
-              { width: `${strength.score * 20}%` },
-            ]}
-          />
+          {strength.score > 0 ? (
+            <View
+              style={[
+                styles.strengthFill,
+                { width: `${strength.score * 20}%`, backgroundColor: theme.primary },
+              ]}
+            />
+          ) : null}
         </View>
         <Text style={styles.strengthText}>{strength.label}</Text>
 
@@ -137,12 +141,12 @@ export default function Signup() {
         </View>
 
         <Pressable
-          style={styles.googleButton}
+          style={[styles.googleButton, { backgroundColor: theme.mode === "dark" ? theme.primary : "#ffffff", borderColor: theme.mode === "dark" ? theme.primary : theme.borderSoft }]}
           onPress={handleGoogleSignup}
           disabled={googleSubmitting}
         >
           <Image source={require("../../assets/google-logo.png")} style={styles.googleLogo} resizeMode="contain" />
-          <Text style={styles.googleText}>
+          <Text style={[styles.googleText, { color: theme.mode === "dark" ? theme.onPrimary : "#111111" }]}>
             {googleSubmitting ? "Signing up" : "Continue with Google"}
           </Text>
         </Pressable>

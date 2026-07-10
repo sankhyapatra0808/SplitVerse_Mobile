@@ -32,6 +32,7 @@ export default function TabsLayout() {
       tabBar={(props) => <AnimatedTabBar {...props} />}
       screenOptions={{
         headerShown: false,
+        lazy: true,
         sceneStyle: { backgroundColor: theme.background },
       }}
     >
@@ -42,6 +43,7 @@ export default function TabsLayout() {
       <Tabs.Screen name="friends" options={{ href: null }} />
       <Tabs.Screen name="settings" options={{ href: null }} />
       <Tabs.Screen name="notifications" options={{ href: null }} />
+      <Tabs.Screen name="room-history" options={{ href: null }} />
     </Tabs>
   );
 }

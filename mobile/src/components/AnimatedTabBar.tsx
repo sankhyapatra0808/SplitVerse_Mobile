@@ -1,7 +1,14 @@
 import { Ionicons } from "@expo/vector-icons";
 import type { BottomTabBarProps } from "@react-navigation/bottom-tabs";
 import { useEffect, useMemo, useRef } from "react";
-import { Animated, Easing, Platform, Pressable, StyleSheet, View } from "react-native";
+import {
+  Animated,
+  Easing,
+  Platform,
+  Pressable,
+  StyleSheet,
+  View,
+} from "react-native";
 import { useAppSettings } from "../context/useAppSettings";
 import { radius, spacing } from "../theme/tokens";
 import Text from "./LocalizedText";
@@ -15,12 +22,20 @@ const iconMap: Record<
   }
 > = {
   dashboard: { inactive: "home-outline", active: "home", label: "Home" },
-  "split-rooms": { inactive: "receipt-outline", active: "receipt", label: "Rooms" },
+  "split-rooms": {
+    inactive: "receipt-outline",
+    active: "receipt",
+    label: "Rooms",
+  },
   wallet: { inactive: "wallet-outline", active: "wallet", label: "Wallet" },
   profile: { inactive: "person-outline", active: "person", label: "Profile" },
 };
 
-export default function AnimatedTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
+export default function AnimatedTabBar({
+  state,
+  descriptors,
+  navigation,
+}: BottomTabBarProps) {
   const { theme } = useAppSettings();
   const visibleRoutes = useMemo(
     () => state.routes.filter((route) => Boolean(iconMap[route.name])),
@@ -43,22 +58,36 @@ export default function AnimatedTabBar({ state, descriptors, navigation }: Botto
 
       Animated.timing(animations[route.key], {
         toValue: isFocused ? 1 : 0,
-        duration: 240,
+        duration: 220,
         easing: Easing.out(Easing.cubic),
         useNativeDriver: false,
       }).start();
     });
   }, [animations, state.index, state.routes, visibleRoutes]);
 
+  const isDark = theme.mode === "dark";
+  const barBackground = isDark ? "#050608" : theme.canvas;
+  const barBorder = isDark ? "rgba(255,255,255,0.10)" : theme.primary;
+  const inactiveColor = isDark ? "rgba(255,255,255,0.92)" : theme.text;
+
   return (
-    <View style={[styles.wrapper, { backgroundColor: theme.background }]}> 
+    <View
+      pointerEvents="box-none"
+      style={[
+        styles.wrapper,
+        {
+          backgroundColor: "transparent",
+          borderTopColor: "transparent",
+        },
+      ]}
+    >
       <View
         style={[
           styles.bar,
           {
-            borderColor: theme.mode === "dark" ? "rgba(255,255,255,0.08)" : "rgba(255,255,255,0.10)",
-            backgroundColor: theme.mode === "dark" ? "#050608" : "#0a0b0d",
-            shadowOpacity: theme.mode === "dark" ? 0.34 : 0.14,
+            borderColor: barBorder,
+            backgroundColor: barBackground,
+            shadowOpacity: isDark ? 0.28 : 0.08,
           },
         ]}
       >
@@ -70,7 +99,7 @@ export default function AnimatedTabBar({ state, descriptors, navigation }: Botto
 
           const itemWidth = animatedValue.interpolate({
             inputRange: [0, 1],
-            outputRange: [54, 126],
+            outputRange: [52, 126],
           });
           const activeOpacity = animatedValue;
           const inactiveOpacity = animatedValue.interpolate({
@@ -79,15 +108,15 @@ export default function AnimatedTabBar({ state, descriptors, navigation }: Botto
           });
           const activeScale = animatedValue.interpolate({
             inputRange: [0, 1],
-            outputRange: [0.92, 1],
+            outputRange: [0.94, 1],
           });
           const inactiveScale = animatedValue.interpolate({
             inputRange: [0, 1],
-            outputRange: [1, 0.86],
+            outputRange: [1, 0.88],
           });
           const activeTranslate = animatedValue.interpolate({
             inputRange: [0, 1],
-            outputRange: [8, 0],
+            outputRange: [6, 0],
           });
 
           const onPress = () => {
@@ -103,12 +132,21 @@ export default function AnimatedTabBar({ state, descriptors, navigation }: Botto
           };
 
           return (
-            <Animated.View key={route.key} style={[styles.itemShell, { width: itemWidth }]}> 
+            <Animated.View
+              key={route.key}
+              style={[styles.itemShell, { width: itemWidth }]}
+            >
               <Pressable
                 accessibilityRole="button"
                 accessibilityState={isFocused ? { selected: true } : {}}
                 accessibilityLabel={options.tabBarAccessibilityLabel}
-                android_ripple={{ color: "rgba(255,255,255,0.10)", borderless: true, radius: 34 }}
+                android_ripple={{
+                  color: isDark
+                    ? "rgba(255,255,255,0.10)"
+                    : "rgba(0,82,255,0.10)",
+                  borderless: true,
+                  radius: 34,
+                }}
                 onPress={onPress}
                 style={styles.itemPressable}
               >
@@ -119,20 +157,20 @@ export default function AnimatedTabBar({ state, descriptors, navigation }: Botto
                     {
                       backgroundColor: theme.primary,
                       opacity: activeOpacity,
-                      transform: [{ scale: activeScale }, { translateY: activeTranslate }],
+                      transform: [
+                        { scale: activeScale },
+                        { translateY: activeTranslate },
+                      ],
                     },
                   ]}
                 >
                   <Ionicons
                     name={icon.active}
-                    size={theme.mode === "dark" ? 18 : 17}
+                    size={18}
                     color={theme.onPrimary}
                   />
                   <Text
-                    style={[
-                      styles.activeLabel,
-                      { color: theme.onPrimary },
-                    ]}
+                    style={[styles.activeLabel, { color: theme.onPrimary }]}
                     numberOfLines={1}
                   >
                     {icon.label}
@@ -143,10 +181,18 @@ export default function AnimatedTabBar({ state, descriptors, navigation }: Botto
                   pointerEvents="none"
                   style={[
                     styles.inactiveIcon,
-                    { opacity: inactiveOpacity, transform: [{ scale: inactiveScale }] },
+                    {
+                      borderColor: "transparent",
+                      opacity: inactiveOpacity,
+                      transform: [{ scale: inactiveScale }],
+                    },
                   ]}
                 >
-                  <Ionicons name={icon.inactive} size={22} color="rgba(255,255,255,0.92)" />
+                  <Ionicons
+                    name={icon.inactive}
+                    size={22}
+                    color={inactiveColor}
+                  />
                 </Animated.View>
               </Pressable>
             </Animated.View>
@@ -159,22 +205,29 @@ export default function AnimatedTabBar({ state, descriptors, navigation }: Botto
 
 const styles = StyleSheet.create({
   wrapper: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    bottom: 0,
     paddingHorizontal: spacing.base,
-    paddingTop: spacing.xs,
+    paddingTop: 0,
+    borderTopWidth: 0,
+    backgroundColor: "transparent",
     paddingBottom: Platform.OS === "ios" ? spacing.sm : spacing.xs,
   },
+
   bar: {
     height: 62,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    borderWidth: 1,
+    borderWidth: 0,
     borderRadius: 34,
     paddingHorizontal: spacing.xs,
-    shadowColor: "#000",
-    shadowRadius: 18,
-    shadowOffset: { width: 0, height: 8 },
-    elevation: 10,
+    shadowColor: "transparent",
+    shadowRadius: 0,
+    shadowOffset: { width: 0, height: 0 },
+    elevation: 0,
   },
   itemShell: {
     height: 50,
@@ -210,6 +263,7 @@ const styles = StyleSheet.create({
     height: 42,
     alignItems: "center",
     justifyContent: "center",
+    borderWidth: 0,
     borderRadius: radius.pill,
   },
 });

@@ -86,9 +86,8 @@ export default function Notifications() {
     >
       <LinearGradient colors={[theme.primary, theme.primaryActive]} style={styles.hero}>
         <View style={styles.heroTop}>
-          <Pressable style={styles.backButton} onPress={() => router.back()}>
-            <Ionicons name="chevron-back" size={19} color="#ffffff" />
-            <Text style={styles.backText}>Back</Text>
+          <Pressable accessibilityLabel="Back" style={styles.backButton} onPress={() => router.back()}>
+            <Ionicons name="chevron-back" size={22} color="#ffffff" />
           </Pressable>
 
           <View style={styles.bellCircle}>
@@ -185,17 +184,12 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
   },
   backButton: {
-    minHeight: 40,
-    flexDirection: "row",
+    width: 42,
+    height: 42,
     alignItems: "center",
-    gap: 4,
+    justifyContent: "center",
     borderRadius: radius.pill,
     backgroundColor: "rgba(255,255,255,0.16)",
-    paddingHorizontal: spacing.sm,
-  },
-  backText: {
-    color: "#ffffff",
-    ...typography.caption,
   },
   bellCircle: {
     width: 42,

@@ -1,19 +1,12 @@
 import { LinearGradient } from "expo-linear-gradient";
 import { useFocusEffect } from "expo-router";
-import { useCallback,
-  useEffect,
-  useMemo,
-  useState } from "react";
-import { Alert,
-  Pressable,
-  StyleSheet,
-  View,
-} from "react-native";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { Alert, Pressable, StyleSheet, View } from "react-native";
 import AmountText from "../../src/components/AmountText";
 import AppButton from "../../src/components/AppButton";
 import AppCard from "../../src/components/AppCard";
 import EmptyState from "../../src/components/EmptyState";
-import LoadingState from "../../src/components/LoadingState";
+import { WalletSkeleton } from "../../src/components/PageSkeletons";
 import Screen from "../../src/components/Screen";
 import SheetModal from "../../src/components/SheetModal";
 import AppTextInput from "../../src/components/AppTextInput";
@@ -92,12 +85,24 @@ function getSettlementTitle(settlement: PendingWalletSettlement) {
     : `You owe ${getSettlementPerson(settlement)}`;
 }
 
-let walletCache: { walletData: WalletSummaryResponse | null; topUps: WalletTopUpItem[] } | null = null;
+let walletCache: {
+  walletData: WalletSummaryResponse | null;
+  topUps: WalletTopUpItem[];
+} | null = null;
 
 export default function Wallet() {
-  const { appCurrency, formatCurrency, formatDate: formatLiveDate, theme } = useAppSettings();
-  const [walletData, setWalletData] = useState<WalletSummaryResponse | null>(walletCache?.walletData ?? null);
-  const [topUps, setTopUps] = useState<WalletTopUpItem[]>(walletCache?.topUps ?? []);
+  const {
+    appCurrency,
+    formatCurrency,
+    formatDate: formatLiveDate,
+    theme,
+  } = useAppSettings();
+  const [walletData, setWalletData] = useState<WalletSummaryResponse | null>(
+    walletCache?.walletData ?? null,
+  );
+  const [topUps, setTopUps] = useState<WalletTopUpItem[]>(
+    walletCache?.topUps ?? [],
+  );
 
   const [loading, setLoading] = useState(!walletCache);
   const [refreshingSilent, setRefreshingSilent] = useState(false);
@@ -118,6 +123,7 @@ export default function Wallet() {
   const [topUpSheetOpen, setTopUpSheetOpen] = useState(false);
   const [topUpAmount, setTopUpAmount] = useState("");
   const [creatingTopUpOrder, setCreatingTopUpOrder] = useState(false);
+  const [topUpError, setTopUpError] = useState("");
 
   const incomingSettlements = useMemo(
     () =>
@@ -170,7 +176,10 @@ export default function Wallet() {
         getRecentWalletTopUps(),
       ]);
 
-      walletCache = { walletData: walletResponse, topUps: topUpsResponse.topUps ?? [] };
+      walletCache = {
+        walletData: walletResponse,
+        topUps: topUpsResponse.topUps ?? [],
+      };
       setWalletData(walletResponse);
       setTopUps(topUpsResponse.topUps ?? []);
     } catch (loadError) {
@@ -202,71 +211,81 @@ export default function Wallet() {
 
   function handleTopUpPress() {
     setTopUpAmount("");
+    setTopUpError("");
     setTopUpSheetOpen(true);
   }
 
-async function handleCreateTopUpOrder() {
-  const amount = Number(topUpAmount);
+  async function handleCreateTopUpOrder() {
+    const amount = Number(topUpAmount);
 
-  if (!Number.isFinite(amount) || amount <= 0) {
-    Alert.alert("Invalid amount", "Enter a valid top-up amount.");
-    return;
+    if (!Number.isFinite(amount) || amount <= 0) {
+      setTopUpError("Enter a valid top-up amount.");
+      return;
+    }
+
+    if (amount < 10) {
+      setTopUpError("Minimum wallet top-up amount is ₹10.");
+      return;
+    }
+
+    setTopUpError("");
+
+    try {
+      setCreatingTopUpOrder(true);
+
+      const order = await createRazorpayWalletOrder({
+        amount,
+        method: "UPI",
+      });
+
+      const payment = await RazorpayCheckout.open({
+        key: order.keyId,
+        amount: order.amount,
+        currency: order.currency || "INR",
+        name: order.name || "SplitVerse",
+        description: order.description || "Wallet top-up",
+        order_id: order.orderId,
+        prefill: {
+          name: order.prefill?.name,
+          email: order.prefill?.email,
+        },
+        theme: {
+          color: theme.primary,
+        },
+      });
+
+      await verifyRazorpayWalletPayment({
+        razorpayOrderId: payment.razorpay_order_id,
+        razorpayPaymentId: payment.razorpay_payment_id,
+        razorpaySignature: payment.razorpay_signature,
+      });
+
+      setTopUpSheetOpen(false);
+      setTopUpAmount("");
+      await loadWallet(true);
+
+      Alert.alert("Top-up successful", "Money has been added to your wallet.");
+    } catch (error) {
+      Alert.alert(
+        "Payment failed",
+        error instanceof Error
+          ? error.message
+          : "Could not complete wallet top-up",
+      );
+    } finally {
+      setCreatingTopUpOrder(false);
+    }
   }
-
-  if (amount < 10) {
-    Alert.alert("Minimum amount", "Minimum wallet top-up amount is ₹10.");
-    return;
-  }
-
-  try {
-    setCreatingTopUpOrder(true);
-
-    const order = await createRazorpayWalletOrder({
-      amount,
-      method: "UPI",
-    });
-
-    const payment = await RazorpayCheckout.open({
-      key: order.keyId,
-      amount: order.amount,
-      currency: order.currency || "INR",
-      name: order.name || "SplitVerse",
-      description: order.description || "Wallet top-up",
-      order_id: order.orderId,
-      prefill: {
-        name: order.prefill?.name,
-        email: order.prefill?.email,
-      },
-      theme: {
-        color: "#0052ff",
-      },
-    });
-
-    await verifyRazorpayWalletPayment({
-      razorpayOrderId: payment.razorpay_order_id,
-      razorpayPaymentId: payment.razorpay_payment_id,
-      razorpaySignature: payment.razorpay_signature,
-    });
-
-    setTopUpSheetOpen(false);
-    setTopUpAmount("");
-    await loadWallet(true);
-
-    Alert.alert("Top-up successful", "Money has been added to your wallet.");
-  } catch (error) {
-    Alert.alert(
-      "Payment failed",
-      error instanceof Error ? error.message : "Could not complete wallet top-up",
-    );
-  } finally {
-    setCreatingTopUpOrder(false);
-  }
-}
 
   if (loading && !walletData) {
     return (
-      <Screen scroll={false}>
-        <LoadingState />
+      <Screen
+        scroll={false}
+        safeBackgroundColor={
+          theme.mode === "dark" ? theme.background : theme.primary
+        }
+      >
+        <WalletSkeleton />
       </Screen>
     );
   }
@@ -275,8 +294,14 @@ async function handleCreateTopUpOrder() {
     <Screen
       refreshing={loading || refreshingSilent}
       onRefresh={() => loadWallet()}
-      safeBackgroundColor={theme.primary}
-      contentStyle={[styles.screen, { backgroundColor: theme.background }]}
+      safeBackgroundColor={theme.mode === "dark" ? theme.background : theme.primary}
+      contentStyle={[
+        styles.screen,
+        {
+          backgroundColor: theme.background,
+          paddingBottom: spacing.xxl + 160,
+        },
+      ]}
     >
       <LinearGradient
         colors={[theme.primary, theme.primaryActive]}
@@ -286,7 +311,9 @@ async function handleCreateTopUpOrder() {
       >
         <Text style={styles.heroEyebrow}>Wallet</Text>
         <Text style={styles.heroTitle}>SplitVerse balance</Text>
-        <Text style={styles.heroSubtitle}>Track balance, dues, top-ups, and wallet activity.</Text>
+        <Text style={styles.heroSubtitle}>
+          Track balance, dues, top-ups, and wallet activity.
+        </Text>
       </LinearGradient>
 
       {error ? (
@@ -297,19 +324,21 @@ async function handleCreateTopUpOrder() {
         </AppCard>
       ) : null}
 
-      <AppCard style={styles.balanceCard}>
+      <AppCard style={[styles.balanceCard, { backgroundColor: theme.card }]}>
         <View style={styles.balanceHeader}>
           <View style={styles.balanceCopy}>
             <Text style={styles.cardEyebrow}>Available balance</Text>
             <Text style={styles.balanceAmount}>
               {formatCurrency(availableBalance)}
             </Text>
-            <Text style={styles.balanceHint}>
-              Based on wallet credits and debits recorded in SplitVerse.
-            </Text>
           </View>
 
-          <View style={[styles.walletBadge, { backgroundColor: theme.surfaceStrong }]}>
+          <View
+            style={[
+              styles.walletBadge,
+              { backgroundColor: theme.surfaceStrong },
+            ]}
+          >
             <Text style={styles.walletBadgeText}>{appCurrency}</Text>
           </View>
         </View>
@@ -320,6 +349,13 @@ async function handleCreateTopUpOrder() {
             walletHealthTone === "success" && styles.healthSuccess,
             walletHealthTone === "danger" && styles.healthDanger,
             walletHealthTone === "warning" && styles.healthWarning,
+            {
+              backgroundColor: theme.mode === "dark" ? "#050608" : "#ffffff",
+              borderColor:
+                theme.mode === "dark"
+                  ? "rgba(255,255,255,0.10)"
+                  : "rgba(15,23,42,0.08)",
+            },
           ]}
         >
           <Text
@@ -344,13 +380,23 @@ async function handleCreateTopUpOrder() {
       </AppCard>
 
       <View style={styles.metricGrid}>
-        <View style={[styles.metricCard, { borderColor: theme.border, backgroundColor: theme.card }]}>
+        <View
+          style={[
+            styles.metricCard,
+            { borderColor: theme.border, backgroundColor: theme.card },
+          ]}
+        >
           <Text style={styles.metricLabel}>Pending incoming</Text>
           <AmountText amount={pendingIncoming} size="md" tone="success" />
           <Text style={styles.metricHelper}>Others owe you</Text>
         </View>
 
-        <View style={[styles.metricCard, { borderColor: theme.border, backgroundColor: theme.card }]}>
+        <View
+          style={[
+            styles.metricCard,
+            { borderColor: theme.border, backgroundColor: theme.card },
+          ]}
+        >
           <Text style={styles.metricLabel}>Pending outgoing</Text>
           <AmountText
             amount={pendingOutgoing}
@@ -360,7 +406,13 @@ async function handleCreateTopUpOrder() {
           <Text style={styles.metricHelper}>You need to pay</Text>
         </View>
 
-        <View style={[styles.metricCard, styles.netMetricCard, { borderColor: theme.border, backgroundColor: theme.card }]}>
+        <View
+          style={[
+            styles.metricCard,
+            styles.netMetricCard,
+            { borderColor: theme.border, backgroundColor: theme.card },
+          ]}
+        >
           <Text style={styles.metricLabel}>Net position</Text>
           <Text
             style={[
@@ -382,7 +434,10 @@ async function handleCreateTopUpOrder() {
           </View>
 
           <Pressable
-            style={styles.smallPillButton}
+            style={[
+              styles.smallPillButton,
+              { backgroundColor: theme.surfaceStrong },
+            ]}
             onPress={() => setTopUpsSheetOpen(true)}
           >
             <Text style={styles.smallPillButtonText}>History</Text>
@@ -397,8 +452,19 @@ async function handleCreateTopUpOrder() {
         ) : (
           <View style={styles.list}>
             {latestTopUps.map((topUp) => (
-              <View style={[styles.transactionRow, { borderColor: theme.border, backgroundColor: theme.surface }]} key={topUp.id}>
-                <View style={[styles.transactionIcon, { backgroundColor: theme.canvas }]}>
+              <View
+                style={[
+                  styles.transactionRow,
+                  { borderColor: theme.border, backgroundColor: theme.surface },
+                ]}
+                key={topUp.id}
+              >
+                <View
+                  style={[
+                    styles.transactionIcon,
+                    { backgroundColor: theme.surfaceStrong },
+                  ]}
+                >
                   <Text style={styles.transactionIconText}>+</Text>
                 </View>
 
@@ -425,9 +491,15 @@ async function handleCreateTopUpOrder() {
         onClose={() => {
           setTopUpSheetOpen(false);
           setTopUpAmount("");
+          setTopUpError("");
         }}
       >
-        <View style={[styles.topUpInfoCard, { borderColor: theme.border, backgroundColor: theme.surface }]}>
+        <View
+          style={[
+            styles.topUpInfoCard,
+            { borderColor: theme.border, backgroundColor: theme.surface },
+          ]}
+        >
           <Text style={styles.cardEyebrow}>Available balance</Text>
           <Text style={styles.topUpBalance}>
             {formatCurrency(availableBalance)}
@@ -440,21 +512,51 @@ async function handleCreateTopUpOrder() {
         <AppTextInput
           label="Top-up amount"
           value={topUpAmount}
-          onChangeText={setTopUpAmount}
+          onChangeText={(value) => {
+            setTopUpAmount(value);
+            if (topUpError) setTopUpError("");
+          }}
           placeholder="500"
           keyboardType="decimal-pad"
           editable={!creatingTopUpOrder}
         />
 
+        {topUpError ? (
+          <View
+            style={[
+              styles.inlineError,
+              {
+                borderColor: theme.danger,
+                backgroundColor:
+                  theme.mode === "dark"
+                    ? "rgba(255,104,117,0.10)"
+                    : "rgba(207,32,47,0.08)",
+              },
+            ]}
+          >
+            <Text style={[styles.inlineErrorText, { color: theme.danger }]}>
+              {topUpError}
+            </Text>
+          </View>
+        ) : null}
+
         <View style={styles.quickAmountGrid}>
           {[100, 250, 500, 1000].map((amount) => (
             <Pressable
               key={amount}
-              style={[styles.quickAmountButton, { borderColor: theme.border, backgroundColor: theme.surface }]}
-              onPress={() => setTopUpAmount(String(amount))}
+              style={[
+                styles.quickAmountButton,
+                { borderColor: theme.border, backgroundColor: theme.surface },
+              ]}
+              onPress={() => {
+                setTopUpAmount(String(amount));
+                setTopUpError("");
+              }}
               disabled={creatingTopUpOrder}
             >
-              <Text style={styles.quickAmountText}>{formatCurrency(amount)}</Text>
+              <Text style={styles.quickAmountText}>
+                {formatCurrency(amount)}
+              </Text>
             </Pressable>
           ))}
         </View>
@@ -464,7 +566,6 @@ async function handleCreateTopUpOrder() {
           loading={creatingTopUpOrder}
           onPress={handleCreateTopUpOrder}
         />
-
       </SheetModal>
 
       <SheetModal
@@ -478,10 +579,20 @@ async function handleCreateTopUpOrder() {
         ) : (
           <View style={styles.sheetList}>
             {topUps.map((topUp) => (
-              <View style={[styles.sheetRow, { borderColor: theme.border, backgroundColor: theme.surface }]} key={topUp.id}>
+              <View
+                style={[
+                  styles.sheetRow,
+                  { borderColor: theme.border, backgroundColor: theme.surface },
+                ]}
+                key={topUp.id}
+              >
                 <View style={styles.rowCopy}>
-                  <Text style={styles.rowTitle}>{topUp.method || "Wallet top-up"}</Text>
-                  <Text style={styles.rowSubtext}>{formatLiveDate(topUp.createdAt || topUp.displayDate)}</Text>
+                  <Text style={styles.rowTitle}>
+                    {topUp.method || "Wallet top-up"}
+                  </Text>
+                  <Text style={styles.rowSubtext}>
+                    {formatLiveDate(topUp.createdAt || topUp.displayDate)}
+                  </Text>
                 </View>
                 <AmountText amount={topUp.amount} size="sm" tone="success" />
               </View>
@@ -497,7 +608,7 @@ const styles = StyleSheet.create({
   screen: {
     gap: spacing.base,
     padding: 0,
-    paddingBottom: spacing.xxl,
+    paddingBottom: spacing.xxl + 160,
     backgroundColor: colors.surfaceSoft,
   },
   hero: {
@@ -596,6 +707,7 @@ const styles = StyleSheet.create({
     fontWeight: "800",
   },
   healthPill: {
+    borderWidth: 1,
     borderRadius: radius.xl,
     padding: spacing.sm,
     backgroundColor: colors.surfaceSoft,
@@ -818,5 +930,15 @@ const styles = StyleSheet.create({
   topUpNote: {
     color: colors.body,
     ...typography.bodySm,
+  },
+  inlineError: {
+    borderWidth: 1,
+    borderRadius: radius.lg,
+    paddingHorizontal: spacing.base,
+    paddingVertical: spacing.sm,
+  },
+  inlineErrorText: {
+    ...typography.bodySm,
+    fontWeight: "700",
   },
 });

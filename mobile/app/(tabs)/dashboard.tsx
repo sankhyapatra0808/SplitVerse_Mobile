@@ -1,15 +1,8 @@
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
 import { router, useFocusEffect } from "expo-router";
-import { useCallback,
-  useEffect,
-  useMemo,
-  useState } from "react";
-import { Alert,
-  Pressable,
-  StyleSheet,
-  View,
-} from "react-native";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { Alert, Pressable, StyleSheet, View } from "react-native";
 import AmountText from "../../src/components/AmountText";
 import AppButton from "../../src/components/AppButton";
 import AppCard from "../../src/components/AppCard";
@@ -22,6 +15,7 @@ import SpendBarChart, {
 } from "../../src/components/SpendBarChart";
 import Text from "../../src/components/LocalizedText";
 import StatCard from "../../src/components/StatCard";
+import { DashboardSkeleton } from "../../src/components/PageSkeletons";
 import { useAuth } from "../../src/context/AuthContext";
 import { useAppSettings } from "../../src/context/useAppSettings";
 import {
@@ -36,8 +30,17 @@ import {
   type SplitRoom,
   type TransactionItem,
 } from "../../src/lib/api";
-import { getNotificationSignature, getSeenNotificationSignature, buildFriendNotifications, buildRoomNotifications } from "../../src/lib/notificationSignals";
-import { getSpendTransactions, getTransactionDisplayAmount, normalizeTransactionsForDisplay } from "../../src/lib/transactionDisplay";
+import {
+  getNotificationSignature,
+  getSeenNotificationSignature,
+  buildFriendNotifications,
+  buildRoomNotifications,
+} from "../../src/lib/notificationSignals";
+import {
+  getSpendTransactions,
+  getTransactionDisplayAmount,
+  normalizeTransactionsForDisplay,
+} from "../../src/lib/transactionDisplay";
 import { colors, radius, spacing, typography } from "../../src/theme/tokens";
 
 const MONTH_LABELS = [
@@ -106,7 +109,11 @@ function buildWeeklySpend(transactions: TransactionItem[]): SpendGraphPoint[] {
   const dayMap = new Map(days.map((day) => [day.key, day]));
 
   getSpendTransactions(transactions).forEach((transaction) => {
-    const createdAt = new Date(transaction.createdAt || transaction.displayDate || new Date().toISOString());
+    const createdAt = new Date(
+      transaction.createdAt ||
+        transaction.displayDate ||
+        new Date().toISOString(),
+    );
 
     if (Number.isNaN(createdAt.getTime())) {
       return;
@@ -147,20 +154,28 @@ function buildYearlySpend(summary: DashboardSummary | null): SpendGraphPoint[] {
 export default function Dashboard() {
   const { user, dbUser } = useAuth();
   const { formatCurrency, theme } = useAppSettings();
-  const [summary, setSummary] = useState<DashboardSummary | null>(dashboardCache?.summary ?? null);
-  const [friendsSummary, setFriendsSummary] = useState<FriendsSummary | null>(dashboardCache?.friendsSummary ?? null);
+  const [summary, setSummary] = useState<DashboardSummary | null>(
+    dashboardCache?.summary ?? null,
+  );
+  const [friendsSummary, setFriendsSummary] = useState<FriendsSummary | null>(
+    dashboardCache?.friendsSummary ?? null,
+  );
   const [rooms, setRooms] = useState<SplitRoom[]>(dashboardCache?.rooms ?? []);
-  const [transactions, setTransactions] = useState<TransactionItem[]>(dashboardCache?.transactions ?? []);
+  const [transactions, setTransactions] = useState<TransactionItem[]>(
+    dashboardCache?.transactions ?? [],
+  );
   const [graphMode, setGraphMode] = useState<SpendGraphMode>("yearly");
   const [loading, setLoading] = useState(!dashboardCache);
   const [expenseTitle, setExpenseTitle] = useState("");
-  const [expenseCategory, setExpenseCategory] = useState("General");
   const [expenseAmount, setExpenseAmount] = useState("");
   const [savingExpense, setSavingExpense] = useState(false);
   const [hasUnreadNotifications, setHasUnreadNotifications] = useState(false);
 
   const displayName =
-    dbUser?.display_name || dbUser?.name || user?.displayName || "SplitVerse user";
+    dbUser?.display_name ||
+    dbUser?.name ||
+    user?.displayName ||
+    "SplitVerse user";
 
   const displayEmail = dbUser?.email || user?.email || "";
   const username = dbUser?.username ? `@${dbUser.username}` : displayEmail;
@@ -172,7 +187,9 @@ export default function Dashboard() {
     0;
 
   const todayExpense =
-    summary?.expenseTracker?.totalSpentToday ?? summary?.metrics?.todayExpense ?? 0;
+    summary?.expenseTracker?.totalSpentToday ??
+    summary?.metrics?.todayExpense ??
+    0;
 
   const monthlySpend =
     summary?.monthlySpend?.currentMonthTotal ??
@@ -184,7 +201,8 @@ export default function Dashboard() {
 
   const receivable = summary?.walletHealth?.receivable ?? 0;
 
-  const netPosition = summary?.walletHealth?.netPosition ?? receivable - payable;
+  const netPosition =
+    summary?.walletHealth?.netPosition ?? receivable - payable;
 
   const friendCount = friendsSummary?.friends.length ?? 0;
   const roomCount = rooms.length;
@@ -215,29 +233,37 @@ export default function Dashboard() {
           getTransactions({ limit: 1000 }),
         ]);
 
-      const displayTransactions = normalizeTransactionsForDisplay(transactionData.transactions ?? []);
+      const displayTransactions = normalizeTransactionsForDisplay(
+        transactionData.transactions ?? [],
+      );
       const notificationItems = [
-        ...buildFriendNotifications((friendsData.receivedRequests ?? []) as FriendRequest[]),
+        ...buildFriendNotifications(
+          (friendsData.receivedRequests ?? []) as FriendRequest[],
+        ),
         ...buildRoomNotifications(roomsData.rooms ?? []),
         ...(Number(dashboardData.walletHealth?.receivable || 0) > 0
-          ? [{
-              id: `wallet-incoming-${Number(dashboardData.walletHealth?.receivable || 0).toFixed(2)}`,
-              title: "Money to receive",
-              detail: "You have pending incoming settlements.",
-              amount: Number(dashboardData.walletHealth?.receivable || 0),
-              kind: "wallet" as const,
-              route: "/(tabs)/wallet" as const,
-            }]
+          ? [
+              {
+                id: `wallet-incoming-${Number(dashboardData.walletHealth?.receivable || 0).toFixed(2)}`,
+                title: "Money to receive",
+                detail: "You have pending incoming settlements.",
+                amount: Number(dashboardData.walletHealth?.receivable || 0),
+                kind: "wallet" as const,
+                route: "/(tabs)/wallet" as const,
+              },
+            ]
           : []),
         ...(Number(dashboardData.walletHealth?.payable || 0) > 0
-          ? [{
-              id: `wallet-outgoing-${Number(dashboardData.walletHealth?.payable || 0).toFixed(2)}`,
-              title: "Money to pay",
-              detail: "You have pending outgoing settlements.",
-              amount: Number(dashboardData.walletHealth?.payable || 0),
-              kind: "wallet" as const,
-              route: "/(tabs)/wallet" as const,
-            }]
+          ? [
+              {
+                id: `wallet-outgoing-${Number(dashboardData.walletHealth?.payable || 0).toFixed(2)}`,
+                title: "Money to pay",
+                detail: "You have pending outgoing settlements.",
+                amount: Number(dashboardData.walletHealth?.payable || 0),
+                kind: "wallet" as const,
+                route: "/(tabs)/wallet" as const,
+              },
+            ]
           : []),
       ];
       const notificationSignature = getNotificationSignature(notificationItems);
@@ -253,7 +279,12 @@ export default function Dashboard() {
       setFriendsSummary(friendsData);
       setRooms(roomsData.rooms);
       setTransactions(displayTransactions);
-      setHasUnreadNotifications(Boolean(notificationSignature && notificationSignature !== seenNotificationSignature));
+      setHasUnreadNotifications(
+        Boolean(
+          notificationSignature &&
+          notificationSignature !== seenNotificationSignature,
+        ),
+      );
     } catch (error) {
       if (!silent) {
         Alert.alert(
@@ -276,6 +307,26 @@ export default function Dashboard() {
     }, [loadDashboardData]),
   );
 
+  useEffect(() => {
+    const timer = setInterval(() => {
+      void loadDashboardData(true);
+    }, 9000);
+
+    return () => clearInterval(timer);
+  }, [loadDashboardData]);
+
+  if (loading && !dashboardCache) {
+    return (
+      <Screen
+        scroll={false}
+        safeBackgroundColor={
+          theme.mode === "dark" ? theme.background : theme.primary
+        }
+      >
+        <DashboardSkeleton />
+      </Screen>
+    );
+  }
 
   async function handleCreateExpense() {
     const amount = Number(expenseAmount);
@@ -292,17 +343,21 @@ export default function Dashboard() {
       setSavingExpense(true);
       await createExpense({
         title: expenseTitle.trim(),
-        category: expenseCategory.trim() || "General",
         amount,
         expenseDate: getTodayIsoDate(),
       });
       setExpenseTitle("");
-      setExpenseCategory("General");
       setExpenseAmount("");
       await loadDashboardData(true);
-      Alert.alert("Expense added", "Today's expense, graph, and transaction history were updated.");
+      Alert.alert(
+        "Expense added",
+        "Today's expense, graph, and transaction history were updated.",
+      );
     } catch (error) {
-      Alert.alert("Expense failed", error instanceof Error ? error.message : "Could not add expense.");
+      Alert.alert(
+        "Expense failed",
+        error instanceof Error ? error.message : "Could not add expense.",
+      );
     } finally {
       setSavingExpense(false);
     }
@@ -312,8 +367,14 @@ export default function Dashboard() {
     <Screen
       refreshing={loading}
       onRefresh={() => loadDashboardData()}
-      safeBackgroundColor={theme.primary}
-      contentStyle={[styles.screen, { backgroundColor: theme.background }]}
+      safeBackgroundColor={theme.mode === "dark" ? theme.background : theme.primary}
+      contentStyle={[
+        styles.screen,
+        {
+          backgroundColor: theme.background,
+          paddingBottom: spacing.xxl + 160,
+        },
+      ]}
     >
       <LinearGradient
         colors={[theme.primary, theme.primaryActive]}
@@ -328,11 +389,19 @@ export default function Dashboard() {
           </View>
 
           <Pressable
-            style={[styles.notificationButton, { backgroundColor: "rgba(255,255,255,0.16)", borderColor: "rgba(255,255,255,0.28)" }]}
+            style={[
+              styles.notificationButton,
+              {
+                backgroundColor: "rgba(255,255,255,0.16)",
+                borderColor: "rgba(255,255,255,0.28)",
+              },
+            ]}
             onPress={() => router.push("/(tabs)/notifications")}
           >
             <Ionicons name="notifications-outline" size={22} color="#fff" />
-            {hasUnreadNotifications ? <View style={styles.notificationDot} /> : null}
+            {hasUnreadNotifications ? (
+              <View style={styles.notificationDot} />
+            ) : null}
           </Pressable>
         </View>
 
@@ -359,20 +428,35 @@ export default function Dashboard() {
         </View>
       </LinearGradient>
 
-      <View style={[styles.identityStats, { borderColor: theme.border, backgroundColor: theme.card }]}>
+      <View
+        style={[
+          styles.identityStats,
+          { borderColor: theme.border, backgroundColor: theme.card },
+        ]}
+      >
         <View style={styles.identityStat}>
           <Text style={styles.identityValue}>{friendCount}</Text>
           <Text style={styles.identityLabel}>Friends</Text>
         </View>
 
-        <View style={[styles.identityDivider, { backgroundColor: theme.borderSoft }]} />
+        <View
+          style={[
+            styles.identityDivider,
+            { backgroundColor: theme.borderSoft },
+          ]}
+        />
 
         <View style={styles.identityStat}>
           <Text style={styles.identityValue}>{roomCount}</Text>
           <Text style={styles.identityLabel}>Rooms</Text>
         </View>
 
-        <View style={[styles.identityDivider, { backgroundColor: theme.borderSoft }]} />
+        <View
+          style={[
+            styles.identityDivider,
+            { backgroundColor: theme.borderSoft },
+          ]}
+        />
 
         <View style={styles.identityStat}>
           <Text
@@ -423,7 +507,11 @@ export default function Dashboard() {
 
       <SpendBarChart
         style={styles.chartCard}
-        title={graphMode === "weekly" ? "Weekly spending graph" : "Yearly spending graph"}
+        title={
+          graphMode === "weekly"
+            ? "Weekly spending graph"
+            : "Yearly spending graph"
+        }
         totalLabel={`Total: ${formatCurrency(graphTotal)}`}
         mode={graphMode}
         onModeChange={setGraphMode}
@@ -463,7 +551,10 @@ export default function Dashboard() {
       <AppCard style={styles.quickCard}>
         <Text style={styles.cardEyebrow}>Expense form</Text>
         <Text style={styles.cardTitle}>Did you spend anything today?</Text>
-        <Text style={styles.cardText}>Add the expense here and it will update today's expense, graph data, and transaction history.</Text>
+        <Text style={styles.cardText}>
+          Add the expense here and it will update today's expense, graph data,
+          and transaction history.
+        </Text>
 
         <AppTextInput
           label="Expense title"
@@ -472,19 +563,17 @@ export default function Dashboard() {
           placeholder="Lunch, fuel, groceries"
         />
         <AppTextInput
-          label="Category"
-          value={expenseCategory}
-          onChangeText={setExpenseCategory}
-          placeholder="Food"
-        />
-        <AppTextInput
           label="Amount"
           value={expenseAmount}
           onChangeText={setExpenseAmount}
           keyboardType="decimal-pad"
           placeholder="250"
         />
-        <AppButton title={savingExpense ? "Adding expense" : "Add expense"} loading={savingExpense} onPress={handleCreateExpense} />
+        <AppButton
+          title={savingExpense ? "Adding expense" : "Add expense"}
+          loading={savingExpense}
+          onPress={handleCreateExpense}
+        />
       </AppCard>
     </Screen>
   );
@@ -493,7 +582,7 @@ export default function Dashboard() {
 const styles = StyleSheet.create({
   screen: {
     padding: 0,
-    paddingBottom: spacing.xxl,
+    paddingBottom: spacing.xxl + 160,
     backgroundColor: colors.surfaceSoft,
   },
   hero: {

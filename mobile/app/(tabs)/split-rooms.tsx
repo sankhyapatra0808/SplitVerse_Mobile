@@ -1,23 +1,15 @@
 import { LinearGradient } from "expo-linear-gradient";
-import {
-  useFocusEffect } from "expo-router";
-import { useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState } from "react";
-import { Alert,
-  Pressable,
-  StyleSheet,
-  View,
-} from "react-native";
+import { Ionicons } from "@expo/vector-icons";
+import { useFocusEffect } from "expo-router";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Alert, Pressable, ScrollView, StyleSheet, View } from "react-native";
 import AmountText from "../../src/components/AmountText";
 import AppButton from "../../src/components/AppButton";
 import AppCard from "../../src/components/AppCard";
 import AppTextInput from "../../src/components/AppTextInput";
 import Avatar from "../../src/components/Avatar";
 import EmptyState from "../../src/components/EmptyState";
-import LoadingState from "../../src/components/LoadingState";
+import { RoomsListSkeleton } from "../../src/components/PageSkeletons";
 import Screen from "../../src/components/Screen";
 import Text from "../../src/components/LocalizedText";
 import SheetModal from "../../src/components/SheetModal";
@@ -60,6 +52,9 @@ const categoryOptions = [
   { label: "Shopping", value: "shopping" },
   { label: "Other", value: "other" },
 ];
+
+const INITIAL_VISIBLE_ROOMS = 3;
+const ROOM_LOAD_BATCH = 2;
 
 function formatMoney(value?: number | null) {
   return `₹${Number(value || 0).toLocaleString("en-IN", {
@@ -345,6 +340,9 @@ export default function SplitRooms() {
   const { formatCurrency, theme } = useAppSettings();
 
   const [rooms, setRooms] = useState<SplitRoom[]>([]);
+  const [visibleRoomCount, setVisibleRoomCount] = useState(
+    INITIAL_VISIBLE_ROOMS,
+  );
   const [friends, setFriends] = useState<Friend[]>([]);
   const [selectedRoomId, setSelectedRoomId] = useState("");
   const selectedRoomIdRef = useRef("");
@@ -405,6 +403,21 @@ export default function SplitRooms() {
     () => rooms.find((room) => room.id === selectedRoomId) ?? rooms[0],
     [rooms, selectedRoomId],
   );
+
+  const visibleRooms = useMemo(
+    () => rooms.slice(0, visibleRoomCount),
+    [rooms, visibleRoomCount],
+  );
+
+  function loadMoreVisibleRooms() {
+    setVisibleRoomCount((current) =>
+      Math.min(current + ROOM_LOAD_BATCH, rooms.length),
+    );
+  }
+
+  useEffect(() => {
+    setVisibleRoomCount(INITIAL_VISIBLE_ROOMS);
+  }, [rooms.length]);
 
   const sortedMembers = useMemo(() => {
     if (!selectedRoom) return [];
@@ -1177,16 +1190,20 @@ export default function SplitRooms() {
     return Boolean(selectedRoom?.isOwner);
   }
 
-  function selectedRoomHasOutstandingAmount() {
-    return Number(selectedRoom?.outstandingAmount || 0) > 0;
+  function selectedRoomHasOutstandingAmount(
+    room: SplitRoom | null | undefined = selectedRoom,
+  ) {
+    return Number(room?.outstandingAmount || 0) > 0;
   }
 
-  async function handleDeleteRoom() {
-    if (!selectedRoom) return;
+  async function handleDeleteRoom(
+    room: SplitRoom | null | undefined = selectedRoom,
+  ) {
+    if (!room) return;
 
     try {
-      setDeletingRoomId(selectedRoom.id);
-      await deleteSplitRoom(selectedRoom.id);
+      setDeletingRoomId(room.id);
+      await deleteSplitRoom(room.id);
 
       setSelectedRoomId("");
       selectedRoomIdRef.current = "";
@@ -1205,42 +1222,52 @@ export default function SplitRooms() {
     }
   }
 
-  function requestDeleteRoom() {
-    if (!selectedRoom) return;
+  function requestDeleteRoom(
+    room: SplitRoom | null | undefined = selectedRoom,
+  ) {
+    if (!room) return;
 
-    if (!selectedRoom.isOwner) {
+    selectedRoomIdRef.current = room.id;
+    setSelectedRoomId(room.id);
+
+    if (!room.isOwner) {
       Alert.alert("Only host can delete", "Only the room owner can delete it.");
       return;
     }
 
-    if (selectedRoomHasOutstandingAmount()) {
+    if (selectedRoomHasOutstandingAmount(room)) {
       Alert.alert(
         "Settle dues first",
-        "All pending dues must be settled before deleting this room.",
+        "All room members must pay before this room can be deleted.",
       );
       return;
     }
 
-    Alert.alert("Delete room", `Delete "${selectedRoom.name}" permanently?`, [
-      { text: "Cancel", style: "cancel" },
+    Alert.alert("Delete room", `Delete "${room.name}" permanently?`, [
+      {
+        text: "Cancel",
+        style: "cancel",
+      },
       {
         text: "Delete",
         style: "destructive",
         onPress: () => {
-          void handleDeleteRoom();
+          void handleDeleteRoom(room);
         },
       },
     ]);
   }
 
-  async function handleFinalizeRoom() {
-    if (!selectedRoom) return;
+  async function handleFinalizeRoom(
+    room: SplitRoom | null | undefined = selectedRoom,
+  ) {
+    if (!room) return;
 
     try {
-      setFinalizingRoomId(selectedRoom.id);
-      await finalizeSplitRoom(selectedRoom.id);
+      setFinalizingRoomId(room.id);
+      await finalizeSplitRoom(room.id);
 
-      await loadSplitRoomData(selectedRoom.id, true);
+      await loadSplitRoomData(room.id, true);
       setRoomActionsOpen(false);
 
       Alert.alert("Room finalized", "This room has been finalized.");
@@ -1254,10 +1281,15 @@ export default function SplitRooms() {
     }
   }
 
-  function requestFinalizeRoom() {
-    if (!selectedRoom) return;
+  function requestFinalizeRoom(
+    room: SplitRoom | null | undefined = selectedRoom,
+  ) {
+    if (!room) return;
 
-    if (!selectedRoom.isOwner) {
+    selectedRoomIdRef.current = room.id;
+    setSelectedRoomId(room.id);
+
+    if (!room.isOwner) {
       Alert.alert(
         "Only host can finalize",
         "Only the room owner can finalize it.",
@@ -1265,23 +1297,23 @@ export default function SplitRooms() {
       return;
     }
 
-    if (selectedRoomHasOutstandingAmount()) {
+    if (selectedRoomHasOutstandingAmount(room)) {
       Alert.alert(
         "Settle dues first",
-        "All pending dues must be settled before finalizing this room.",
+        "All room members must pay before this room can be finalized.",
       );
       return;
     }
 
     Alert.alert(
       "Finalize room",
-      `Finalize "${selectedRoom.name}"? Items cannot be changed after this.`,
+      `Finalize "${room.name}"? Items cannot be changed after this.`,
       [
         { text: "Cancel", style: "cancel" },
         {
           text: "Finalize",
           onPress: () => {
-            void handleFinalizeRoom();
+            void handleFinalizeRoom(room);
           },
         },
       ],
@@ -1331,12 +1363,24 @@ export default function SplitRooms() {
     ]);
   }
 
+  function closeCreateDropdowns() {
+    setFriendModalOpen(false);
+    setCategoryModalOpen(false);
+    setPaidByModalOpen(false);
+  }
+
   return (
     <Screen
       refreshing={loading}
       onRefresh={() => loadSplitRoomData()}
-      safeBackgroundColor={theme.primary}
-      contentStyle={[styles.screen, { backgroundColor: theme.background }]}
+      safeBackgroundColor={theme.mode === "dark" ? theme.background : theme.primary}
+      contentStyle={[
+        styles.screen,
+        {
+          backgroundColor: theme.background,
+          paddingBottom: spacing.xxl + 160,
+        },
+      ]}
     >
       <LinearGradient
         colors={[theme.primary, theme.primaryActive]}
@@ -1347,7 +1391,8 @@ export default function SplitRooms() {
         <Text style={styles.heroEyebrow}>Item-wise splitting</Text>
         <Text style={styles.heroTitle}>Rooms</Text>
         <Text style={styles.heroSubtitle}>
-          Create rooms, assign items to the right person, and keep every bill fair.
+          Create rooms, assign items to the right person, and keep every bill
+          fair.
         </Text>
       </LinearGradient>
 
@@ -1361,54 +1406,292 @@ export default function SplitRooms() {
           onChangeText={setRoomName}
           placeholder="Dinner at Park Street"
           editable={!savingRoom}
+          style={styles.roomNameInput}
         />
 
-        <Pressable
-          style={[styles.selector, { borderColor: theme.border, backgroundColor: theme.surface }]}
-          onPress={() => setFriendModalOpen(true)}
-          disabled={savingRoom}
-        >
-          <View style={styles.selectorCopy}>
-            <Text style={styles.selectorLabel}>Friends</Text>
-            <Text style={styles.selectorValue} numberOfLines={1}>
-              {selectedFriendNames}
-            </Text>
-          </View>
-          <Text style={styles.selectorAction}>Choose</Text>
-        </Pressable>
+        <View style={styles.dropdownWrap}>
+          <Pressable
+            style={[
+              styles.selector,
+              { borderColor: theme.border, backgroundColor: theme.surface },
+            ]}
+            onPress={() => {
+              setFriendModalOpen((open) => !open);
+              setCategoryModalOpen(false);
+              setPaidByModalOpen(false);
+            }}
+            disabled={savingRoom}
+          >
+            <View style={styles.selectorCopy}>
+              <Text style={styles.selectorLabel}>Friends</Text>
+              <Text style={styles.selectorValue} numberOfLines={1}>
+                {selectedFriendNames}
+              </Text>
+            </View>
 
-        <Pressable
-          style={[styles.selector, { borderColor: theme.border, backgroundColor: theme.surface }]}
-          onPress={() => setCategoryModalOpen(true)}
-          disabled={savingRoom}
-        >
-          <View style={styles.selectorCopy}>
-            <Text style={styles.selectorLabel}>Category</Text>
-            <Text style={styles.selectorValue}>
-              {getCategoryLabel(roomCategory)}
-            </Text>
-          </View>
-          <Text style={styles.selectorAction}>Change</Text>
-        </Pressable>
+            <Ionicons
+              name={friendModalOpen ? "chevron-up" : "chevron-down"}
+              size={18}
+              color={theme.body}
+            />
+          </Pressable>
 
-        <Pressable
-          style={[styles.selector, { borderColor: theme.border, backgroundColor: theme.surface }]}
-          onPress={() => setPaidByModalOpen(true)}
-          disabled={savingRoom}
-        >
-          <View style={styles.selectorCopy}>
-            <Text style={styles.selectorLabel}>Paid by</Text>
-            <Text style={styles.selectorValue} numberOfLines={1}>
-              {paidByLabel}
-            </Text>
-          </View>
-          <Text style={styles.selectorAction}>Change</Text>
-        </Pressable>
+          {friendModalOpen ? (
+            <View
+              style={[
+                styles.dropdownMenu,
+                { borderColor: theme.border, backgroundColor: theme.card },
+              ]}
+            >
+              <AppTextInput
+                label="Search friends"
+                value={friendSearch}
+                onChangeText={setFriendSearch}
+                autoCapitalize="none"
+                placeholder="Search by name or email"
+              />
+
+              {friends.length === 0 ? (
+                <Text style={styles.dropdownEmptyText}>No friends yet</Text>
+              ) : filteredFriends.length === 0 ? (
+                <Text style={styles.dropdownEmptyText}>
+                  No matching friends
+                </Text>
+              ) : (
+                <ScrollView
+                  style={styles.dropdownScroll}
+                  nestedScrollEnabled
+                  showsVerticalScrollIndicator={false}
+                  keyboardShouldPersistTaps="handled"
+                >
+                  {filteredFriends.map((friend) => {
+                    const selected = selectedFriendEmails.includes(
+                      friend.email,
+                    );
+
+                    return (
+                      <Pressable
+                        key={friend.id}
+                        style={[
+                          styles.dropdownOption,
+                          {
+                            borderColor: theme.border,
+                            backgroundColor: theme.surface,
+                          },
+                          selected && {
+                            borderColor: theme.primary,
+                            backgroundColor: theme.primarySoft,
+                          },
+                        ]}
+                        onPress={() => toggleSelectedFriend(friend.email)}
+                      >
+                        <Avatar
+                          name={friend.name}
+                          email={friend.email}
+                          imageUrl={
+                            friend.display_photo_url ||
+                            friend.profile_photo_url ||
+                            friend.photo_url
+                          }
+                          size={36}
+                        />
+
+                        <View style={styles.optionCopy}>
+                          <Text style={styles.optionTitle} numberOfLines={1}>
+                            {getFriendName(friend)}
+                          </Text>
+                          <Text style={styles.optionSubtext} numberOfLines={1}>
+                            {friend.email}
+                          </Text>
+                        </View>
+
+                        <Ionicons
+                          name={
+                            selected ? "checkmark-circle" : "ellipse-outline"
+                          }
+                          size={19}
+                          color={selected ? theme.primary : theme.muted}
+                        />
+                      </Pressable>
+                    );
+                  })}
+                </ScrollView>
+              )}
+            </View>
+          ) : null}
+        </View>
+
+        <View style={styles.dropdownWrap}>
+          <Pressable
+            style={[
+              styles.selector,
+              { borderColor: theme.border, backgroundColor: theme.surface },
+            ]}
+            onPress={() => {
+              setCategoryModalOpen((open) => !open);
+              setFriendModalOpen(false);
+              setPaidByModalOpen(false);
+            }}
+            disabled={savingRoom}
+          >
+            <View style={styles.selectorCopy}>
+              <Text style={styles.selectorLabel}>Category</Text>
+              <Text style={styles.selectorValue}>
+                {getCategoryLabel(roomCategory)}
+              </Text>
+            </View>
+
+            <Ionicons
+              name={categoryModalOpen ? "chevron-up" : "chevron-down"}
+              size={18}
+              color={theme.body}
+            />
+          </Pressable>
+
+          {categoryModalOpen ? (
+            <View
+              style={[
+                styles.dropdownMenu,
+                { borderColor: theme.border, backgroundColor: theme.card },
+              ]}
+            >
+              <ScrollView
+                style={styles.dropdownScroll}
+                nestedScrollEnabled
+                showsVerticalScrollIndicator={false}
+              >
+                {categoryOptions.map((category) => {
+                  const selected = category.value === roomCategory;
+
+                  return (
+                    <Pressable
+                      key={category.value}
+                      style={[
+                        styles.dropdownOption,
+                        {
+                          borderColor: theme.border,
+                          backgroundColor: theme.surface,
+                        },
+                        selected && {
+                          borderColor: theme.primary,
+                          backgroundColor: theme.primarySoft,
+                        },
+                      ]}
+                      onPress={() => {
+                        setRoomCategory(category.value);
+                        setCategoryModalOpen(false);
+                      }}
+                    >
+                      <Text
+                        style={[
+                          styles.dropdownOptionText,
+                          { color: selected ? theme.primary : theme.text },
+                        ]}
+                      >
+                        {category.label}
+                      </Text>
+
+                      <Ionicons
+                        name={selected ? "checkmark-circle" : "ellipse-outline"}
+                        size={19}
+                        color={selected ? theme.primary : theme.muted}
+                      />
+                    </Pressable>
+                  );
+                })}
+              </ScrollView>
+            </View>
+          ) : null}
+        </View>
+
+        <View style={styles.dropdownWrap}>
+          <Pressable
+            style={[
+              styles.selector,
+              { borderColor: theme.border, backgroundColor: theme.surface },
+            ]}
+            onPress={() => {
+              setPaidByModalOpen((open) => !open);
+              setFriendModalOpen(false);
+              setCategoryModalOpen(false);
+            }}
+            disabled={savingRoom}
+          >
+            <View style={styles.selectorCopy}>
+              <Text style={styles.selectorLabel}>Paid by</Text>
+              <Text style={styles.selectorValue} numberOfLines={1}>
+                {paidByLabel}
+              </Text>
+            </View>
+
+            <Ionicons
+              name={paidByModalOpen ? "chevron-up" : "chevron-down"}
+              size={18}
+              color={theme.body}
+            />
+          </Pressable>
+
+          {paidByModalOpen ? (
+            <View
+              style={[
+                styles.dropdownMenu,
+                { borderColor: theme.border, backgroundColor: theme.card },
+              ]}
+            >
+              <ScrollView
+                style={styles.dropdownScroll}
+                nestedScrollEnabled
+                showsVerticalScrollIndicator={false}
+              >
+                {paidByOptions.map((option) => {
+                  const selected = option.email === roomPaidByEmail;
+
+                  return (
+                    <Pressable
+                      key={option.email}
+                      style={[
+                        styles.dropdownOption,
+                        {
+                          borderColor: theme.border,
+                          backgroundColor: theme.surface,
+                        },
+                        selected && {
+                          borderColor: theme.primary,
+                          backgroundColor: theme.primarySoft,
+                        },
+                      ]}
+                      onPress={() => {
+                        setRoomPaidByEmail(option.email);
+                        setPaidByModalOpen(false);
+                      }}
+                    >
+                      <View style={styles.optionCopy}>
+                        <Text style={styles.optionTitle}>{option.name}</Text>
+                        <Text style={styles.optionSubtext} numberOfLines={1}>
+                          {option.email}
+                        </Text>
+                      </View>
+
+                      <Ionicons
+                        name={selected ? "checkmark-circle" : "ellipse-outline"}
+                        size={19}
+                        color={selected ? theme.primary : theme.muted}
+                      />
+                    </Pressable>
+                  );
+                })}
+              </ScrollView>
+            </View>
+          ) : null}
+        </View>
 
         <AppButton
           title={savingRoom ? "Creating room" : "Create room"}
           loading={savingRoom}
-          onPress={handleCreateRoom}
+          onPress={() => {
+            closeCreateDropdowns();
+            void handleCreateRoom();
+          }}
         />
       </AppCard>
 
@@ -1418,58 +1701,160 @@ export default function SplitRooms() {
             <Text style={styles.cardEyebrow}>Rooms</Text>
             <Text style={styles.cardTitle}>Active rooms</Text>
           </View>
-          <Text style={styles.countPill}>{rooms.length}</Text>
         </View>
 
         {loading ? (
-          <LoadingState label="Loading rooms..." />
+          <RoomsListSkeleton rows={3} />
         ) : rooms.length === 0 ? (
           <EmptyState
             title="Create your first split room"
             message="Rooms you create or join will appear here."
           />
         ) : (
-          <View style={styles.roomList}>
-            {rooms.map((room) => {
+          <ScrollView
+            style={styles.roomListScroll}
+            contentContainerStyle={styles.roomList}
+            nestedScrollEnabled
+            showsVerticalScrollIndicator={false}
+            scrollEventThrottle={16}
+            onScroll={({ nativeEvent }) => {
+              const reachedBottom =
+                nativeEvent.layoutMeasurement.height +
+                  nativeEvent.contentOffset.y >=
+                nativeEvent.contentSize.height - 24;
+
+              if (reachedBottom && visibleRoomCount < rooms.length) {
+                loadMoreVisibleRooms();
+              }
+            }}
+          >
+            {visibleRooms.map((room) => {
               const active = selectedRoom?.id === room.id;
+              const outstanding = Number(room.outstandingAmount || 0);
+              const blocked = !room.isOwner || outstanding > 0;
 
               return (
                 <Pressable
                   key={room.id}
-                  style={[styles.roomRow, { borderColor: theme.border, backgroundColor: theme.surface }, active && { borderColor: theme.primary, backgroundColor: theme.card }]}
+                  style={[
+                    styles.roomRow,
+                    {
+                      borderColor: theme.border,
+                      backgroundColor: theme.surface,
+                    },
+                    active && {
+                      borderColor: theme.primary,
+                      backgroundColor: theme.card,
+                    },
+                  ]}
                   onPress={() => {
                     selectedRoomIdRef.current = room.id;
                     setSelectedRoomId(room.id);
                   }}
                 >
-                  <View style={styles.roomMain}>
+                  <View style={styles.roomTopLine}>
                     <Text style={styles.roomName} numberOfLines={1}>
                       {room.name}
                     </Text>
-                    <Text style={styles.roomMeta} numberOfLines={1}>
+                    <Text style={styles.roomMembers} numberOfLines={1}>
                       {room.memberCount ?? room.members?.length ?? 0} members
-                      {room.isOwner ? " · Owner" : ""}
                     </Text>
                   </View>
 
-                  <View style={styles.roomAmountBox}>
-                    <AmountText
-                      amount={room.outstandingAmount ?? 0}
-                      size="sm"
-                      tone={
-                        (room.outstandingAmount ?? 0) > 0 ? "danger" : "success"
-                      }
-                    />
-                    <Text style={styles.roomDueText}>due</Text>
-                  </View>
+                  <View style={styles.roomBodyLine}>
+                    <View style={styles.roomInfoColumn}>
+                      <Text style={styles.roomMeta} numberOfLines={1}>
+                        {room.isOwner ? " · Owner" : ""}
+                      </Text>
 
-                  <Text style={[styles.statusPill, { backgroundColor: theme.surfaceStrong, color: theme.body }]}>
-                    {room.status || "active"}
-                  </Text>
+                      <View style={styles.roomAmountBox}>
+                        <AmountText
+                          amount={outstanding}
+                          size="sm"
+                          tone={outstanding > 0 ? "danger" : "success"}
+                        />
+                        <Text style={styles.roomDueText}>due</Text>
+                      </View>
+                    </View>
+
+                    {room.isOwner ? (
+                      <View style={styles.roomActionColumn}>
+                        <Pressable
+                          accessibilityLabel="Finalize room"
+                          disabled={blocked || finalizingRoomId === room.id}
+                          style={[
+                            styles.roomInlineAction,
+                            {
+                              backgroundColor: blocked
+                                ? theme.surfaceStrong
+                                : theme.primary,
+                              opacity: blocked ? 0.58 : 1,
+                            },
+                          ]}
+                          onPress={(event) => {
+                            event.stopPropagation();
+                            requestFinalizeRoom(room);
+                          }}
+                        >
+                          <Ionicons
+                            name="checkmark-done"
+                            size={17}
+                            color={blocked ? theme.muted : theme.onPrimary}
+                          />
+                          <Text
+                            style={[
+                              styles.roomInlineActionText,
+                              {
+                                color: blocked ? theme.muted : theme.onPrimary,
+                              },
+                            ]}
+                          >
+                            Finalize
+                          </Text>
+                        </Pressable>
+
+                        <Pressable
+                          accessibilityLabel="Delete room"
+                          disabled={blocked || deletingRoomId === room.id}
+                          style={[
+                            styles.roomInlineAction,
+                            styles.roomDeleteInlineAction,
+                            {
+                              borderColor: blocked
+                                ? theme.border
+                                : theme.danger,
+                              backgroundColor: blocked
+                                ? theme.surfaceStrong
+                                : "transparent",
+                              opacity: blocked ? 0.58 : 1,
+                            },
+                          ]}
+                          onPress={(event) => {
+                            event.stopPropagation();
+                            requestDeleteRoom(room);
+                          }}
+                        >
+                          <Ionicons
+                            name="trash-outline"
+                            size={17}
+                            color={blocked ? theme.muted : theme.danger}
+                          />
+                          <Text
+                            style={[
+                              styles.roomDeleteInlineActionText,
+                              { color: blocked ? theme.muted : theme.danger },
+                            ]}
+                          >
+                            Delete
+                          </Text>
+                        </Pressable>
+                      </View>
+                    ) : null}
+                  </View>
                 </Pressable>
               );
             })}
-          </View>
+          </ScrollView>
         )}
       </AppCard>
 
@@ -1502,6 +1887,7 @@ export default function SplitRooms() {
               onChangeText={setItemTitle}
               placeholder={itemPlaceholder}
               editable={!savingItem}
+              style={styles.input65}
             />
 
             <AppTextInput
@@ -1511,28 +1897,118 @@ export default function SplitRooms() {
               placeholder={formatCurrency(420)}
               keyboardType="decimal-pad"
               editable={!savingItem}
+              style={styles.input65}
             />
 
-            <Pressable
-              style={[styles.selector, { borderColor: theme.border, backgroundColor: theme.surface }]}
-              onPress={() => setAssignMemberModalOpen(true)}
-              disabled={savingItem || sortedMembers.length === 0}
-            >
-              <View style={styles.selectorCopy}>
-                <Text style={styles.selectorLabel}>Assign to</Text>
-                <Text style={styles.selectorValue} numberOfLines={1}>
-                  {selectedAssignedMember
-                    ? getMemberName(selectedAssignedMember)
-                    : "Choose member"}
-                </Text>
-              </View>
-              <Text style={styles.selectorAction}>Choose</Text>
-            </Pressable>
+            <View style={styles.dropdownWrap}>
+              <Pressable
+                style={[
+                  styles.selector,
+                  { borderColor: theme.border, backgroundColor: theme.surface },
+                ]}
+                onPress={() => {
+                  setAssignMemberModalOpen((open) => !open);
+                  setFriendModalOpen(false);
+                  setCategoryModalOpen(false);
+                  setPaidByModalOpen(false);
+                }}
+                disabled={savingItem || sortedMembers.length === 0}
+              >
+                <View style={styles.selectorCopy}>
+                  <Text style={styles.selectorLabel}>Assign to</Text>
+                  <Text style={styles.selectorValue} numberOfLines={1}>
+                    {selectedAssignedMember
+                      ? getMemberName(selectedAssignedMember)
+                      : "Choose member"}
+                  </Text>
+                </View>
+
+                <Ionicons
+                  name={assignMemberModalOpen ? "chevron-up" : "chevron-down"}
+                  size={18}
+                  color={theme.body}
+                />
+              </Pressable>
+
+              {assignMemberModalOpen ? (
+                <View
+                  style={[
+                    styles.dropdownMenu,
+                    { borderColor: theme.border, backgroundColor: theme.card },
+                  ]}
+                >
+                  <ScrollView
+                    style={styles.dropdownScroll}
+                    nestedScrollEnabled
+                    showsVerticalScrollIndicator={false}
+                  >
+                    {sortedMembers.map((member) => {
+                      const selected = member.id === assignedMemberId;
+
+                      return (
+                        <Pressable
+                          key={member.id}
+                          style={[
+                            styles.dropdownOption,
+                            {
+                              borderColor: theme.border,
+                              backgroundColor: theme.surface,
+                            },
+                            selected && {
+                              borderColor: theme.primary,
+                              backgroundColor: theme.primarySoft,
+                            },
+                          ]}
+                          onPress={() => {
+                            setAssignedMemberId(member.id);
+                            setAssignMemberModalOpen(false);
+                          }}
+                        >
+                          <Avatar
+                            name={getMemberName(member)}
+                            email={member.email}
+                            imageUrl={
+                              member.display_photo_url ||
+                              member.profile_photo_url ||
+                              member.photo_url
+                            }
+                            size={36}
+                          />
+
+                          <View style={styles.optionCopy}>
+                            <Text style={styles.optionTitle} numberOfLines={1}>
+                              {getMemberName(member)}
+                            </Text>
+                            <Text
+                              style={styles.optionSubtext}
+                              numberOfLines={1}
+                            >
+                              {member.email}
+                            </Text>
+                          </View>
+
+                          <Ionicons
+                            name={
+                              selected ? "checkmark-circle" : "ellipse-outline"
+                            }
+                            size={19}
+                            color={selected ? theme.primary : theme.muted}
+                          />
+                        </Pressable>
+                      );
+                    })}
+                  </ScrollView>
+                </View>
+              ) : null}
+            </View>
 
             <AppButton
               title={savingItem ? "Adding item" : "Add item"}
               loading={savingItem}
-              onPress={handleAddItem}
+              onPress={() => {
+                setAssignMemberModalOpen(false);
+                void handleAddItem();
+              }}
             />
           </>
         )}
@@ -1546,7 +2022,10 @@ export default function SplitRooms() {
 
         {selectedRoom && canManageSelectedRoom() ? (
           <Pressable
-            style={[styles.roomActionsButton, { backgroundColor: theme.surfaceStrong }]}
+            style={[
+              styles.roomActionsButton,
+              { backgroundColor: theme.surfaceStrong },
+            ]}
             onPress={() => setRoomActionsOpen(true)}
           >
             <Text style={styles.roomActionsButtonText}>Room actions</Text>
@@ -1561,7 +2040,12 @@ export default function SplitRooms() {
         ) : (
           <>
             <View style={styles.summaryGrid}>
-              <View style={[styles.summaryBox, { borderColor: theme.border, backgroundColor: theme.surface }]}>
+              <View
+                style={[
+                  styles.summaryBox,
+                  { borderColor: theme.border, backgroundColor: theme.surface },
+                ]}
+              >
                 <Text style={styles.summaryLabel}>Total</Text>
                 <AmountText
                   amount={selectedRoom.totalAmount ?? 0}
@@ -1570,7 +2054,12 @@ export default function SplitRooms() {
                 />
               </View>
 
-              <View style={[styles.summaryBox, { borderColor: theme.border, backgroundColor: theme.surface }]}>
+              <View
+                style={[
+                  styles.summaryBox,
+                  { borderColor: theme.border, backgroundColor: theme.surface },
+                ]}
+              >
                 <Text style={styles.summaryLabel}>Outstanding</Text>
                 <AmountText
                   amount={selectedRoom.outstandingAmount ?? 0}
@@ -1583,7 +2072,12 @@ export default function SplitRooms() {
                 />
               </View>
 
-              <View style={[styles.summaryBox, { borderColor: theme.border, backgroundColor: theme.surface }]}>
+              <View
+                style={[
+                  styles.summaryBox,
+                  { borderColor: theme.border, backgroundColor: theme.surface },
+                ]}
+              >
                 <Text style={styles.summaryLabel}>Collected</Text>
                 <AmountText
                   amount={selectedRoom.collectedAmount ?? 0}
@@ -1592,7 +2086,12 @@ export default function SplitRooms() {
                 />
               </View>
 
-              <View style={[styles.summaryBox, { borderColor: theme.border, backgroundColor: theme.surface }]}>
+              <View
+                style={[
+                  styles.summaryBox,
+                  { borderColor: theme.border, backgroundColor: theme.surface },
+                ]}
+              >
                 <Text style={styles.summaryLabel}>Paid by</Text>
                 <Text style={styles.summaryValue} numberOfLines={1}>
                   {getRoomPaidByEmail(selectedRoom) || "Host"}
@@ -1606,14 +2105,20 @@ export default function SplitRooms() {
                   <Text style={styles.cardEyebrow}>Members</Text>
                   <Text style={styles.cardTitleSmall}>Room members</Text>
                 </View>
-                <Text style={styles.countPill}>
-                  {selectedRoom.memberCount ?? sortedMembers.length}
-                </Text>
               </View>
 
               <View style={styles.memberList}>
                 {sortedMembers.map((member) => (
-                  <View style={styles.memberRow} key={member.id}>
+                  <View
+                    style={[
+                      styles.memberRow,
+                      {
+                        borderColor: theme.border,
+                        backgroundColor: theme.surface,
+                      },
+                    ]}
+                    key={member.id}
+                  >
                     <Avatar
                       name={getMemberName(member)}
                       email={member.email}
@@ -1687,8 +2192,14 @@ export default function SplitRooms() {
                   key={balance.memberId}
                   style={[
                     styles.memberBalanceRow,
-                    { borderColor: theme.border, backgroundColor: theme.surface },
-                    pendingAmount > 0 && { borderColor: theme.primary, backgroundColor: theme.card },
+                    {
+                      borderColor: theme.border,
+                      backgroundColor: theme.surface,
+                    },
+                    pendingAmount > 0 && {
+                      borderColor: theme.primary,
+                      backgroundColor: theme.card,
+                    },
                   ]}
                   onPress={() => setMemberBalanceTarget(balance)}
                 >
@@ -1790,109 +2301,6 @@ export default function SplitRooms() {
         )}
       </AppCard>
 
-      <AppCard style={styles.historyCard}>
-        <View style={styles.cardHeadRow}>
-          <View>
-            <Text style={styles.cardEyebrow}>Split history</Text>
-            <Text style={styles.cardTitle}>
-              {selectedRoom ? selectedRoom.name : "No room selected"}
-            </Text>
-          </View>
-          <Text style={styles.countPill}>{selectedRoomItems.length}</Text>
-        </View>
-
-        {!selectedRoom ? (
-          <EmptyState title="No room selected" />
-        ) : selectedRoomItems.length === 0 ? (
-          <EmptyState
-            title="No items yet"
-            message="Add the first item and assign it to the person who used it."
-          />
-        ) : (
-          <View style={styles.itemList}>
-            {selectedRoomItems.map((item) => {
-              const assignedMember = sortedMembers.find(
-                (member) => member.id === getItemAssignedMemberId(item),
-              );
-
-              const collected = isItemCollected(item);
-              const canManage = Boolean(selectedRoom.isOwner && !collected);
-
-              return (
-                <View style={styles.itemRow} key={item.id}>
-                  <View style={styles.itemTopRow}>
-                    <View style={styles.itemCopy}>
-                      <Text style={styles.itemTitle} numberOfLines={1}>
-                        {item.title}
-                      </Text>
-                      <Text style={styles.itemSubtext} numberOfLines={1}>
-                        Assigned to{" "}
-                        {assignedMember
-                          ? getMemberName(assignedMember)
-                          : "Member"}
-                      </Text>
-                    </View>
-
-                    <AmountText
-                      amount={item.amount}
-                      size="sm"
-                      tone={collected ? "success" : "danger"}
-                    />
-                  </View>
-
-                  <View style={styles.itemFooter}>
-                    <Text
-                      style={[
-                        styles.itemStatus,
-                        collected ? styles.itemCollected : styles.itemPending,
-                      ]}
-                    >
-                      {collected ? "Collected" : "Pending"}
-                    </Text>
-
-                    {canManage ? (
-                      <View style={styles.itemActions}>
-                        <Pressable
-                          style={styles.itemActionButton}
-                          onPress={() => openEditItem(item)}
-                          disabled={updatingItemId === item.id}
-                        >
-                          <Text style={styles.itemActionText}>
-                            {updatingItemId === item.id ? "Saving" : "Edit"}
-                          </Text>
-                        </Pressable>
-
-                        <Pressable
-                          style={[
-                            styles.itemActionButton,
-                            styles.deleteActionButton,
-                          ]}
-                          onPress={() => requestDeleteItem(item)}
-                          disabled={deletingItemId === item.id}
-                        >
-                          <Text
-                            style={[
-                              styles.itemActionText,
-                              styles.deleteActionText,
-                            ]}
-                          >
-                            {deletingItemId === item.id ? "Deleting" : "Delete"}
-                          </Text>
-                        </Pressable>
-                      </View>
-                    ) : (
-                      <Text style={styles.lockedText}>
-                        {collected ? "Locked" : "View only"}
-                      </Text>
-                    )}
-                  </View>
-                </View>
-              );
-            })}
-          </View>
-        )}
-      </AppCard>
-
       <AppCard style={styles.netSettlementCard}>
         <View style={styles.cardHeadRow}>
           <View style={styles.netSettlementHeadCopy}>
@@ -1907,7 +2315,11 @@ export default function SplitRooms() {
 
         <View style={styles.netSettlementSummary}>
           <Pressable
-            style={[styles.netSettlementMetric, styles.payableMetric]}
+            style={[
+              styles.netSettlementMetric,
+              styles.payableMetric,
+              { borderColor: theme.border, backgroundColor: theme.surface },
+            ]}
             onPress={() => setNetSettlementInfoDialog("payable")}
           >
             <Text style={styles.netMetricLabel}>Payable</Text>
@@ -1920,7 +2332,11 @@ export default function SplitRooms() {
           </Pressable>
 
           <Pressable
-            style={[styles.netSettlementMetric, styles.receivableMetric]}
+            style={[
+              styles.netSettlementMetric,
+              styles.receivableMetric,
+              { borderColor: theme.border, backgroundColor: theme.surface },
+            ]}
             onPress={() => setNetSettlementInfoDialog("receivable")}
           >
             <Text style={styles.netMetricLabel}>Receivable</Text>
@@ -1965,7 +2381,15 @@ export default function SplitRooms() {
 
               return (
                 <>
-                  <View style={styles.memberSheetIdentity}>
+                  <View
+                    style={[
+                      styles.memberSheetIdentity,
+                      {
+                        borderColor: theme.border,
+                        backgroundColor: theme.surface,
+                      },
+                    ]}
+                  >
                     <Avatar
                       name={member ? getMemberName(member) : balance.name}
                       email={member?.email}
@@ -1992,7 +2416,15 @@ export default function SplitRooms() {
                   </View>
 
                   <View style={styles.memberBalanceStatsGrid}>
-                    <View style={styles.memberBalanceStat}>
+                    <View
+                      style={[
+                        styles.memberBalanceStat,
+                        {
+                          borderColor: theme.border,
+                          backgroundColor: theme.surface,
+                        },
+                      ]}
+                    >
                       <Text style={styles.summaryLabel}>Assigned</Text>
                       <AmountText
                         amount={assignedAmount}
@@ -2001,7 +2433,15 @@ export default function SplitRooms() {
                       />
                     </View>
 
-                    <View style={styles.memberBalanceStat}>
+                    <View
+                      style={[
+                        styles.memberBalanceStat,
+                        {
+                          borderColor: theme.border,
+                          backgroundColor: theme.surface,
+                        },
+                      ]}
+                    >
                       <Text style={styles.summaryLabel}>Pending</Text>
                       <AmountText
                         amount={pendingAmount}
@@ -2010,7 +2450,15 @@ export default function SplitRooms() {
                       />
                     </View>
 
-                    <View style={styles.memberBalanceStat}>
+                    <View
+                      style={[
+                        styles.memberBalanceStat,
+                        {
+                          borderColor: theme.border,
+                          backgroundColor: theme.surface,
+                        },
+                      ]}
+                    >
                       <Text style={styles.summaryLabel}>Collected</Text>
                       <AmountText
                         amount={collectedAmount}
@@ -2019,7 +2467,15 @@ export default function SplitRooms() {
                       />
                     </View>
 
-                    <View style={styles.memberBalanceStat}>
+                    <View
+                      style={[
+                        styles.memberBalanceStat,
+                        {
+                          borderColor: theme.border,
+                          backgroundColor: theme.surface,
+                        },
+                      ]}
+                    >
                       <Text style={styles.summaryLabel}>Items</Text>
                       <Text style={styles.summaryValue}>{itemCount}</Text>
                     </View>
@@ -2092,7 +2548,12 @@ export default function SplitRooms() {
         onClose={() => setNetSettlementInfoDialog(null)}
       >
         <View style={styles.netInfoSummary}>
-          <View style={styles.netInfoBox}>
+          <View
+            style={[
+              styles.netInfoBox,
+              { borderColor: theme.border, backgroundColor: theme.surface },
+            ]}
+          >
             <Text style={styles.summaryLabel}>Final amount</Text>
             <AmountText
               amount={visibleNetSettlementTotal}
@@ -2104,7 +2565,12 @@ export default function SplitRooms() {
             <Text style={styles.netInfoSmall}>After opposite dues adjust</Text>
           </View>
 
-          <View style={styles.netInfoBox}>
+          <View
+            style={[
+              styles.netInfoBox,
+              { borderColor: theme.border, backgroundColor: theme.surface },
+            ]}
+          >
             <Text style={styles.summaryLabel}>Direction</Text>
             <Text style={styles.summaryValue}>
               {netSettlementInfoDialog === "payable"
@@ -2114,7 +2580,12 @@ export default function SplitRooms() {
             <Text style={styles.netInfoSmall}>Across split rooms</Text>
           </View>
 
-          <View style={styles.netInfoBox}>
+          <View
+            style={[
+              styles.netInfoBox,
+              { borderColor: theme.border, backgroundColor: theme.surface },
+            ]}
+          >
             <Text style={styles.summaryLabel}>People</Text>
             <Text style={styles.summaryValue}>
               {visibleNetSettlements.length}
@@ -2139,7 +2610,13 @@ export default function SplitRooms() {
 
               return (
                 <View
-                  style={styles.netSettlementRow}
+                  style={[
+                    styles.netSettlementRow,
+                    {
+                      borderColor: theme.border,
+                      backgroundColor: theme.surface,
+                    },
+                  ]}
                   key={`${settlement.fromUserId}-${settlement.toUserId}`}
                 >
                   <View style={styles.netSettlementRowMain}>
@@ -2167,7 +2644,10 @@ export default function SplitRooms() {
                     <View style={styles.netBreakdownList}>
                       {settlement.breakdown.slice(0, 4).map((line) => (
                         <View
-                          style={styles.netBreakdownRow}
+                          style={[
+                            styles.netBreakdownRow,
+                            { backgroundColor: theme.card },
+                          ]}
                           key={`${line.itemId}-${line.direction}`}
                         >
                           <Text
@@ -2186,7 +2666,12 @@ export default function SplitRooms() {
                     </View>
                   </View>
 
-                  <View style={styles.netSettlementAmountPanel}>
+                  <View
+                    style={[
+                      styles.netSettlementAmountPanel,
+                      { backgroundColor: theme.card },
+                    ]}
+                  >
                     <Text style={styles.summaryLabel}>Final amount</Text>
                     <AmountText
                       amount={settlement.amount}
@@ -2233,7 +2718,12 @@ export default function SplitRooms() {
           />
         ) : (
           <>
-            <View style={styles.roomActionInfo}>
+            <View
+              style={[
+                styles.roomActionInfo,
+                { borderColor: theme.border, backgroundColor: theme.surface },
+              ]}
+            >
               <Text style={styles.cardEyebrow}>Current status</Text>
               <Text style={styles.cardTitleSmall}>
                 {selectedRoom.status || "active"}
@@ -2244,7 +2734,12 @@ export default function SplitRooms() {
               </Text>
             </View>
 
-            <View style={styles.roomActionInfo}>
+            <View
+              style={[
+                styles.roomActionInfo,
+                { borderColor: theme.border, backgroundColor: theme.surface },
+              ]}
+            >
               <Text style={styles.summaryLabel}>Outstanding</Text>
               <AmountText
                 amount={selectedRoom.outstandingAmount ?? 0}
@@ -2264,7 +2759,7 @@ export default function SplitRooms() {
                   : "Finalize room"
               }
               loading={finalizingRoomId === selectedRoom.id}
-              onPress={requestFinalizeRoom}
+              onPress={() => requestFinalizeRoom(selectedRoom)}
             />
 
             <AppButton
@@ -2284,7 +2779,7 @@ export default function SplitRooms() {
               }
               variant="secondary"
               loading={deletingRoomId === selectedRoom.id}
-              onPress={requestDeleteRoom}
+              onPress={() => requestDeleteRoom(selectedRoom)}
             />
           </>
         )}
@@ -2311,8 +2806,8 @@ export default function SplitRooms() {
             />
 
             <Text style={styles.netExplanationText}>
-              This amount is the final balance after SplitVerse adjusts
-              opposite dues across shared rooms.
+              This amount is the final balance after SplitVerse adjusts opposite
+              dues across shared rooms.
             </Text>
           </View>
         ) : null}
@@ -2336,189 +2831,6 @@ export default function SplitRooms() {
           loading={Boolean(payingNetSettlementUserId)}
           onPress={handleConfirmNetSettlementPayment}
         />
-      </SheetModal>
-
-      <SheetModal
-        visible={friendModalOpen}
-        title="Choose friends"
-        onClose={() => setFriendModalOpen(false)}
-        closeTitle="Done"
-      >
-        <AppTextInput
-          label="Search friends"
-          value={friendSearch}
-          onChangeText={setFriendSearch}
-          autoCapitalize="none"
-          placeholder="Search by name or email"
-        />
-
-        {friends.length === 0 ? (
-          <EmptyState
-            title="No friends yet"
-            message="Add friends from Profile before creating a room."
-          />
-        ) : filteredFriends.length === 0 ? (
-          <EmptyState title="No matching friends" />
-        ) : (
-          <View style={styles.optionList}>
-            {filteredFriends.map((friend) => {
-              const selected = selectedFriendEmails.includes(friend.email);
-
-              return (
-                <Pressable
-                  key={friend.id}
-                  style={[
-                    styles.friendOption,
-                    selected && styles.selectedOption,
-                  ]}
-                  onPress={() => toggleSelectedFriend(friend.email)}
-                >
-                  <Avatar
-                    name={friend.name}
-                    email={friend.email}
-                    imageUrl={
-                      friend.display_photo_url ||
-                      friend.profile_photo_url ||
-                      friend.photo_url
-                    }
-                    size={42}
-                  />
-
-                  <View style={styles.optionCopy}>
-                    <Text style={styles.optionTitle} numberOfLines={1}>
-                      {getFriendName(friend)}
-                    </Text>
-                    <Text style={styles.optionSubtext} numberOfLines={1}>
-                      {friend.email}
-                    </Text>
-                  </View>
-
-                  <Text style={styles.checkText}>
-                    {selected ? "Selected" : "Select"}
-                  </Text>
-                </Pressable>
-              );
-            })}
-          </View>
-        )}
-      </SheetModal>
-
-      <SheetModal
-        visible={assignMemberModalOpen}
-        title="Assign item to"
-        onClose={() => setAssignMemberModalOpen(false)}
-      >
-        <View style={styles.optionList}>
-          {sortedMembers.map((member) => {
-            const selected = member.id === assignedMemberId;
-
-            return (
-              <Pressable
-                key={member.id}
-                style={[
-                  styles.friendOption,
-                  selected && styles.selectedOption,
-                ]}
-                onPress={() => {
-                  setAssignedMemberId(member.id);
-                  setAssignMemberModalOpen(false);
-                }}
-              >
-                <Avatar
-                  name={getMemberName(member)}
-                  email={member.email}
-                  imageUrl={
-                    member.display_photo_url ||
-                    member.profile_photo_url ||
-                    member.photo_url
-                  }
-                  size={42}
-                />
-
-                <View style={styles.optionCopy}>
-                  <Text style={styles.optionTitle}>
-                    {getMemberName(member)}
-                  </Text>
-                  <Text style={styles.optionSubtext}>{member.email}</Text>
-                </View>
-
-                <Text style={styles.checkText}>
-                  {selected ? "Selected" : "Choose"}
-                </Text>
-              </Pressable>
-            );
-          })}
-        </View>
-      </SheetModal>
-
-      <SheetModal
-        visible={categoryModalOpen}
-        title="Choose category"
-        onClose={() => setCategoryModalOpen(false)}
-      >
-        <View style={styles.categoryGrid}>
-          {categoryOptions.map((category) => {
-            const selected = category.value === roomCategory;
-
-            return (
-              <Pressable
-                key={category.value}
-                style={[
-                  styles.categoryOption,
-                  selected && styles.selectedOption,
-                ]}
-                onPress={() => {
-                  setRoomCategory(category.value);
-                  setCategoryModalOpen(false);
-                }}
-              >
-                <Text
-                  style={[
-                    styles.categoryText,
-                    selected && styles.selectedCategoryText,
-                  ]}
-                >
-                  {category.label}
-                </Text>
-              </Pressable>
-            );
-          })}
-        </View>
-      </SheetModal>
-
-      <SheetModal
-        visible={paidByModalOpen}
-        title="Who paid?"
-        onClose={() => setPaidByModalOpen(false)}
-      >
-        <View style={styles.optionList}>
-          {paidByOptions.map((option) => {
-            const selected = option.email === roomPaidByEmail;
-
-            return (
-              <Pressable
-                key={option.email}
-                style={[
-                  styles.paidByOption,
-                  selected && styles.selectedOption,
-                ]}
-                onPress={() => {
-                  setRoomPaidByEmail(option.email);
-                  setPaidByModalOpen(false);
-                }}
-              >
-                <View style={styles.optionCopy}>
-                  <Text style={styles.optionTitle}>{option.name}</Text>
-                  <Text style={styles.optionSubtext}>{option.email}</Text>
-                </View>
-
-                <Text style={styles.checkText}>
-                  {selected ? "Selected" : "Choose"}
-                </Text>
-              </Pressable>
-            );
-          })}
-        </View>
       </SheetModal>
 
       <SheetModal
@@ -2563,7 +2875,7 @@ const styles = StyleSheet.create({
   screen: {
     gap: spacing.base,
     padding: 0,
-    paddingBottom: spacing.xxl,
+    paddingBottom: spacing.xxl + 160,
     backgroundColor: colors.surfaceSoft,
   },
   hero: {
@@ -2696,18 +3008,65 @@ const styles = StyleSheet.create({
     borderColor: colors.hairlineSoft,
     borderRadius: radius.xl,
     backgroundColor: colors.surfaceSoft,
-    padding: spacing.sm,
+    padding: spacing.base,
   },
   activeRoomRow: {
     borderColor: colors.primary,
     backgroundColor: colors.canvas,
   },
+  roomTopLine: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+    gap: spacing.base,
+  },
+  roomBodyLine: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: spacing.base,
+  },
+  roomInfoColumn: {
+    flex: 1,
+    minWidth: 0,
+    gap: spacing.xs,
+  },
+  roomActionColumn: {
+    width: 140,
+    gap: spacing.sm,
+  },
+  roomInlineAction: {
+    minHeight: 42,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: spacing.xs,
+    borderRadius: radius.pill,
+    paddingHorizontal: spacing.sm,
+  },
+  roomDeleteInlineAction: {
+    borderWidth: 1,
+  },
+  roomInlineActionText: {
+    fontSize: 12,
+    fontWeight: "800",
+  },
+  roomDeleteInlineActionText: {
+    fontSize: 12,
+    fontWeight: "800",
+  },
   roomMain: {
     gap: 2,
   },
   roomName: {
+    flex: 1,
+    minWidth: 0,
     color: colors.ink,
     ...typography.titleSm,
+  },
+  roomMembers: {
+    color: colors.body,
+    ...typography.bodySm,
   },
   roomMeta: {
     color: colors.body,
@@ -2717,6 +3076,7 @@ const styles = StyleSheet.create({
     alignSelf: "flex-start",
     gap: 1,
     backgroundColor: "transparent",
+    padding: 0,
   },
   roomDueText: {
     color: colors.body,
@@ -3277,5 +3637,55 @@ const styles = StyleSheet.create({
     borderRadius: radius.xl,
     backgroundColor: colors.surfaceSoft,
     padding: spacing.base,
+  },
+  roomListScroll: {
+    maxHeight: 285,
+  },
+
+  roomNameInput: {
+    minHeight: 65,
+  },
+
+  dropdownWrap: {
+    position: "relative",
+    zIndex: 1,
+  },
+
+  dropdownMenu: {
+    marginTop: spacing.xs,
+    borderWidth: 1,
+    borderRadius: radius.lg,
+    padding: spacing.sm,
+    gap: spacing.sm,
+    elevation: 0,
+  },
+
+  dropdownScroll: {
+    maxHeight: 232,
+  },
+
+  dropdownOption: {
+    minHeight: 52,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    borderWidth: 1,
+    borderRadius: radius.md,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs,
+    marginBottom: spacing.xs,
+  },
+
+  dropdownOptionText: {
+    flex: 1,
+    ...typography.bodySm,
+  },
+
+  dropdownEmptyText: {
+    color: colors.body,
+    ...typography.bodySm,
+  },
+  input65: {
+    minHeight: 65,
   },
 });

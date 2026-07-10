@@ -1,14 +1,22 @@
 import * as ImagePicker from "expo-image-picker";
-import { router } from "expo-router";
-import { useEffect, useMemo, useState } from "react";
-import { Alert, Pressable, StyleSheet, Switch, View } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
+import { router, useFocusEffect } from "expo-router";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  Alert,
+  BackHandler,
+  Pressable,
+  StyleSheet,
+  Switch,
+  View,
+} from "react-native";
 import AppButton from "../../src/components/AppButton";
 import AppCard from "../../src/components/AppCard";
 import AppTextInput from "../../src/components/AppTextInput";
 import Avatar from "../../src/components/Avatar";
 import EmptyState from "../../src/components/EmptyState";
 import DropdownSelect from "../../src/components/DropdownSelect";
-import LoadingState from "../../src/components/LoadingState";
+import { InlineListSkeleton } from "../../src/components/PageSkeletons";
 import Screen from "../../src/components/Screen";
 import SheetModal from "../../src/components/SheetModal";
 import Text from "../../src/components/LocalizedText";
@@ -164,6 +172,20 @@ export default function Settings() {
     );
   }, [friendSearch, friends]);
 
+  useFocusEffect(
+    useCallback(() => {
+      const subscription = BackHandler.addEventListener(
+        "hardwareBackPress",
+        () => {
+          router.replace("/(tabs)/profile");
+          return true;
+        },
+      );
+
+      return () => subscription.remove();
+    }, []),
+  );
+
   const exchangeRateStatusText = exchangeRatesLoading
     ? "Loading live exchange rates..."
     : exchangeRatesError
@@ -199,13 +221,22 @@ export default function Settings() {
 
   async function saveProfileDisplay(
     nextAvatarId = avatarId,
-    nextPhotoUrl = profilePhotoUrl.trim() || dbUser?.profile_photo_url || dbUser?.display_photo_url || dbUser?.photo_url || "",
+    nextPhotoUrl = profilePhotoUrl.trim() ||
+      dbUser?.profile_photo_url ||
+      dbUser?.display_photo_url ||
+      dbUser?.photo_url ||
+      "",
   ) {
     try {
       setProfileSaving(true);
       const response = await updateProfileSettings({
         avatarMode: nextAvatarId === "initials" ? "initials" : "photo",
-        profilePhotoUrl: nextPhotoUrl || dbUser?.profile_photo_url || dbUser?.display_photo_url || dbUser?.photo_url || null,
+        profilePhotoUrl:
+          nextPhotoUrl ||
+          dbUser?.profile_photo_url ||
+          dbUser?.display_photo_url ||
+          dbUser?.photo_url ||
+          null,
       });
       setAvatarId(nextAvatarId);
       setProfilePhotoUrl("");
@@ -229,7 +260,13 @@ export default function Settings() {
   async function handleAvatarModeChange(useInitials: boolean) {
     const nextAvatarId = useInitials ? "initials" : "current";
     setAvatarId(nextAvatarId);
-    await saveProfileDisplay(nextAvatarId, dbUser?.profile_photo_url || dbUser?.display_photo_url || dbUser?.photo_url || "");
+    await saveProfileDisplay(
+      nextAvatarId,
+      dbUser?.profile_photo_url ||
+        dbUser?.display_photo_url ||
+        dbUser?.photo_url ||
+        "",
+    );
   }
 
   async function handlePickProfilePhoto() {
@@ -471,13 +508,19 @@ export default function Settings() {
   }
 
   return (
-    <Screen contentStyle={[styles.screen, { backgroundColor: theme.background }]}>
+    <Screen
+      safeBackgroundColor={
+        theme.mode === "dark" ? theme.background : theme.primary
+      }
+      contentStyle={[styles.screen, { backgroundColor: theme.background }]}
+    >
       <View style={styles.topBar}>
         <Pressable
+          accessibilityLabel="Back"
           style={[styles.iconButton, { backgroundColor: theme.surfaceStrong }]}
-          onPress={() => router.push("/(tabs)/profile")}
+          onPress={() => router.replace("/(tabs)/profile")}
         >
-          <Text style={[styles.iconButtonText, { color: theme.text }]}>Back</Text>
+          <Ionicons name="chevron-back" size={21} color={theme.primary} />
         </Pressable>
       </View>
 
@@ -499,7 +542,12 @@ export default function Settings() {
           onValueChange={(value) => void handleAvatarModeChange(value)}
           disabled={profileSaving}
         />
-        <View style={[styles.profilePreviewRow, { borderColor: theme.border, backgroundColor: theme.surface }]}>
+        <View
+          style={[
+            styles.profilePreviewRow,
+            { borderColor: theme.border, backgroundColor: theme.surface },
+          ]}
+        >
           <Avatar
             name={displayName}
             email={email}
@@ -563,9 +611,18 @@ export default function Settings() {
           }))}
           onChange={(language) => void handleAppLanguageChange(language)}
         />
-        <View style={[styles.previewBox, { borderColor: theme.border, backgroundColor: theme.surface }]}>
-          <Text style={[styles.summaryLabel, { color: theme.body }]}>Example display</Text>
-          <Text style={[styles.previewValue, { color: theme.text }]}>{formatCurrency(2480)}</Text>
+        <View
+          style={[
+            styles.previewBox,
+            { borderColor: theme.border, backgroundColor: theme.surface },
+          ]}
+        >
+          <Text style={[styles.summaryLabel, { color: theme.body }]}>
+            Example display
+          </Text>
+          <Text style={[styles.previewValue, { color: theme.text }]}>
+            {formatCurrency(2480)}
+          </Text>
         </View>
       </AppCard>
 
@@ -581,17 +638,30 @@ export default function Settings() {
         <DropdownSelect
           label="From"
           value={converterFrom}
-          options={currencies.map((currency) => ({ label: `${currency.code} · ${currency.label}`, value: currency.code }))}
+          options={currencies.map((currency) => ({
+            label: `${currency.code} · ${currency.label}`,
+            value: currency.code,
+          }))}
           onChange={setConverterFrom}
         />
         <DropdownSelect
           label="To"
           value={converterTo}
-          options={currencies.map((currency) => ({ label: `${currency.code} · ${currency.label}`, value: currency.code }))}
+          options={currencies.map((currency) => ({
+            label: `${currency.code} · ${currency.label}`,
+            value: currency.code,
+          }))}
           onChange={setConverterTo}
         />
-        <View style={[styles.previewBox, { borderColor: theme.border, backgroundColor: theme.surface }]}>
-          <Text style={[styles.summaryLabel, { color: theme.body }]}>Converted amount</Text>
+        <View
+          style={[
+            styles.previewBox,
+            { borderColor: theme.border, backgroundColor: theme.surface },
+          ]}
+        >
+          <Text style={[styles.summaryLabel, { color: theme.body }]}>
+            Converted amount
+          </Text>
           <Text style={[styles.previewValue, { color: theme.text }]}>
             {formatCurrencyValue(convertedAmount, converterTo)}
           </Text>
@@ -634,7 +704,10 @@ export default function Settings() {
         <DropdownSelect
           label="Default wallet top-up method"
           value={defaultTopUpMethod}
-          options={topUpMethods.map((method) => ({ label: method, value: method }))}
+          options={topUpMethods.map((method) => ({
+            label: method,
+            value: method,
+          }))}
           onChange={setDefaultTopUpMethod}
         />
         <SettingSwitch
@@ -738,13 +811,19 @@ export default function Settings() {
           placeholder="Search by name or email"
         />
         {friendsLoading ? (
-          <LoadingState label="Loading friends..." />
+          <InlineListSkeleton rows={3} />
         ) : visibleFriends.length === 0 ? (
           <EmptyState title="No friends to delete" />
         ) : (
           <View style={styles.list}>
             {visibleFriends.map((friend) => (
-              <View style={[styles.friendRow, { borderColor: theme.border, backgroundColor: theme.surface }]} key={friend.id}>
+              <View
+                style={[
+                  styles.friendRow,
+                  { borderColor: theme.border, backgroundColor: theme.surface },
+                ]}
+                key={friend.id}
+              >
                 <Avatar
                   name={friend.name}
                   email={friend.email}
@@ -882,11 +961,19 @@ function Chip({ label, active, onPress }: ChipProps) {
     <Pressable
       style={[
         styles.chip,
-        { borderColor: active ? theme.primary : theme.border, backgroundColor: active ? theme.primary : theme.surface },
+        {
+          borderColor: active ? theme.primary : theme.border,
+          backgroundColor: active ? theme.primary : theme.surface,
+        },
       ]}
       onPress={onPress}
     >
-      <Text style={[styles.chipText, { color: active ? theme.onPrimary : theme.text }]}>
+      <Text
+        style={[
+          styles.chipText,
+          { color: active ? theme.onPrimary : theme.text },
+        ]}
+      >
         {label}
       </Text>
     </Pressable>
@@ -910,10 +997,17 @@ function SettingSwitch({
 }: SettingSwitchProps) {
   const { theme } = useAppSettings();
   return (
-    <View style={[styles.switchRow, { borderColor: theme.border, backgroundColor: theme.surface }]}>
+    <View
+      style={[
+        styles.switchRow,
+        { borderColor: theme.border, backgroundColor: theme.surface },
+      ]}
+    >
       <View style={styles.switchCopy}>
         <Text style={[styles.switchTitle, { color: theme.text }]}>{title}</Text>
-        <Text style={[styles.switchDescription, { color: theme.body }]}>{description}</Text>
+        <Text style={[styles.switchDescription, { color: theme.body }]}>
+          {description}
+        </Text>
       </View>
       <Switch
         value={value}
@@ -934,13 +1028,13 @@ const styles = StyleSheet.create({
     paddingTop: spacing.sm,
   },
   iconButton: {
-    minHeight: 38,
+    width: 42,
+    height: 42,
+    alignItems: "center",
     justifyContent: "center",
     borderRadius: radius.pill,
     backgroundColor: colors.surfaceStrong,
-    paddingHorizontal: spacing.base,
   },
-  iconButtonText: { color: colors.ink, ...typography.caption },
   header: { gap: spacing.xs, paddingTop: spacing.sm },
   eyebrow: { color: colors.primary, ...typography.caption },
   title: { color: colors.ink, ...typography.titleLg },

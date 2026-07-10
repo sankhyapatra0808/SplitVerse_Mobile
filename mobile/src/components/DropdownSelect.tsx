@@ -53,7 +53,17 @@ export default function DropdownSelect<T extends string>({ label, value, options
                   <Text style={[styles.optionText, { color: active ? theme.primary : theme.text }]}>{option.label}</Text>
                   {option.helper ? <Text style={[styles.helper, { color: theme.body }]}>{option.helper}</Text> : null}
                 </View>
-                {active ? <Ionicons name="checkmark-circle" size={18} color={theme.primary} /> : null}
+                <View
+                  style={[
+                    styles.radio,
+                    {
+                      borderColor: active ? theme.primary : theme.mode === "dark" ? "rgba(255,255,255,0.46)" : theme.border,
+                      backgroundColor: active ? theme.primary : "transparent",
+                    },
+                  ]}
+                >
+                  {active ? <Ionicons name="checkmark" size={13} color={theme.onPrimary} /> : null}
+                </View>
               </Pressable>
             );
           })}
@@ -109,5 +119,13 @@ const styles = StyleSheet.create({
   optionText: {
     ...typography.bodySm,
     fontWeight: "700",
+  },
+  radio: {
+    width: 22,
+    height: 22,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 2,
+    borderRadius: radius.full,
   },
 });

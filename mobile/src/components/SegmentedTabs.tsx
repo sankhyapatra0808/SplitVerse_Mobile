@@ -3,36 +3,62 @@ import { useAppSettings } from "../context/useAppSettings";
 import { radius, spacing, typography } from "../theme/tokens";
 import Text from "./LocalizedText";
 
-type Tab = {
+type TabItem = {
   label: string;
   value: string;
 };
 
 type SegmentedTabsProps = {
-  tabs: Tab[];
   value: string;
   onChange: (value: string) => void;
+  tabs: TabItem[];
 };
 
-export default function SegmentedTabs({ tabs, value, onChange }: SegmentedTabsProps) {
+export default function SegmentedTabs({
+  value,
+  onChange,
+  tabs,
+}: SegmentedTabsProps) {
   const { theme } = useAppSettings();
 
+  const isDark = theme.mode === "dark";
+
   return (
-    <View style={[styles.wrapper, { backgroundColor: theme.surfaceStrong }]}>
+    <View
+      style={[
+        styles.wrap,
+        {
+          backgroundColor: isDark ? "#050608" : theme.surfaceStrong,
+          borderColor: isDark ? "rgba(255,255,255,0.10)" : theme.border,
+        },
+      ]}
+    >
       {tabs.map((tab) => {
         const active = tab.value === value;
+
         return (
           <Pressable
             key={tab.value}
-            android_ripple={{ color: theme.borderSoft, borderless: false }}
-            style={({ pressed }) => [
-              styles.tab,
-              active && { backgroundColor: theme.card, borderColor: theme.primary },
-              { transform: [{ scale: pressed ? 0.98 : active ? 1.02 : 1 }] },
-            ]}
             onPress={() => onChange(tab.value)}
+            style={[
+              styles.tab,
+              active && {
+                backgroundColor: isDark ? "#111318" : "#ffffff",
+                borderColor: theme.primary,
+              },
+            ]}
           >
-            <Text style={[styles.label, { color: active ? theme.primary : theme.body }]}>{tab.label}</Text>
+            <Text
+              style={[
+                styles.label,
+                {
+                  color: active ? theme.primary : theme.body,
+                },
+              ]}
+              numberOfLines={1}
+            >
+              {tab.label}
+            </Text>
           </Pressable>
         );
       })}
@@ -41,23 +67,28 @@ export default function SegmentedTabs({ tabs, value, onChange }: SegmentedTabsPr
 }
 
 const styles = StyleSheet.create({
-  wrapper: {
+  wrap: {
+    minHeight: 8,
     flexDirection: "row",
-    gap: spacing.xs,
+    alignItems: "center",
+    borderWidth: 1,
     borderRadius: radius.pill,
     padding: spacing.xs,
+    gap: spacing.xs,
   },
   tab: {
     flex: 1,
     minHeight: 40,
-    borderWidth: 1,
-    borderColor: "transparent",
     alignItems: "center",
     justifyContent: "center",
+    borderWidth: 1,
+    borderColor: "transparent",
     borderRadius: radius.pill,
     paddingHorizontal: spacing.sm,
   },
   label: {
-    ...typography.caption,
+    ...typography.bodySm,
+    fontSize: 14,
+    fontWeight: "800",
   },
 });
