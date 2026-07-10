@@ -1,12 +1,24 @@
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
 import { router, useFocusEffect } from "expo-router";
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { Alert, Pressable, StyleSheet, View } from "react-native";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  ActivityIndicator,
+  Alert,
+  ImageBackground,
+  Keyboard,
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  TextInput,
+  View,
+} from "react-native";
 import AmountText from "../../src/components/AmountText";
 import AppButton from "../../src/components/AppButton";
 import AppCard from "../../src/components/AppCard";
-import AppTextInput from "../../src/components/AppTextInput";
 import Avatar from "../../src/components/Avatar";
 import Screen from "../../src/components/Screen";
 import SpendBarChart, {
@@ -153,7 +165,7 @@ function buildYearlySpend(summary: DashboardSummary | null): SpendGraphPoint[] {
 
 export default function Dashboard() {
   const { user, dbUser } = useAuth();
-  const { formatCurrency, theme } = useAppSettings();
+  const { avatarId, formatCurrency, theme } = useAppSettings();
   const [summary, setSummary] = useState<DashboardSummary | null>(
     dashboardCache?.summary ?? null,
   );
@@ -165,11 +177,17 @@ export default function Dashboard() {
     dashboardCache?.transactions ?? [],
   );
   const [graphMode, setGraphMode] = useState<SpendGraphMode>("yearly");
+  const [selectedGraphIndex, setSelectedGraphIndex] = useState<number | null>(
+    null,
+  );
   const [loading, setLoading] = useState(!dashboardCache);
   const [expenseTitle, setExpenseTitle] = useState("");
   const [expenseAmount, setExpenseAmount] = useState("");
   const [savingExpense, setSavingExpense] = useState(false);
+  const [expenseModalVisible, setExpenseModalVisible] = useState(false);
+  const [keyboardVisible, setKeyboardVisible] = useState(false);
   const [hasUnreadNotifications, setHasUnreadNotifications] = useState(false);
+  const expenseModalScrollRef = useRef<ScrollView>(null);
 
   const displayName =
     dbUser?.display_name ||
@@ -179,6 +197,13 @@ export default function Dashboard() {
 
   const displayEmail = dbUser?.email || user?.email || "";
   const username = dbUser?.username ? `@${dbUser.username}` : displayEmail;
+  const photoUrl =
+    avatarId === "initials"
+      ? undefined
+      : dbUser?.display_photo_url ||
+        dbUser?.profile_photo_url ||
+        dbUser?.photo_url ||
+        undefined;
 
   const walletBalance =
     summary?.walletHealth?.availableBalance ??
@@ -206,6 +231,9 @@ export default function Dashboard() {
 
   const friendCount = friendsSummary?.friends.length ?? 0;
   const roomCount = rooms.length;
+  const expenseActionColor = theme.mode === "dark" ? "#F59E0B" : "#2563EB";
+  const modalTextColor = theme.mode === "dark" ? "#F8FAFC" : "#111827";
+  const modalMutedColor = theme.mode === "dark" ? "#A8B0BC" : "#667085";
 
   const yearlyData = useMemo(() => buildYearlySpend(summary), [summary]);
 
@@ -220,6 +248,43 @@ export default function Dashboard() {
     (sum, point) => sum + Number(point.amount || 0),
     0,
   );
+
+  const selectedGraphPoint =
+    selectedGraphIndex === null
+      ? null
+      : (graphData[selectedGraphIndex] ?? null);
+
+  const graphSummaryLabel = selectedGraphPoint
+    ? `Total ${selectedGraphPoint.label}: ${formatCurrency(selectedGraphPoint.amount)}`
+    : `Total: ${formatCurrency(graphTotal)}`;
+
+  useEffect(() => {
+    setSelectedGraphIndex(null);
+  }, [graphMode]);
+
+  useEffect(() => {
+    const showEvent =
+      Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow";
+    const hideEvent =
+      Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide";
+
+    const showSubscription = Keyboard.addListener(showEvent, () => {
+      setKeyboardVisible(true);
+
+      setTimeout(() => {
+        expenseModalScrollRef.current?.scrollToEnd({ animated: true });
+      }, 160);
+    });
+
+    const hideSubscription = Keyboard.addListener(hideEvent, () => {
+      setKeyboardVisible(false);
+    });
+
+    return () => {
+      showSubscription.remove();
+      hideSubscription.remove();
+    };
+  }, []);
 
   const loadDashboardData = useCallback(async (silent = false) => {
     try {
@@ -341,14 +406,18 @@ export default function Dashboard() {
 
     try {
       setSavingExpense(true);
-      await createExpense({
-        title: expenseTitle.trim(),
-        amount,
-        expenseDate: getTodayIsoDate(),
-      });
+      await Promise.all([
+        createExpense({
+          title: expenseTitle.trim(),
+          amount,
+          expenseDate: getTodayIsoDate(),
+        }),
+        new Promise((resolve) => setTimeout(resolve, 450)),
+      ]);
       setExpenseTitle("");
       setExpenseAmount("");
       await loadDashboardData(true);
+      setExpenseModalVisible(false);
       Alert.alert(
         "Expense added",
         "Today's expense, graph, and transaction history were updated.",
@@ -363,218 +432,428 @@ export default function Dashboard() {
     }
   }
 
+  function closeExpenseModal() {
+    if (!savingExpense) {
+      setExpenseModalVisible(false);
+    }
+  }
+
+  function renderHeroActions() {
+    return (
+      <View style={styles.heroActions}>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Add today's expense"
+          style={({ pressed }) => [
+            styles.addExpenseIconButton,
+            {
+              backgroundColor: expenseActionColor,
+              borderColor: expenseActionColor,
+              opacity: pressed ? 0.84 : 1,
+            },
+          ]}
+          onPress={() => setExpenseModalVisible(true)}
+        >
+          <Ionicons name="add" size={25} color="#fff" />
+        </Pressable>
+
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Open notifications"
+          style={[
+            styles.notificationButton,
+            {
+              backgroundColor: "rgba(255,255,255,0.16)",
+              borderColor: "rgba(255,255,255,0.28)",
+            },
+          ]}
+          onPress={() => router.push("/(tabs)/notifications")}
+        >
+          <Ionicons name="notifications-outline" size={22} color="#fff" />
+          {hasUnreadNotifications ? (
+            <View style={styles.notificationDot} />
+          ) : null}
+        </Pressable>
+      </View>
+    );
+  }
+
   return (
     <Screen
       refreshing={loading}
       onRefresh={() => loadDashboardData()}
-      safeBackgroundColor={theme.mode === "dark" ? theme.background : theme.primary}
+      safeBackgroundColor={
+        theme.mode === "dark" ? theme.background : theme.primary
+      }
       contentStyle={[
         styles.screen,
         {
           backgroundColor: theme.background,
-          paddingBottom: spacing.xxl + 160,
+          paddingBottom: spacing.xxl,
         },
       ]}
     >
-      <LinearGradient
-        colors={[theme.primary, theme.primaryActive]}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        style={styles.hero}
+      <Pressable
+        style={styles.pageTapReset}
+        onPress={() => setSelectedGraphIndex(null)}
       >
-        <View style={styles.heroTop}>
-          <View>
-            <Text style={styles.heroEyebrow}>SplitVerse</Text>
-            <Text style={styles.heroTitle}>Dashboard</Text>
-          </View>
+        <View style={styles.heroClip}>
+          {photoUrl ? (
+            <ImageBackground
+              source={{ uri: photoUrl }}
+              blurRadius={28}
+              style={styles.heroImage}
+              imageStyle={styles.heroImageInner}
+            >
+              <LinearGradient
+                colors={
+                  theme.mode === "dark"
+                    ? ["rgba(0,0,0,0.30)", "rgba(0,0,0,0.72)"]
+                    : ["rgba(0,0,0,0.08)", "rgba(0,82,255,0.42)"]
+                }
+                style={styles.heroOverlay}
+              >
+                <View style={styles.heroTop}>
+                  <View>
+                    <Text style={styles.heroEyebrow}>SplitVerse</Text>
+                    <Text style={styles.heroTitle}>Dashboard</Text>
+                  </View>
 
-          <Pressable
-            style={[
-              styles.notificationButton,
-              {
-                backgroundColor: "rgba(255,255,255,0.16)",
-                borderColor: "rgba(255,255,255,0.28)",
-              },
-            ]}
-            onPress={() => router.push("/(tabs)/notifications")}
-          >
-            <Ionicons name="notifications-outline" size={22} color="#fff" />
-            {hasUnreadNotifications ? (
-              <View style={styles.notificationDot} />
-            ) : null}
-          </Pressable>
-        </View>
+                  {renderHeroActions()}
+                </View>
 
-        <View style={styles.profileBlock}>
-          <Avatar
-            name={displayName}
-            email={displayEmail}
-            imageUrl={
-              dbUser?.display_photo_url ||
-              dbUser?.profile_photo_url ||
-              dbUser?.photo_url
-            }
-            size={72}
-          />
+                <View style={styles.profileBlock}>
+                  <Avatar
+                    name={displayName}
+                    email={displayEmail}
+                    imageUrl={photoUrl}
+                    size={72}
+                  />
 
-          <View style={styles.profileCopy}>
-            <Text style={styles.name} numberOfLines={1}>
-              Hi, {displayName}
-            </Text>
-            <Text style={styles.email} numberOfLines={1}>
-              {username}
-            </Text>
-          </View>
-        </View>
-      </LinearGradient>
+                  <View style={styles.profileCopy}>
+                    <Text style={styles.name} numberOfLines={1}>
+                      Hi, {displayName}
+                    </Text>
+                    <Text style={styles.email} numberOfLines={1}>
+                      {username}
+                    </Text>
+                  </View>
+                </View>
+              </LinearGradient>
+            </ImageBackground>
+          ) : (
+            <LinearGradient
+              colors={
+                theme.mode === "dark"
+                  ? ["#050608", "#111318"]
+                  : [theme.primary, theme.primaryActive]
+              }
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.heroOverlay}
+            >
+              <View style={styles.heroTop}>
+                <View>
+                  <Text style={styles.heroEyebrow}>SplitVerse</Text>
+                  <Text style={styles.heroTitle}>Dashboard</Text>
+                </View>
 
-      <View
-        style={[
-          styles.identityStats,
-          { borderColor: theme.border, backgroundColor: theme.card },
-        ]}
-      >
-        <View style={styles.identityStat}>
-          <Text style={styles.identityValue}>{friendCount}</Text>
-          <Text style={styles.identityLabel}>Friends</Text>
+                {renderHeroActions()}
+              </View>
+
+              <View style={styles.profileBlock}>
+                <Avatar
+                  name={displayName}
+                  email={displayEmail}
+                  imageUrl={photoUrl}
+                  size={72}
+                />
+
+                <View style={styles.profileCopy}>
+                  <Text style={styles.name} numberOfLines={1}>
+                    Hi, {displayName}
+                  </Text>
+                  <Text style={styles.email} numberOfLines={1}>
+                    {username}
+                  </Text>
+                </View>
+              </View>
+            </LinearGradient>
+          )}
         </View>
 
         <View
           style={[
-            styles.identityDivider,
-            { backgroundColor: theme.borderSoft },
+            styles.identityStats,
+            { borderColor: theme.border, backgroundColor: theme.card },
           ]}
-        />
-
-        <View style={styles.identityStat}>
-          <Text style={styles.identityValue}>{roomCount}</Text>
-          <Text style={styles.identityLabel}>Rooms</Text>
-        </View>
-
-        <View
-          style={[
-            styles.identityDivider,
-            { backgroundColor: theme.borderSoft },
-          ]}
-        />
-
-        <View style={styles.identityStat}>
-          <Text
-            style={[
-              styles.identityValue,
-              netPosition >= 0 ? styles.positiveValue : styles.negativeValue,
-            ]}
-          >
-            {formatCurrency(netPosition, { signed: true })}
-          </Text>
-          <Text style={styles.identityLabel}>Net</Text>
-        </View>
-      </View>
-
-      <View style={styles.statGrid}>
-        <StatCard
-          label="Wallet balance"
-          amount={walletBalance}
-          helper="Available"
-          tone="primary"
-          style={styles.statTile}
-        />
-
-        <StatCard
-          label="Today's expense"
-          amount={todayExpense}
-          helper="Today"
-          tone="danger"
-          style={styles.statTile}
-        />
-
-        <StatCard
-          label="Payable"
-          amount={payable}
-          helper="You owe"
-          tone="danger"
-          style={styles.statTile}
-        />
-
-        <StatCard
-          label="Receivable"
-          amount={receivable}
-          helper="You get"
-          tone="success"
-          style={styles.statTile}
-        />
-      </View>
-
-      <SpendBarChart
-        style={styles.chartCard}
-        title={
-          graphMode === "weekly"
-            ? "Weekly spending graph"
-            : "Yearly spending graph"
-        }
-        totalLabel={`Total: ${formatCurrency(graphTotal)}`}
-        mode={graphMode}
-        onModeChange={setGraphMode}
-        data={graphData}
-      />
-
-      <AppCard style={styles.settlementCard}>
-        <View style={styles.settlementHead}>
-          <View style={styles.settlementCopy}>
-            <Text style={styles.cardEyebrow}>Adjusted settlements</Text>
-            <Text style={styles.cardTitle}>Final payable after adjustment</Text>
-            <Text style={styles.cardText}>
-              Cross-room dues are adjusted so you only pay the final net amount.
-            </Text>
+        >
+          <View style={styles.identityStat}>
+            <Text style={styles.identityValue}>{friendCount}</Text>
+            <Text style={styles.identityLabel}>Friends</Text>
           </View>
 
-          <AmountText
-            amount={Math.max(0, payable)}
-            size="md"
-            tone={payable > 0 ? "danger" : "success"}
+          <View
+            style={[
+              styles.identityDivider,
+              { backgroundColor: theme.borderSoft },
+            ]}
+          />
+
+          <View style={styles.identityStat}>
+            <Text style={styles.identityValue}>{roomCount}</Text>
+            <Text style={styles.identityLabel}>Rooms</Text>
+          </View>
+
+          <View
+            style={[
+              styles.identityDivider,
+              { backgroundColor: theme.borderSoft },
+            ]}
+          />
+
+          <View style={styles.identityStat}>
+            <Text
+              style={[
+                styles.identityValue,
+                netPosition >= 0 ? styles.positiveValue : styles.negativeValue,
+              ]}
+            >
+              {formatCurrency(netPosition, { signed: true })}
+            </Text>
+            <Text style={styles.identityLabel}>Net</Text>
+          </View>
+        </View>
+
+        <View style={styles.statGrid}>
+          <StatCard
+            label="Wallet balance"
+            amount={walletBalance}
+            helper="Available"
+            tone="primary"
+            style={styles.statTile}
+          />
+
+          <StatCard
+            label="Today's expense"
+            amount={todayExpense}
+            helper="Today"
+            tone="danger"
+            style={styles.statTile}
+          />
+
+          <StatCard
+            label="Payable"
+            amount={payable}
+            helper="You owe"
+            tone="danger"
+            style={styles.statTile}
+          />
+
+          <StatCard
+            label="Receivable"
+            amount={receivable}
+            helper="You get"
+            tone="success"
+            style={styles.statTile}
           />
         </View>
 
-        <View style={styles.actions}>
-          <AppButton
-            title="Open rooms"
-            onPress={() => router.push("/(tabs)/split-rooms")}
-          />
-          <AppButton
-            title="Add money"
-            variant="secondary"
-            onPress={() => router.push("/(tabs)/wallet")}
-          />
-        </View>
-      </AppCard>
+        <SpendBarChart
+          style={styles.chartCard}
+          title={
+            graphMode === "weekly"
+              ? "Weekly spending graph"
+              : "Yearly spending graph"
+          }
+          totalLabel={graphSummaryLabel}
+          mode={graphMode}
+          onModeChange={setGraphMode}
+          data={graphData}
+          selectedIndex={selectedGraphIndex}
+          onSelectPoint={(_, index) => setSelectedGraphIndex(index)}
+        />
+      </Pressable>
+      <Modal
+        visible={expenseModalVisible}
+        transparent
+        animationType="fade"
+        statusBarTranslucent
+        onRequestClose={closeExpenseModal}
+      >
+        <KeyboardAvoidingView
+          style={styles.modalKeyboardView}
+          behavior="padding"
+          keyboardVerticalOffset={0}
+        >
+          <View style={styles.modalBackdrop}>
+            <Pressable
+              style={StyleSheet.absoluteFill}
+              onPress={closeExpenseModal}
+            />
 
-      <AppCard style={styles.quickCard}>
-        <Text style={styles.cardEyebrow}>Expense form</Text>
-        <Text style={styles.cardTitle}>Did you spend anything today?</Text>
-        <Text style={styles.cardText}>
-          Add the expense here and it will update today's expense, graph data,
-          and transaction history.
-        </Text>
+            <ScrollView
+              ref={expenseModalScrollRef}
+              contentContainerStyle={[
+                styles.modalScrollContent,
+                keyboardVisible && styles.modalScrollContentKeyboard,
+              ]}
+              keyboardShouldPersistTaps="handled"
+              keyboardDismissMode="interactive"
+              showsVerticalScrollIndicator={false}
+              bounces={false}
+            >
+              <View
+                style={[
+                  styles.expenseModalCard,
+                  {
+                    backgroundColor: theme.card,
+                    borderColor: theme.border,
+                  },
+                ]}
+              >
+                <View style={styles.modalHeader}>
+                  <View style={styles.modalTitleBlock}>
+                    <Text
+                      style={[styles.modalEyebrow, { color: modalMutedColor }]}
+                    >
+                      TODAY'S EXPENSE
+                    </Text>
+                    <Text
+                      style={[styles.modalTitle, { color: modalTextColor }]}
+                    >
+                      Add an expense
+                    </Text>
+                  </View>
 
-        <AppTextInput
-          label="Expense title"
-          value={expenseTitle}
-          onChangeText={setExpenseTitle}
-          placeholder="Lunch, fuel, groceries"
-        />
-        <AppTextInput
-          label="Amount"
-          value={expenseAmount}
-          onChangeText={setExpenseAmount}
-          keyboardType="decimal-pad"
-          placeholder="250"
-        />
-        <AppButton
-          title={savingExpense ? "Adding expense" : "Add expense"}
-          loading={savingExpense}
-          onPress={handleCreateExpense}
-        />
-      </AppCard>
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel="Close expense form"
+                    disabled={savingExpense}
+                    style={({ pressed }) => [
+                      styles.modalCloseButton,
+                      {
+                        backgroundColor: theme.background,
+                        borderColor: theme.border,
+                        opacity: pressed ? 0.68 : savingExpense ? 0.45 : 1,
+                      },
+                    ]}
+                    onPress={closeExpenseModal}
+                  >
+                    <Ionicons name="close" size={22} color={modalTextColor} />
+                  </Pressable>
+                </View>
+
+                <Text
+                  style={[styles.modalDescription, { color: modalMutedColor }]}
+                >
+                  This updates today's total, your spending graph, and
+                  transaction history.
+                </Text>
+
+                <View style={styles.expenseFormFields}>
+                  <View style={styles.expenseField}>
+                    <Text
+                      style={[
+                        styles.expenseFieldLabel,
+                        { color: modalTextColor },
+                      ]}
+                    >
+                      Expense title
+                    </Text>
+                    <TextInput
+                      value={expenseTitle}
+                      onChangeText={setExpenseTitle}
+                      placeholder="Lunch, fuel, groceries"
+                      placeholderTextColor={modalMutedColor}
+                      selectionColor={expenseActionColor}
+                      editable={!savingExpense}
+                      returnKeyType="next"
+                      style={[
+                        styles.expenseTextInput,
+                        {
+                          backgroundColor: theme.background,
+                          borderColor: theme.border,
+                          color: modalTextColor,
+                        },
+                      ]}
+                    />
+                  </View>
+
+                  <View style={styles.expenseField}>
+                    <Text
+                      style={[
+                        styles.expenseFieldLabel,
+                        { color: modalTextColor },
+                      ]}
+                    >
+                      Amount
+                    </Text>
+                    <TextInput
+                      value={expenseAmount}
+                      onChangeText={setExpenseAmount}
+                      keyboardType="decimal-pad"
+                      placeholder="250"
+                      placeholderTextColor={modalMutedColor}
+                      selectionColor={expenseActionColor}
+                      editable={!savingExpense}
+                      returnKeyType="done"
+                      style={[
+                        styles.expenseTextInput,
+                        {
+                          backgroundColor: theme.background,
+                          borderColor: theme.border,
+                          color: modalTextColor,
+                        },
+                      ]}
+                      onFocus={() => {
+                        setKeyboardVisible(true);
+                        setTimeout(() => {
+                          expenseModalScrollRef.current?.scrollToEnd({
+                            animated: true,
+                          });
+                        }, 220);
+                      }}
+                    />
+                  </View>
+                </View>
+
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Add expense"
+                  disabled={savingExpense}
+                  style={({ pressed }) => [
+                    styles.expenseSubmitButton,
+                    {
+                      backgroundColor: expenseActionColor,
+                      opacity: pressed && !savingExpense ? 0.86 : 1,
+                    },
+                  ]}
+                  onPress={handleCreateExpense}
+                >
+                  {savingExpense ? (
+                    <>
+                      <ActivityIndicator size="small" color="#fff" />
+                      <Text style={styles.expenseSubmitText}>
+                        Adding expense
+                      </Text>
+                    </>
+                  ) : (
+                    <>
+                      <Ionicons
+                        name="add-circle-outline"
+                        size={21}
+                        color="#fff"
+                      />
+                      <Text style={styles.expenseSubmitText}>Add expense</Text>
+                    </>
+                  )}
+                </Pressable>
+              </View>
+            </ScrollView>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
     </Screen>
   );
 }
@@ -582,16 +861,8 @@ export default function Dashboard() {
 const styles = StyleSheet.create({
   screen: {
     padding: 0,
-    paddingBottom: spacing.xxl + 160,
-    backgroundColor: colors.surfaceSoft,
-  },
-  hero: {
-    minHeight: 286,
-    borderBottomLeftRadius: 32,
-    borderBottomRightRadius: 32,
-    paddingHorizontal: spacing.base,
-    paddingTop: spacing.xl,
     paddingBottom: spacing.xxl,
+    backgroundColor: colors.surfaceSoft,
   },
   heroTop: {
     flexDirection: "row",
@@ -610,6 +881,19 @@ const styles = StyleSheet.create({
     fontWeight: "400",
     lineHeight: 38,
     letterSpacing: -0.7,
+  },
+  heroActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+  },
+  addExpenseIconButton: {
+    width: 42,
+    height: 42,
+    borderWidth: 1,
+    borderRadius: radius.pill,
+    alignItems: "center",
+    justifyContent: "center",
   },
   notificationButton: {
     minHeight: 42,
@@ -718,11 +1002,6 @@ const styles = StyleSheet.create({
     flex: 1,
     minWidth: 0,
   },
-  quickCard: {
-    gap: spacing.base,
-    marginHorizontal: spacing.base,
-    marginTop: spacing.lg,
-  },
   cardEyebrow: {
     color: colors.body,
     ...typography.caption,
@@ -739,5 +1018,127 @@ const styles = StyleSheet.create({
   },
   actions: {
     gap: spacing.sm,
+  },
+  heroClip: {
+    overflow: "hidden",
+    borderBottomLeftRadius: 32,
+    borderBottomRightRadius: 32,
+  },
+  heroImage: {
+    minHeight: 336,
+  },
+  heroImageInner: {
+    opacity: 0.95,
+  },
+  heroOverlay: {
+    minHeight: 336,
+    paddingHorizontal: spacing.base,
+    paddingTop: spacing.xl,
+    paddingBottom: spacing.xxl,
+  },
+  pageTapReset: {
+    flexGrow: 1,
+  },
+  modalKeyboardView: {
+    flex: 1,
+  },
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.62)",
+  },
+  modalScrollContent: {
+    flexGrow: 1,
+    justifyContent: "center",
+    paddingHorizontal: spacing.base,
+    paddingTop: spacing.lg,
+    paddingBottom: spacing.xxl + 72,
+  },
+  modalScrollContentKeyboard: {
+    justifyContent: "flex-start",
+    paddingTop: 28,
+    paddingBottom: 28,
+  },
+  expenseModalCard: {
+    width: "100%",
+    maxWidth: 520,
+    alignSelf: "center",
+    borderWidth: 1,
+    borderRadius: radius.xl,
+    padding: spacing.lg,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 16 },
+    shadowOpacity: 0.28,
+    shadowRadius: 28,
+    elevation: 18,
+  },
+  modalHeader: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+    gap: spacing.base,
+  },
+  modalTitleBlock: {
+    flex: 1,
+    minWidth: 0,
+  },
+  modalEyebrow: {
+    ...typography.caption,
+    fontWeight: "700",
+    letterSpacing: 0.7,
+  },
+  modalTitle: {
+    marginTop: spacing.xs,
+    ...typography.titleMd,
+  },
+  modalDescription: {
+    marginTop: spacing.sm,
+    ...typography.bodySm,
+  },
+  modalCloseButton: {
+    width: 40,
+    height: 40,
+    borderWidth: 1,
+    borderRadius: radius.pill,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  expenseFormFields: {
+    gap: spacing.base,
+    marginTop: spacing.lg,
+  },
+  expenseField: {
+    gap: spacing.sm,
+  },
+  expenseFieldLabel: {
+    ...typography.bodySm,
+    fontWeight: "600",
+  },
+  expenseTextInput: {
+    width: "100%",
+    height: 56,
+    minHeight: 56,
+    borderWidth: 1,
+    borderRadius: radius.lg,
+    paddingHorizontal: spacing.base,
+    paddingVertical: 0,
+    fontSize: 16,
+    lineHeight: 20,
+    textAlignVertical: "center",
+  },
+  expenseSubmitButton: {
+    minHeight: 52,
+    marginTop: spacing.lg,
+    borderRadius: radius.pill,
+    paddingHorizontal: spacing.lg,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: spacing.sm,
+  },
+  expenseSubmitText: {
+    color: "#fff",
+    fontSize: 15,
+    fontWeight: "700",
+    lineHeight: 20,
   },
 });

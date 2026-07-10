@@ -76,7 +76,7 @@ export default function AnimatedTabBar({
       style={[
         styles.wrapper,
         {
-          backgroundColor: "transparent",
+          backgroundColor: theme.background,
           borderTopColor: "transparent",
         },
       ]}
@@ -210,7 +210,7 @@ const styles = StyleSheet.create({
     right: 0,
     bottom: 0,
     paddingHorizontal: spacing.base,
-    paddingTop: 0,
+    paddingTop: 10,
     borderTopWidth: 0,
     backgroundColor: "transparent",
     paddingBottom: Platform.OS === "ios" ? spacing.sm : spacing.xs,
@@ -230,7 +230,7 @@ const styles = StyleSheet.create({
     elevation: 0,
   },
   itemShell: {
-    height: 50,
+    height: 56,
     alignItems: "center",
     justifyContent: "center",
   },

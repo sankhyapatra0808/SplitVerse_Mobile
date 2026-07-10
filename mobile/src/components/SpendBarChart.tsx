@@ -2,6 +2,7 @@ import {
   Pressable,
   StyleSheet,
   View,
+  type GestureResponderEvent,
   type ViewProps,
 } from "react-native";
 import { colors, radius, spacing, typography } from "../theme/tokens";
@@ -21,6 +22,8 @@ type SpendBarChartProps = ViewProps & {
   mode: SpendGraphMode;
   onModeChange: (mode: SpendGraphMode) => void;
   data: SpendGraphPoint[];
+  selectedIndex?: number | null;
+  onSelectPoint?: (point: SpendGraphPoint | null, index: number | null) => void;
 };
 
 function getMonthLabel(label: string) {
@@ -74,11 +77,16 @@ export default function SpendBarChart({
   mode,
   onModeChange,
   data,
+  selectedIndex = null,
+  onSelectPoint,
   style,
   ...props
 }: SpendBarChartProps) {
   const { formatCurrency, theme } = useAppSettings();
-  const formatAmount = (amount: number) => formatCurrency(amount, { compact: true });
+
+  const formatAmount = (amount: number) =>
+    formatCurrency(amount, { compact: true });
+
   const normalizedData =
     mode === "yearly"
       ? data.map((item) => ({
@@ -94,23 +102,60 @@ export default function SpendBarChart({
 
   const halfAmount = maxAmount / 2;
 
+  function handleModePress(
+    event: GestureResponderEvent,
+    nextMode: SpendGraphMode,
+  ) {
+    event.stopPropagation();
+    onModeChange(nextMode);
+  }
+
+  function handleBarPress(
+    event: GestureResponderEvent,
+    item: SpendGraphPoint,
+    index: number,
+  ) {
+    event.stopPropagation();
+
+    if (selectedIndex === index) {
+      onSelectPoint?.(null, null);
+      return;
+    }
+
+    onSelectPoint?.(item, index);
+  }
+
   return (
-    <View {...props} style={[styles.card, { borderColor: theme.border, backgroundColor: theme.card }, style]}>
+    <View
+      {...props}
+      style={[
+        styles.card,
+        { borderColor: theme.border, backgroundColor: theme.card },
+        style,
+      ]}
+    >
       <View style={styles.head}>
         <View style={styles.headCopy}>
-          <Text style={styles.title}>{title}</Text>
-          <Text style={styles.total}>{totalLabel}</Text>
+          <Text style={[styles.title, { color: theme.text }]}>{title}</Text>
+          <Text style={[styles.total, { color: theme.body }]}>
+            {totalLabel}
+          </Text>
         </View>
 
-        <View style={[styles.switcher, { backgroundColor: theme.surfaceStrong }]}>
+        <View
+          style={[styles.switcher, { backgroundColor: theme.surfaceStrong }]}
+        >
           <Pressable
-            style={[styles.switchButton, mode === "weekly" && { backgroundColor: theme.canvas }]}
-            onPress={() => onModeChange("weekly")}
+            style={[
+              styles.switchButton,
+              mode === "weekly" && { backgroundColor: theme.canvas },
+            ]}
+            onPress={(event) => handleModePress(event, "weekly")}
           >
             <Text
               style={[
                 styles.switchText,
-                mode === "weekly" && { color: theme.text },
+                { color: mode === "weekly" ? theme.text : theme.body },
               ]}
             >
               Week
@@ -118,13 +163,16 @@ export default function SpendBarChart({
           </Pressable>
 
           <Pressable
-            style={[styles.switchButton, mode === "yearly" && { backgroundColor: theme.canvas }]}
-            onPress={() => onModeChange("yearly")}
+            style={[
+              styles.switchButton,
+              mode === "yearly" && { backgroundColor: theme.canvas },
+            ]}
+            onPress={(event) => handleModePress(event, "yearly")}
           >
             <Text
               style={[
                 styles.switchText,
-                mode === "yearly" && { color: theme.text },
+                { color: mode === "yearly" ? theme.text : theme.body },
               ]}
             >
               Year
@@ -135,9 +183,15 @@ export default function SpendBarChart({
 
       <View style={styles.graphArea}>
         <View style={styles.yAxis}>
-          <Text style={styles.axisText}>{formatAmount(maxAmount)}</Text>
-          <Text style={styles.axisText}>{formatAmount(halfAmount)}</Text>
-          <Text style={styles.axisText}>{formatAmount(0)}</Text>
+          <Text style={[styles.axisText, { color: theme.body }]}>
+            {formatAmount(maxAmount)}
+          </Text>
+          <Text style={[styles.axisText, { color: theme.body }]}>
+            {formatAmount(halfAmount)}
+          </Text>
+          <Text style={[styles.axisText, { color: theme.body }]}>
+            {formatAmount(0)}
+          </Text>
         </View>
 
         <View style={styles.chart}>
@@ -149,18 +203,49 @@ export default function SpendBarChart({
                 ? Math.max(4, (amount / maxAmount) * 100)
                 : 0;
 
-            return (
-              <View style={styles.barColumn} key={`${item.label}-${index}`}>
-                <Text style={styles.amountLabel}>
-                  {amount > 0 ? formatAmount(amount) : ""}
-                </Text>
+            const selected = selectedIndex === index;
+            const dimmed = selectedIndex !== null && !selected;
 
-                <View style={[styles.barTrack, { backgroundColor: theme.surfaceStrong }]}>
-                  <View style={[styles.barFill, { height: `${barHeight}%`, backgroundColor: theme.primary }]} />
+            return (
+              <Pressable
+                style={[
+                  styles.barColumn,
+                  {
+                    opacity: dimmed ? 0.22 : 1,
+                  },
+                ]}
+                key={`${item.label}-${index}`}
+                onPress={(event) => handleBarPress(event, item, index)}
+              >
+                <View
+                  style={[
+                    styles.barTrack,
+                    { backgroundColor: theme.surfaceStrong },
+                  ]}
+                >
+                  <View
+                    style={[
+                      styles.barFill,
+                      {
+                        height: `${barHeight}%`,
+                        backgroundColor: theme.primary,
+                      },
+                    ]}
+                  />
                 </View>
 
-                <Text style={styles.xLabel}>{item.label}</Text>
-              </View>
+                <Text
+                  style={[
+                    styles.xLabel,
+                    {
+                      color: selected ? theme.primary : theme.body,
+                    },
+                  ]}
+                  numberOfLines={1}
+                >
+                  {item.label}
+                </Text>
+              </Pressable>
             );
           })}
         </View>
@@ -213,35 +298,26 @@ const styles = StyleSheet.create({
     borderRadius: radius.pill,
     paddingHorizontal: spacing.xs,
   },
-  activeSwitch: {
-    backgroundColor: colors.canvas,
-  },
   switchText: {
     color: colors.body,
     fontSize: 12,
     fontWeight: "600",
   },
-  activeSwitchText: {
-    color: colors.ink,
-  },
   graphArea: {
     minHeight: 210,
     flexDirection: "row",
+    alignItems: "flex-end",
     gap: 6,
   },
   yAxis: {
     width: 38,
+    height: 162,
     justifyContent: "space-between",
-    paddingTop: 20,
-    paddingBottom: 24,
-  },
-  axisText: {
-    color: colors.muted,
-    fontSize: 9,
-    fontWeight: "600",
+    marginBottom: 24,
   },
   chart: {
     flex: 1,
+    height: 190,
     flexDirection: "row",
     alignItems: "flex-end",
     justifyContent: "space-between",
@@ -255,20 +331,19 @@ const styles = StyleSheet.create({
     justifyContent: "flex-end",
     gap: 6,
   },
-  amountLabel: {
-    minHeight: 14,
-    color: colors.body,
-    fontSize: 8,
-    fontWeight: "600",
-  },
   barTrack: {
     width: "100%",
     minWidth: 16,
-    height: 126,
+    height: 162,
     justifyContent: "flex-end",
     overflow: "hidden",
     borderRadius: radius.pill,
     backgroundColor: colors.surfaceStrong,
+  },
+  axisText: {
+    color: colors.muted,
+    fontSize: 9,
+    fontWeight: "600",
   },
   barFill: {
     width: "100%",
