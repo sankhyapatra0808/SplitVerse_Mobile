@@ -278,6 +278,15 @@ export default function Dashboard() {
 
     const hideSubscription = Keyboard.addListener(hideEvent, () => {
       setKeyboardVisible(false);
+
+      // Reset the scroll position after the keyboard closes so the modal
+      // returns to its normal centered position instead of leaving a gap.
+      setTimeout(
+        () => {
+          expenseModalScrollRef.current?.scrollTo({ y: 0, animated: true });
+        },
+        Platform.OS === "ios" ? 120 : 80,
+      );
     });
 
     return () => {
@@ -347,7 +356,7 @@ export default function Dashboard() {
       setHasUnreadNotifications(
         Boolean(
           notificationSignature &&
-          notificationSignature !== seenNotificationSignature,
+            notificationSignature !== seenNotificationSignature,
         ),
       );
     } catch (error) {
@@ -434,8 +443,17 @@ export default function Dashboard() {
 
   function closeExpenseModal() {
     if (!savingExpense) {
+      Keyboard.dismiss();
+      setKeyboardVisible(false);
+      expenseModalScrollRef.current?.scrollTo({ y: 0, animated: false });
       setExpenseModalVisible(false);
     }
+  }
+
+  function openExpenseModal() {
+    setKeyboardVisible(false);
+    expenseModalScrollRef.current?.scrollTo({ y: 0, animated: false });
+    setExpenseModalVisible(true);
   }
 
   function renderHeroActions() {
@@ -452,7 +470,7 @@ export default function Dashboard() {
               opacity: pressed ? 0.84 : 1,
             },
           ]}
-          onPress={() => setExpenseModalVisible(true)}
+          onPress={openExpenseModal}
         >
           <Ionicons name="add" size={25} color="#fff" />
         </Pressable>
@@ -679,27 +697,35 @@ export default function Dashboard() {
         transparent
         animationType="fade"
         statusBarTranslucent
+        navigationBarTranslucent
+        onShow={() => {
+          setKeyboardVisible(false);
+          expenseModalScrollRef.current?.scrollTo({ y: 0, animated: false });
+        }}
         onRequestClose={closeExpenseModal}
       >
-        <KeyboardAvoidingView
-          style={styles.modalKeyboardView}
-          behavior="padding"
-          keyboardVerticalOffset={0}
-        >
-          <View style={styles.modalBackdrop}>
-            <Pressable
-              style={StyleSheet.absoluteFill}
-              onPress={closeExpenseModal}
-            />
+        <View style={styles.modalBackdrop}>
+          <Pressable
+            style={StyleSheet.absoluteFill}
+            onPress={closeExpenseModal}
+          />
 
+          <KeyboardAvoidingView
+            style={styles.modalKeyboardView}
+            behavior={Platform.OS === "ios" ? "padding" : "height"}
+            keyboardVerticalOffset={0}
+          >
             <ScrollView
               ref={expenseModalScrollRef}
+              style={styles.modalScrollView}
               contentContainerStyle={[
                 styles.modalScrollContent,
                 keyboardVisible && styles.modalScrollContentKeyboard,
               ]}
               keyboardShouldPersistTaps="handled"
-              keyboardDismissMode="interactive"
+              keyboardDismissMode={
+                Platform.OS === "ios" ? "interactive" : "on-drag"
+              }
               showsVerticalScrollIndicator={false}
               bounces={false}
             >
@@ -851,8 +877,8 @@ export default function Dashboard() {
                 </Pressable>
               </View>
             </ScrollView>
-          </View>
-        </KeyboardAvoidingView>
+          </KeyboardAvoidingView>
+        </View>
       </Modal>
     </Screen>
   );
@@ -1039,12 +1065,15 @@ const styles = StyleSheet.create({
   pageTapReset: {
     flexGrow: 1,
   },
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.72)",
+  },
   modalKeyboardView: {
     flex: 1,
   },
-  modalBackdrop: {
+  modalScrollView: {
     flex: 1,
-    backgroundColor: "rgba(0,0,0,0.62)",
   },
   modalScrollContent: {
     flexGrow: 1,
