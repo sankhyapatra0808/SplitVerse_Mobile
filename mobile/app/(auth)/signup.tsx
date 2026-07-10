@@ -8,7 +8,9 @@ import Screen from "../../src/components/Screen";
 import Text from "../../src/components/LocalizedText";
 import { useAuth } from "../../src/context/AuthContext";
 import { useAppSettings } from "../../src/context/useAppSettings";
+import { showErrorAlert } from "../../src/lib/errors";
 import { signInWithGoogleAndGetIdToken } from "../../src/lib/googleAuth";
+import { isValidEmailAddress } from "../../src/lib/validation";
 import { colors, radius, spacing, typography } from "../../src/theme/tokens";
 
 function getPasswordStrength(password: string) {
@@ -41,6 +43,18 @@ export default function Signup() {
       return;
     }
 
+    const trimmedEmail = email.trim().toLowerCase();
+
+    if (!trimmedEmail) {
+      Alert.alert("Email required", "Enter an email address for your SplitVerse account.");
+      return;
+    }
+
+    if (!isValidEmailAddress(trimmedEmail)) {
+      Alert.alert("Invalid email address", "Enter a complete email address, such as name@example.com.");
+      return;
+    }
+
     if (password.length < 6) {
       Alert.alert("Weak password", "Password must be at least 6 characters.");
       return;
@@ -48,13 +62,13 @@ export default function Signup() {
 
     try {
       setSubmitting(true);
-      await signup(email, password, name);
+      await signup(trimmedEmail, password, name);
       router.replace("/(tabs)/dashboard");
     } catch (error) {
-      Alert.alert(
-        "Signup failed",
-        error instanceof Error ? error.message : "Could not create account",
-      );
+      showErrorAlert(error, {
+        title: "Account creation failed",
+        fallbackMessage: "SplitVerse could not create your account. Check your details and try again.",
+      });
     } finally {
       setSubmitting(false);
     }
@@ -69,12 +83,10 @@ export default function Signup() {
 
       router.replace("/(tabs)/dashboard");
     } catch (error) {
-      Alert.alert(
-        "Google sign-in failed",
-        error instanceof Error
-          ? error.message
-          : "Could not continue with Google",
-      );
+      showErrorAlert(error, {
+        title: "Google sign-in failed",
+        fallbackMessage: "Google sign-in could not be completed. Please try again.",
+      });
     } finally {
       setGoogleSubmitting(false);
     }

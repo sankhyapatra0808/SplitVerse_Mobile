@@ -9,7 +9,9 @@ import SheetModal from "../../src/components/SheetModal";
 import Text from "../../src/components/LocalizedText";
 import { useAuth } from "../../src/context/AuthContext";
 import { useAppSettings } from "../../src/context/useAppSettings";
+import { showErrorAlert } from "../../src/lib/errors";
 import { signInWithGoogleAndGetIdToken } from "../../src/lib/googleAuth";
+import { isValidEmailAddress } from "../../src/lib/validation";
 import { colors, radius, spacing, typography } from "../../src/theme/tokens";
 
 export default function Login() {
@@ -31,15 +33,32 @@ export default function Login() {
   const [otpPassword, setOtpPassword] = useState("");
 
   async function handleLogin() {
+    const trimmedEmail = email.trim().toLowerCase();
+
+    if (!trimmedEmail) {
+      Alert.alert("Email required", "Enter the email address linked to your SplitVerse account.");
+      return;
+    }
+
+    if (!isValidEmailAddress(trimmedEmail)) {
+      Alert.alert("Invalid email address", "Enter a complete email address, such as name@example.com.");
+      return;
+    }
+
+    if (!password) {
+      Alert.alert("Password required", "Enter your SplitVerse account password.");
+      return;
+    }
+
     try {
       setSubmitting(true);
-      await login(email, password);
+      await login(trimmedEmail, password);
       router.replace("/(tabs)/dashboard");
     } catch (error) {
-      Alert.alert(
-        "Login failed",
-        error instanceof Error ? error.message : "Could not login",
-      );
+      showErrorAlert(error, {
+        title: "Login failed",
+        fallbackMessage: "SplitVerse could not sign you in. Check your details and try again.",
+      });
     } finally {
       setSubmitting(false);
     }
@@ -56,6 +75,11 @@ export default function Login() {
       return;
     }
 
+    if (!isValidEmailAddress(trimmedEmail)) {
+      Alert.alert("Invalid email address", "Enter a complete email address before requesting a login code.");
+      return;
+    }
+
     try {
       setOtpSubmitting(true);
       const session = await startEmailLoginOtp(trimmedEmail, password);
@@ -68,10 +92,10 @@ export default function Login() {
         `A 6-digit login code was sent to ${session.email}.`,
       );
     } catch (error) {
-      Alert.alert(
-        "OTP failed",
-        error instanceof Error ? error.message : "Could not send login code",
-      );
+      showErrorAlert(error, {
+        title: "Could not send login code",
+        fallbackMessage: "The email login code could not be sent. Check your connection and try again.",
+      });
     } finally {
       setOtpSubmitting(false);
     }
@@ -90,10 +114,10 @@ export default function Login() {
       setOtp("");
       router.replace("/(tabs)/dashboard");
     } catch (error) {
-      Alert.alert(
-        "OTP login failed",
-        error instanceof Error ? error.message : "Could not verify login code",
-      );
+      showErrorAlert(error, {
+        title: "Code verification failed",
+        fallbackMessage: "The login code could not be verified. Request a new code and try again.",
+      });
     } finally {
       setOtpSubmitting(false);
     }
@@ -108,12 +132,10 @@ export default function Login() {
 
       router.replace("/(tabs)/dashboard");
     } catch (error) {
-      Alert.alert(
-        "Google sign-in failed",
-        error instanceof Error
-          ? error.message
-          : "Could not sign in with Google",
-      );
+      showErrorAlert(error, {
+        title: "Google sign-in failed",
+        fallbackMessage: "Google sign-in could not be completed. Please try again.",
+      });
     } finally {
       setGoogleSubmitting(false);
     }

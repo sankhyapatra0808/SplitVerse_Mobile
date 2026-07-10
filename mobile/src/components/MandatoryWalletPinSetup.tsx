@@ -6,6 +6,7 @@ import Text from "./LocalizedText";
 import { useAuth } from "../context/AuthContext";
 import { useAppSettings } from "../context/useAppSettings";
 import { saveWalletPin } from "../lib/api";
+import { showErrorAlert } from "../lib/errors";
 import { radius, spacing, typography } from "../theme/tokens";
 
 export default function MandatoryWalletPinSetup() {
@@ -37,10 +38,10 @@ export default function MandatoryWalletPinSetup() {
       setConfirmPin("");
       await refreshDbUser();
     } catch (error) {
-      Alert.alert(
-        "Wallet PIN failed",
-        error instanceof Error ? error.message : "Could not save wallet PIN",
-      );
+      showErrorAlert(error, {
+        title: "Could not save wallet PIN",
+        fallbackMessage: "Your wallet PIN was not saved. Check your connection and try again.",
+      });
     } finally {
       setSaving(false);
     }

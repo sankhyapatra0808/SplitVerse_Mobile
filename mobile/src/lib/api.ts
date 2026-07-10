@@ -1,19 +1,152 @@
 import { auth } from "./firebase";
+import {
+  AppError,
+  createFetchFailureError,
+  createHttpError,
+  normalizeAppError,
+} from "./errors";
 
 const API_URL = process.env.EXPO_PUBLIC_API_URL;
+const REQUEST_TIMEOUT_MS = 15000;
 
 if (!API_URL) {
   console.warn("EXPO_PUBLIC_API_URL is missing in mobile/.env");
+}
+
+function getApiUrl(path: string) {
+  if (!API_URL) {
+    throw new AppError({
+      code: "CONFIGURATION_ERROR",
+      title: "Server address missing",
+      message:
+        "This app build does not have EXPO_PUBLIC_API_URL configured. Add the backend URL and restart Expo.",
+    });
+  }
+
+  const value = `${API_URL}${path}`;
+
+  try {
+    return new URL(value).toString();
+  } catch {
+    throw new AppError({
+      code: "CONFIGURATION_ERROR",
+      title: "Invalid server address",
+      message:
+        "EXPO_PUBLIC_API_URL is not a valid web address. Use a complete URL beginning with https:// or http://.",
+    });
+  }
+}
+
+function getRequestAction(path: string) {
+  if (path.includes("exchange-rates")) return "loading exchange rates";
+  if (path.includes("dashboard")) return "loading the dashboard";
+  if (path.includes("friends")) return "updating friend information";
+  if (path.includes("split-rooms")) return "updating split-room information";
+  if (path.includes("wallet-order") || path.includes("verify-wallet-payment")) {
+    return "processing the wallet top-up";
+  }
+  if (path.includes("wallet")) return "loading wallet information";
+  if (path.includes("transactions")) return "loading transaction information";
+  if (path.includes("expenses")) return "saving the expense";
+  if (path.includes("profile-photo")) return "uploading the profile photo";
+  if (path.includes("profile")) return "saving profile settings";
+  if (path.includes("wallet-pin")) return "updating wallet security";
+  if (path.includes("email-login-otp")) return "verifying the email login code";
+  if (path.includes("auth")) return "verifying your account";
+  return "contacting SplitVerse";
 }
 
 async function getAuthToken() {
   const currentUser = auth.currentUser;
 
   if (!currentUser) {
-    throw new Error("You are not logged in.");
+    throw new AppError({
+      code: "AUTH_REQUIRED",
+      title: "Sign in required",
+      message: "Your session is no longer active. Sign in again to continue.",
+    });
   }
 
-  return currentUser.getIdToken();
+  try {
+    return await currentUser.getIdToken();
+  } catch (error) {
+    throw normalizeAppError(error, {
+      title: "Could not verify your session",
+      fallbackMessage: "SplitVerse could not verify your sign-in session. Sign in again and retry.",
+    });
+  }
+}
+
+function isFormDataBody(body: RequestInit["body"]) {
+  return typeof FormData !== "undefined" && body instanceof FormData;
+}
+
+async function requestJson<T>(
+  path: string,
+  options: RequestInit,
+  token?: string,
+): Promise<T> {
+  const controller = new AbortController();
+  let timedOut = false;
+  const timeout = setTimeout(() => {
+    timedOut = true;
+    controller.abort();
+  }, REQUEST_TIMEOUT_MS);
+
+  const externalSignal = options.signal;
+  const abortFromExternalSignal = () => controller.abort();
+  externalSignal?.addEventListener?.("abort", abortFromExternalSignal);
+
+  const bodyIsFormData = isFormDataBody(options.body);
+
+  try {
+    const response = await fetch(getApiUrl(path), {
+      ...options,
+      signal: controller.signal,
+      headers: {
+        Accept: "application/json",
+        ...(bodyIsFormData ? {} : { "Content-Type": "application/json" }),
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...(options.headers ?? {}),
+      },
+    });
+
+    const rawText = await response.text();
+    let data: unknown = null;
+
+    if (rawText) {
+      try {
+        data = JSON.parse(rawText);
+      } catch {
+        if (response.ok) {
+          throw new AppError({
+            code: "INVALID_RESPONSE",
+            title: "Invalid server response",
+            message:
+              "SplitVerse received an unreadable response from the server. Please try again shortly.",
+            status: response.status,
+            retryable: true,
+          });
+        }
+      }
+    }
+
+    if (!response.ok) {
+      throw createHttpError(response.status, data, path);
+    }
+
+    return data as T;
+  } catch (error) {
+    if (error instanceof AppError) throw error;
+
+    throw await createFetchFailureError(error, {
+      timedOut,
+      action: getRequestAction(path),
+    });
+  } finally {
+    clearTimeout(timeout);
+    externalSignal?.removeEventListener?.("abort", abortFromExternalSignal);
+  }
 }
 
 export async function apiFetch<T>(
@@ -21,47 +154,14 @@ export async function apiFetch<T>(
   options: RequestInit = {},
 ): Promise<T> {
   const token = await getAuthToken();
-
-  const response = await fetch(`${API_URL}${path}`, {
-    ...options,
-    headers: {
-      Accept: "application/json",
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${token}`,
-      ...(options.headers ?? {}),
-    },
-  });
-
-  const data = await response.json().catch(() => null);
-
-  if (!response.ok) {
-    throw new Error(data?.message || data?.error || "Request failed");
-  }
-
-  return data as T;
+  return requestJson<T>(path, options, token);
 }
-
 
 export async function publicApiFetch<T>(
   path: string,
   options: RequestInit = {},
 ): Promise<T> {
-  const response = await fetch(`${API_URL}${path}`, {
-    ...options,
-    headers: {
-      Accept: "application/json",
-      "Content-Type": "application/json",
-      ...(options.headers ?? {}),
-    },
-  });
-
-  const data = await response.json().catch(() => null);
-
-  if (!response.ok) {
-    throw new Error(data?.message || data?.error || "Request failed");
-  }
-
-  return data as T;
+  return requestJson<T>(path, options);
 }
 
 export type ExchangeRatesSource = "live" | "cache" | "stale-cache" | "fallback";
@@ -732,21 +832,14 @@ export async function uploadProfilePhoto(photo: { uri: string; name: string; typ
   const formData = new FormData();
   formData.append("photo", photo as unknown as Blob);
 
-  const response = await fetch(`${API_URL}/api/auth/profile-photo`, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${token}`,
+  return requestJson<{ message: string; user: DbUser }>(
+    "/api/auth/profile-photo",
+    {
+      method: "POST",
+      body: formData,
     },
-    body: formData,
-  });
-
-  const data = await response.json().catch(() => null);
-
-  if (!response.ok) {
-    throw new Error(data?.message || data?.error || "Failed to upload profile photo");
-  }
-
-  return data as { message: string; user: DbUser };
+    token,
+  );
 }
 
 export type SaveWalletPinPayload = {

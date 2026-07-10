@@ -18,6 +18,7 @@ import {
   type User,
 } from "firebase/auth";
 import { auth } from "../lib/firebase";
+import { normalizeAppError } from "../lib/errors";
 import {
   getCurrentDbUser,
   requestEmailLoginOtp,
@@ -75,9 +76,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   async function logout() {
-    setDbUser(null);
-    await clearSessionActivity();
-    await signOut(auth);
+    try {
+      setDbUser(null);
+      await clearSessionActivity();
+      await signOut(auth);
+    } catch (error) {
+      throw normalizeAppError(error, {
+        title: "Logout failed",
+        fallbackMessage: "SplitVerse could not sign you out completely. Please try again.",
+      });
+    }
   }
 
   async function syncSignedInUser() {
@@ -110,7 +118,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const synced = await syncCurrentUser();
         setDbUser(synced.user);
       } catch (error) {
-        console.error("Failed to sync mobile user:", error);
+        const appError = normalizeAppError(error, {
+          title: "Could not load your account",
+          fallbackMessage: "SplitVerse could not sync your account details. Check your connection and try again.",
+        });
+        console.error("Failed to sync mobile user:", appError.message);
         setDbUser(null);
       } finally {
         setInitializing(false);
@@ -148,32 +160,53 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       initializing,
 
       login: async (email, password) => {
-        await signInWithEmailAndPassword(auth, email.trim(), password);
-        await syncSignedInUser();
+        try {
+          await signInWithEmailAndPassword(auth, email.trim(), password);
+          await syncSignedInUser();
+        } catch (error) {
+          throw normalizeAppError(error, {
+            title: "Login failed",
+            fallbackMessage: "SplitVerse could not sign you in. Check your details and try again.",
+          });
+        }
       },
 
       signup: async (email, password, name) => {
-        const credential = await createUserWithEmailAndPassword(
-          auth,
-          email.trim(),
-          password,
-        );
+        try {
+          const credential = await createUserWithEmailAndPassword(
+            auth,
+            email.trim(),
+            password,
+          );
 
-        if (name?.trim()) {
-          await updateProfile(credential.user, {
-            displayName: name.trim(),
+          if (name?.trim()) {
+            await updateProfile(credential.user, {
+              displayName: name.trim(),
+            });
+
+            await credential.user.getIdToken(true);
+          }
+
+          await syncSignedInUser();
+        } catch (error) {
+          throw normalizeAppError(error, {
+            title: "Account creation failed",
+            fallbackMessage: "SplitVerse could not create your account. Check the entered details and try again.",
           });
-
-          await credential.user.getIdToken(true);
         }
-
-        await syncSignedInUser();
       },
 
       loginWithGoogleIdToken: async (idToken) => {
-        const credential = GoogleAuthProvider.credential(idToken);
-        await signInWithCredential(auth, credential);
-        await syncSignedInUser();
+        try {
+          const credential = GoogleAuthProvider.credential(idToken);
+          await signInWithCredential(auth, credential);
+          await syncSignedInUser();
+        } catch (error) {
+          throw normalizeAppError(error, {
+            title: "Google sign-in failed",
+            fallbackMessage: "SplitVerse could not finish Google sign-in. Please try again.",
+          });
+        }
       },
 
       startEmailLoginOtp: async (email, password) => {
@@ -182,8 +215,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         try {
           await signInWithEmailAndPassword(auth, email.trim(), password);
           signedInForOtp = true;
-          const session = await requestEmailLoginOtp();
-          return session;
+          return await requestEmailLoginOtp();
+        } catch (error) {
+          throw normalizeAppError(error, {
+            title: "Could not send login code",
+            fallbackMessage: "SplitVerse could not send the email login code. Check your sign-in details and try again.",
+          });
         } finally {
           if (signedInForOtp) {
             setDbUser(null);
@@ -194,9 +231,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       },
 
       completeEmailLoginWithOtp: async (email, password, sessionId, otp) => {
-        await verifyEmailLoginOtp(sessionId, otp);
-        await signInWithEmailAndPassword(auth, email.trim(), password);
-        await syncSignedInUser();
+        try {
+          await verifyEmailLoginOtp(sessionId, otp);
+          await signInWithEmailAndPassword(auth, email.trim(), password);
+          await syncSignedInUser();
+        } catch (error) {
+          throw normalizeAppError(error, {
+            title: "Code verification failed",
+            fallbackMessage: "The login code could not be verified. Request a new code and try again.",
+          });
+        }
       },
 
       refreshDbUser,

@@ -51,6 +51,7 @@ import {
   normalizeTransactionsForDisplay,
 } from "../../src/lib/transactionDisplay";
 import { fontFamilies } from "../../src/theme/fonts";
+import { showErrorAlert } from "../../src/lib/errors";
 import { colors, radius, spacing, typography } from "../../src/theme/tokens";
 
 const MONTH_LABELS = [
@@ -359,10 +360,10 @@ export default function Dashboard() {
       );
     } catch (error) {
       if (!silent) {
-        Alert.alert(
-          "Dashboard failed",
-          error instanceof Error ? error.message : "Could not load dashboard",
-        );
+        showErrorAlert(error, {
+          title: "Could not load dashboard",
+          fallbackMessage: "Your dashboard data could not be loaded. Pull down to try again.",
+        });
       }
     } finally {
       setLoading(false);
@@ -430,10 +431,10 @@ export default function Dashboard() {
         "Today's expense, graph, and transaction history were updated.",
       );
     } catch (error) {
-      Alert.alert(
-        "Expense failed",
-        error instanceof Error ? error.message : "Could not add expense.",
-      );
+      showErrorAlert(error, {
+        title: "Could not add expense",
+        fallbackMessage: "Today's expense could not be saved. Check your connection and try again.",
+      });
     } finally {
       setSavingExpense(false);
     }

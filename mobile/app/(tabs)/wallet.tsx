@@ -1,7 +1,13 @@
 import { LinearGradient } from "expo-linear-gradient";
 import { useFocusEffect } from "expo-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Alert, Pressable, StyleSheet, View } from "react-native";
+import {
+  Alert,
+  ImageBackground,
+  Pressable,
+  StyleSheet,
+  View,
+} from "react-native";
 import AmountText from "../../src/components/AmountText";
 import AppButton from "../../src/components/AppButton";
 import AppCard from "../../src/components/AppCard";
@@ -21,9 +27,11 @@ import {
   type WalletTopUpItem,
   type WalletTransactionItem,
 } from "../../src/lib/api";
+import { showErrorAlert } from "../../src/lib/errors";
 import { colors, radius, spacing, typography } from "../../src/theme/tokens";
 import RazorpayCheckout from "react-native-razorpay";
 import { useAppSettings } from "../../src/context/useAppSettings";
+import { useAuth } from "../../src/context/AuthContext";
 
 function formatMoney(value?: number | null) {
   return `₹${Number(value || 0).toLocaleString("en-IN", {
@@ -91,7 +99,9 @@ let walletCache: {
 } | null = null;
 
 export default function Wallet() {
+  const { user, dbUser } = useAuth();
   const {
+    avatarId,
     appCurrency,
     formatCurrency,
     formatDate: formatLiveDate,
@@ -106,9 +116,17 @@ export default function Wallet() {
 
   const [loading, setLoading] = useState(!walletCache);
   const [refreshingSilent, setRefreshingSilent] = useState(false);
-  const [error, setError] = useState("");
   const [settlementsSheetOpen, setSettlementsSheetOpen] = useState(false);
   const [topUpsSheetOpen, setTopUpsSheetOpen] = useState(false);
+
+  const photoUrl =
+    avatarId === "initials"
+      ? undefined
+      : dbUser?.display_photo_url ||
+        dbUser?.profile_photo_url ||
+        dbUser?.photo_url ||
+        user?.photoURL ||
+        undefined;
 
   const summary = walletData?.summary;
 
@@ -169,8 +187,6 @@ export default function Wallet() {
         setRefreshingSilent(true);
       }
 
-      setError("");
-
       const [walletResponse, topUpsResponse] = await Promise.all([
         getWalletSummary(),
         getRecentWalletTopUps(),
@@ -183,15 +199,12 @@ export default function Wallet() {
       setWalletData(walletResponse);
       setTopUps(topUpsResponse.topUps ?? []);
     } catch (loadError) {
-      const message =
-        loadError instanceof Error
-          ? loadError.message
-          : "Could not load wallet details.";
-
-      setError(message);
-
       if (!silent) {
-        Alert.alert("Wallet failed", message);
+        showErrorAlert(loadError, {
+          title: "Could not refresh wallet",
+          fallbackMessage:
+            "Your wallet balance and activity could not be loaded. Pull down to try again.",
+        });
       }
     } finally {
       setLoading(false);
@@ -266,12 +279,11 @@ export default function Wallet() {
 
       Alert.alert("Top-up successful", "Money has been added to your wallet.");
     } catch (error) {
-      Alert.alert(
-        "Payment failed",
-        error instanceof Error
-          ? error.message
-          : "Could not complete wallet top-up",
-      );
+      showErrorAlert(error, {
+        title: "Wallet top-up failed",
+        fallbackMessage:
+          "The wallet top-up could not be completed. Check your payment method and try again.",
+      });
     } finally {
       setCreatingTopUpOrder(false);
     }
@@ -279,12 +291,7 @@ export default function Wallet() {
 
   if (loading && !walletData) {
     return (
-      <Screen
-        scroll={false}
-        safeBackgroundColor={
-          theme.mode === "dark" ? theme.background : theme.primary
-        }
-      >
+      <Screen scroll={false} safeBackgroundColor={theme.background}>
         <WalletSkeleton />
       </Screen>
     );
@@ -294,7 +301,7 @@ export default function Wallet() {
     <Screen
       refreshing={loading || refreshingSilent}
       onRefresh={() => loadWallet()}
-      safeBackgroundColor={theme.mode === "dark" ? theme.background : theme.primary}
+      safeBackgroundColor={theme.background}
       contentStyle={[
         styles.screen,
         {
@@ -303,26 +310,50 @@ export default function Wallet() {
         },
       ]}
     >
-      <LinearGradient
-        colors={[theme.primary, theme.primaryActive]}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        style={styles.hero}
-      >
-        <Text style={styles.heroEyebrow}>Wallet</Text>
-        <Text style={styles.heroTitle}>SplitVerse balance</Text>
-        <Text style={styles.heroSubtitle}>
-          Track balance, dues, top-ups, and wallet activity.
-        </Text>
-      </LinearGradient>
-
-      {error ? (
-        <AppCard style={styles.errorCard}>
-          <Text style={styles.errorTitle}>Could not refresh wallet</Text>
-          <Text style={styles.errorText}>{error}</Text>
-          <AppButton title="Try again" onPress={() => loadWallet()} />
-        </AppCard>
-      ) : null}
+      <View style={styles.heroClip}>
+        {photoUrl ? (
+          <ImageBackground
+            source={{ uri: photoUrl }}
+            blurRadius={28}
+            style={styles.heroImage}
+            imageStyle={styles.heroImageInner}
+          >
+            <LinearGradient
+              colors={
+                theme.mode === "dark"
+                  ? ["rgba(0,0,0,0.30)", "rgba(0,0,0,0.78)"]
+                  : ["rgba(0,0,0,0.12)", "rgba(0,0,0,0.58)"]
+              }
+              start={{ x: 0, y: 0 }}
+              end={{ x: 0, y: 1 }}
+              style={styles.heroOverlay}
+            >
+              <Text style={styles.heroEyebrow}>Wallet</Text>
+              <Text style={styles.heroTitle}>SplitVerse balance</Text>
+              <Text style={styles.heroSubtitle}>
+                Track balance, dues, top-ups, and wallet activity.
+              </Text>
+            </LinearGradient>
+          </ImageBackground>
+        ) : (
+          <LinearGradient
+            colors={
+              theme.mode === "dark"
+                ? ["#111318", "#050608"]
+                : [theme.surfaceStrong, theme.card]
+            }
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={styles.heroOverlay}
+          >
+            <Text style={styles.heroEyebrow}>Wallet</Text>
+            <Text style={styles.heroTitle}>SplitVerse balance</Text>
+            <Text style={styles.heroSubtitle}>
+              Track balance, dues, top-ups, and wallet activity.
+            </Text>
+          </LinearGradient>
+        )}
+      </View>
 
       <AppCard style={[styles.balanceCard, { backgroundColor: theme.card }]}>
         <View style={styles.balanceHeader}>
@@ -611,11 +642,20 @@ const styles = StyleSheet.create({
     paddingBottom: spacing.xxl + 160,
     backgroundColor: colors.surfaceSoft,
   },
-  hero: {
-    minHeight: 180,
-    justifyContent: "flex-end",
+  heroClip: {
+    overflow: "hidden",
     borderBottomLeftRadius: 32,
     borderBottomRightRadius: 32,
+  },
+  heroImage: {
+    minHeight: 180,
+  },
+  heroImageInner: {
+    opacity: 0.96,
+  },
+  heroOverlay: {
+    minHeight: 180,
+    justifyContent: "flex-end",
     paddingHorizontal: spacing.base,
     paddingTop: spacing.xl,
     paddingBottom: spacing.xl,
@@ -628,6 +668,9 @@ const styles = StyleSheet.create({
     marginTop: spacing.xs,
     color: colors.onPrimary,
     ...typography.titleLg,
+    lineHeight: 42,
+    paddingBottom: 3,
+    includeFontPadding: true,
   },
   heroSubtitle: {
     marginTop: spacing.xs,
@@ -647,18 +690,6 @@ const styles = StyleSheet.create({
     ...typography.titleLg,
   },
   subtitle: {
-    color: colors.body,
-    ...typography.bodySm,
-  },
-  errorCard: {
-    gap: spacing.sm,
-    borderColor: colors.danger,
-  },
-  errorTitle: {
-    color: colors.ink,
-    ...typography.titleSm,
-  },
-  errorText: {
     color: colors.body,
     ...typography.bodySm,
   },

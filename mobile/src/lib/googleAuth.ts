@@ -1,3 +1,4 @@
+import { normalizeAppError } from "./errors";
 import { GoogleSignin } from "@react-native-google-signin/google-signin";
 
 let configured = false;
@@ -20,26 +21,33 @@ export function configureGoogleSignIn() {
 }
 
 export async function signInWithGoogleAndGetIdToken() {
-  configureGoogleSignIn();
+  try {
+    configureGoogleSignIn();
 
-  await GoogleSignin.hasPlayServices({
-    showPlayServicesUpdateDialog: true,
-  });
+    await GoogleSignin.hasPlayServices({
+      showPlayServicesUpdateDialog: true,
+    });
 
-  const result = await GoogleSignin.signIn();
+    const result = await GoogleSignin.signIn();
 
-  const idToken =
-    (result as any).idToken ||
-    (result as any).data?.idToken ||
-    "";
+    const idToken =
+      (result as any).idToken ||
+      (result as any).data?.idToken ||
+      "";
 
-  if (!idToken) {
-    throw new Error(
-      "Google did not return an ID token. Check your Web client ID and SHA-1 setup.",
-    );
+    if (!idToken) {
+      throw new Error(
+        "Google did not return an ID token. Check your Web client ID and SHA-1 setup.",
+      );
+    }
+
+    return idToken;
+  } catch (error) {
+    throw normalizeAppError(error, {
+      title: "Google sign-in failed",
+      fallbackMessage: "Google sign-in could not be completed. Please try again.",
+    });
   }
-
-  return idToken;
 }
 
 export async function signOutFromGoogleProvider() {

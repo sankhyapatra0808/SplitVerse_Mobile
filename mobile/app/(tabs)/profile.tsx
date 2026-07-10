@@ -49,6 +49,8 @@ import {
   exportTransactionsFile,
   type TransactionExportFormat,
 } from "../../src/lib/transactionExport";
+import { showErrorAlert } from "../../src/lib/errors";
+import { isValidEmailAddress } from "../../src/lib/validation";
 import { colors, radius, spacing, typography } from "../../src/theme/tokens";
 
 const emptySummary: FriendsSummary = {
@@ -231,11 +233,12 @@ export default function Profile() {
         ),
       );
     } catch (error) {
-      if (!silent)
-        Alert.alert(
-          "Profile failed",
-          error instanceof Error ? error.message : "Could not load profile",
-        );
+      if (!silent) {
+        showErrorAlert(error, {
+          title: "Could not load profile",
+          fallbackMessage: "Your profile, friends, rooms, and transaction data could not be loaded. Pull down to try again.",
+        });
+      }
     } finally {
       setLoadingProfileData(false);
     }
@@ -257,6 +260,10 @@ export default function Profile() {
       Alert.alert("Missing email", "Enter your friend's email.");
       return;
     }
+    if (!isValidEmailAddress(targetEmail)) {
+      Alert.alert("Invalid email address", "Enter your friend's complete email address, such as name@example.com.");
+      return;
+    }
     try {
       setSendingRequest(true);
       await sendFriendRequest(targetEmail);
@@ -264,10 +271,10 @@ export default function Profile() {
       await loadProfileData(true);
       Alert.alert("Request sent", "Friend request created.");
     } catch (error) {
-      Alert.alert(
-        "Request failed",
-        error instanceof Error ? error.message : "Could not send request",
-      );
+      showErrorAlert(error, {
+        title: "Friend request failed",
+        fallbackMessage: "The friend request could not be sent. Check the email address and try again.",
+      });
     } finally {
       setSendingRequest(false);
     }
@@ -281,10 +288,10 @@ export default function Profile() {
       setActiveTab("friends");
       Alert.alert("Accepted", "Friend added to your friend list.");
     } catch (error) {
-      Alert.alert(
-        "Accept failed",
-        error instanceof Error ? error.message : "Could not accept request",
-      );
+      showErrorAlert(error, {
+        title: "Could not accept request",
+        fallbackMessage: "The friend request could not be accepted. Refresh your requests and try again.",
+      });
     } finally {
       setAcceptingRequestId("");
     }
@@ -296,10 +303,10 @@ export default function Profile() {
       const data = await getFriendActivity(friendId);
       setActivity(data);
     } catch (error) {
-      Alert.alert(
-        "Activity failed",
-        error instanceof Error ? error.message : "Could not load activity",
-      );
+      showErrorAlert(error, {
+        title: "Could not load friend activity",
+        fallbackMessage: "This friend's shared room and settlement activity could not be loaded. Try again.",
+      });
     } finally {
       setActivityLoadingId("");
     }
@@ -337,12 +344,10 @@ export default function Profile() {
       });
       setExportOpen(false);
     } catch (error) {
-      Alert.alert(
-        "Export failed",
-        error instanceof Error
-          ? error.message
-          : "Could not export transactions.",
-      );
+      showErrorAlert(error, {
+        title: "Transaction export failed",
+        fallbackMessage: "The transaction file could not be created or shared. Check device storage and try again.",
+      });
     } finally {
       setExporting(false);
     }

@@ -42,6 +42,7 @@ import {
   uploadProfilePhoto,
   type Friend,
 } from "../../src/lib/api";
+import { showErrorAlert } from "../../src/lib/errors";
 import { colors, radius, spacing, typography } from "../../src/theme/tokens";
 
 const deleteAccountConfirmationText = "/DeleteAccount";
@@ -207,11 +208,12 @@ export default function Settings() {
         const data = await getFriendsSummary();
         if (active) setFriends(data.friends ?? []);
       } catch (error) {
-        if (active)
-          Alert.alert(
-            "Friends failed",
-            error instanceof Error ? error.message : "Could not load friends",
-          );
+        if (active) {
+          showErrorAlert(error, {
+            title: "Could not load friends",
+            fallbackMessage: "Your friend list could not be loaded for account settings. Try again later.",
+          });
+        }
       } finally {
         if (active) setFriendsLoading(false);
       }
@@ -249,12 +251,10 @@ export default function Settings() {
         response.message || "Profile display updated.",
       );
     } catch (error) {
-      Alert.alert(
-        "Profile failed",
-        error instanceof Error
-          ? error.message
-          : "Could not update profile display.",
-      );
+      showErrorAlert(error, {
+        title: "Could not update profile",
+        fallbackMessage: "Your profile display preference could not be saved. Please try again.",
+      });
     } finally {
       setProfileSaving(false);
     }
@@ -304,12 +304,10 @@ export default function Settings() {
         response.message || "Profile photo updated.",
       );
     } catch (error) {
-      Alert.alert(
-        "Upload failed",
-        error instanceof Error
-          ? error.message
-          : "Could not upload profile photo.",
-      );
+      showErrorAlert(error, {
+        title: "Profile photo upload failed",
+        fallbackMessage: "The selected photo could not be uploaded. Check the file and your connection, then try again.",
+      });
     } finally {
       setProfileSaving(false);
     }
@@ -319,8 +317,11 @@ export default function Settings() {
     setAppCurrency(currency);
     try {
       await updateProfileSettings({ appCurrency: currency });
-    } catch {
-      // Local setting remains available even if backend sync fails.
+    } catch (error) {
+      showErrorAlert(error, {
+        title: "Currency saved on this device only",
+        fallbackMessage: "The currency changed locally, but it could not be synced to your account. It will remain available on this device.",
+      });
     }
   }
 
@@ -328,8 +329,11 @@ export default function Settings() {
     setAppLanguage(language);
     try {
       await updateProfileSettings({ appLanguage: language });
-    } catch {
-      // Local setting remains available even if backend sync fails.
+    } catch (error) {
+      showErrorAlert(error, {
+        title: "Language saved on this device only",
+        fallbackMessage: "The language changed locally, but it could not be synced to your account. It will remain available on this device.",
+      });
     }
   }
 
@@ -370,10 +374,10 @@ export default function Settings() {
         response.message || "Wallet PIN changed successfully.",
       );
     } catch (error) {
-      Alert.alert(
-        "PIN failed",
-        error instanceof Error ? error.message : "Could not save wallet PIN.",
-      );
+      showErrorAlert(error, {
+        title: "Could not save wallet PIN",
+        fallbackMessage: "Your wallet PIN was not changed. Verify the current PIN and try again.",
+      });
     } finally {
       setSavingWalletPin(false);
     }
@@ -388,12 +392,10 @@ export default function Settings() {
         response.message || "Wallet PIN reset code sent to your email.",
       );
     } catch (error) {
-      Alert.alert(
-        "OTP failed",
-        error instanceof Error
-          ? error.message
-          : "Could not send wallet PIN reset OTP.",
-      );
+      showErrorAlert(error, {
+        title: "Could not send reset code",
+        fallbackMessage: "The wallet PIN reset code could not be sent to your email. Please try again.",
+      });
     } finally {
       setRequestingWalletPinReset(false);
     }
@@ -432,10 +434,10 @@ export default function Settings() {
         response.message || "Wallet PIN reset successfully.",
       );
     } catch (error) {
-      Alert.alert(
-        "Reset failed",
-        error instanceof Error ? error.message : "Could not reset wallet PIN.",
-      );
+      showErrorAlert(error, {
+        title: "Wallet PIN reset failed",
+        fallbackMessage: "The wallet PIN could not be reset. Check the verification code and new PIN, then try again.",
+      });
     } finally {
       setResettingWalletPin(false);
     }
@@ -448,10 +450,10 @@ export default function Settings() {
       setFriends((current) => current.filter((item) => item.id !== friend.id));
       Alert.alert("Friend removed", `${getFriendLabel(friend)} was removed.`);
     } catch (error) {
-      Alert.alert(
-        "Remove failed",
-        error instanceof Error ? error.message : "Could not remove friend.",
-      );
+      showErrorAlert(error, {
+        title: "Could not remove friend",
+        fallbackMessage: "This friend could not be removed from your account. Refresh the list and try again.",
+      });
     } finally {
       setDeletingFriendId("");
     }
@@ -490,23 +492,40 @@ export default function Settings() {
         UTI: "public.json",
       });
     } catch (error) {
-      Alert.alert(
-        "Export failed",
-        error instanceof Error
-          ? error.message
-          : "Could not create your SplitVerse data file.",
-      );
+      showErrorAlert(error, {
+        title: "Data export failed",
+        fallbackMessage: "Your SplitVerse data file could not be created or shared. Check device storage and try again.",
+      });
     } finally {
       setDownloadingData(false);
     }
   }
 
   async function handleClearLocalSettings() {
-    await clearLocalAppSettings();
-    Alert.alert(
-      "Local settings cleared",
-      "Local app settings were reset for this device.",
-    );
+    try {
+      await clearLocalAppSettings();
+      Alert.alert(
+        "Local settings cleared",
+        "Local app settings were reset for this device.",
+      );
+    } catch (error) {
+      showErrorAlert(error, {
+        title: "Could not clear local settings",
+        fallbackMessage: "The settings stored on this device could not be cleared. Please try again.",
+      });
+    }
+  }
+
+  async function handleLogout() {
+    try {
+      await logout();
+      router.replace("/");
+    } catch (error) {
+      showErrorAlert(error, {
+        title: "Logout failed",
+        fallbackMessage: "SplitVerse could not sign you out completely. Please try again.",
+      });
+    }
   }
 
   async function handleDeleteAccount() {
@@ -525,10 +544,10 @@ export default function Settings() {
       await logout();
       router.replace("/");
     } catch (error) {
-      Alert.alert(
-        "Delete failed",
-        error instanceof Error ? error.message : "Could not delete account.",
-      );
+      showErrorAlert(error, {
+        title: "Account deletion failed",
+        fallbackMessage: "Your account was not deleted. Clear any pending dues and try again.",
+      });
     } finally {
       setDeletingAccount(false);
     }
@@ -911,7 +930,7 @@ export default function Settings() {
           variant="secondary"
           onPress={() => setDeleteDialogOpen(true)}
         />
-        <AppButton title="Logout" variant="secondary" onPress={logout} />
+        <AppButton title="Logout" variant="secondary" onPress={handleLogout} />
       </AppCard>
 
       <SheetModal

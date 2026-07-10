@@ -10,6 +10,7 @@ import Screen from "../../src/components/Screen";
 import Text from "../../src/components/LocalizedText";
 import { useAppSettings } from "../../src/context/useAppSettings";
 import { getSplitRooms, type SplitRoom } from "../../src/lib/api";
+import { showErrorAlert } from "../../src/lib/errors";
 import { radius, spacing, typography } from "../../src/theme/tokens";
 
 let roomHistoryCache: SplitRoom[] | null = null;
@@ -35,6 +36,13 @@ export default function RoomHistory() {
       const data = await getSplitRooms();
       roomHistoryCache = data.rooms ?? [];
       setRooms(data.rooms ?? []);
+    } catch (error) {
+      if (!silent) {
+        showErrorAlert(error, {
+          title: "Could not load room history",
+          fallbackMessage: "Your split-room history could not be loaded. Pull down to try again.",
+        });
+      }
     } finally {
       setLoading(false);
     }

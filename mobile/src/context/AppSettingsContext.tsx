@@ -1,6 +1,7 @@
 import * as SecureStore from "expo-secure-store";
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import { getExchangeRates } from "../lib/api";
+import { getErrorMessage, showErrorAlert } from "../lib/errors";
 import { translateUiText, type AppLanguageCode } from "../i18n/uiTranslations";
 import {
   AppSettingsContext,
@@ -138,12 +139,8 @@ function normalizeNotificationPreferences(value: StoredSettings["notificationPre
 }
 
 async function loadStoredSettings(): Promise<StoredSettings> {
-  try {
-    const stored = await SecureStore.getItemAsync(settingsStorageKey);
-    return stored ? JSON.parse(stored) : {};
-  } catch {
-    return {};
-  }
+  const stored = await SecureStore.getItemAsync(settingsStorageKey);
+  return stored ? JSON.parse(stored) : {};
 }
 
 async function saveSettings(settings: StoredSettings) {
@@ -250,22 +247,32 @@ export function AppSettingsProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     let active = true;
     async function load() {
-      const storedSettings = await loadStoredSettings();
-      if (!active) return;
-      setAvatarIdState(isAvatarId(storedSettings.avatarId) ? storedSettings.avatarId : "current");
-      setCompactModeState(storedSettings.compactMode ?? false);
-      setPrivacyModeState(storedSettings.privacyMode ?? false);
-      setDarkModeState(storedSettings.darkMode ?? defaultDarkMode);
-      setSettlementRemindersState(storedSettings.settlementReminders ?? true);
-      setAppCurrencyState(isCurrencyCode(storedSettings.appCurrency) ? storedSettings.appCurrency : detectedCurrency);
-      setAppLanguageState(isAppLanguageCode(storedSettings.appLanguage) ? storedSettings.appLanguage : detectedLanguage);
-      setConverterFromState(isCurrencyCode(storedSettings.converterFrom) ? storedSettings.converterFrom : detectedCurrency);
-      setConverterToState(isCurrencyCode(storedSettings.converterTo) ? storedSettings.converterTo : "USD");
-      setConverterAmountState(storedSettings.converterAmount ?? 1000);
-      setDefaultTopUpMethodState(isWalletTopUpMethod(storedSettings.defaultTopUpMethod) ? storedSettings.defaultTopUpMethod : "UPI");
-      setConfirmBeforeWalletPaymentState(storedSettings.confirmBeforeWalletPayment ?? true);
-      setNotificationPreferencesState(normalizeNotificationPreferences(storedSettings.notificationPreferences));
-      setSettingsLoaded(true);
+      try {
+        const storedSettings = await loadStoredSettings();
+        if (!active) return;
+        setAvatarIdState(isAvatarId(storedSettings.avatarId) ? storedSettings.avatarId : "current");
+        setCompactModeState(storedSettings.compactMode ?? false);
+        setPrivacyModeState(storedSettings.privacyMode ?? false);
+        setDarkModeState(storedSettings.darkMode ?? defaultDarkMode);
+        setSettlementRemindersState(storedSettings.settlementReminders ?? true);
+        setAppCurrencyState(isCurrencyCode(storedSettings.appCurrency) ? storedSettings.appCurrency : detectedCurrency);
+        setAppLanguageState(isAppLanguageCode(storedSettings.appLanguage) ? storedSettings.appLanguage : detectedLanguage);
+        setConverterFromState(isCurrencyCode(storedSettings.converterFrom) ? storedSettings.converterFrom : detectedCurrency);
+        setConverterToState(isCurrencyCode(storedSettings.converterTo) ? storedSettings.converterTo : "USD");
+        setConverterAmountState(storedSettings.converterAmount ?? 1000);
+        setDefaultTopUpMethodState(isWalletTopUpMethod(storedSettings.defaultTopUpMethod) ? storedSettings.defaultTopUpMethod : "UPI");
+        setConfirmBeforeWalletPaymentState(storedSettings.confirmBeforeWalletPayment ?? true);
+        setNotificationPreferencesState(normalizeNotificationPreferences(storedSettings.notificationPreferences));
+      } catch (error) {
+        if (active) {
+          showErrorAlert(error, {
+            title: "Could not load saved settings",
+            fallbackMessage: "SplitVerse could not read settings saved on this device. Default settings will be used for now.",
+          });
+        }
+      } finally {
+        if (active) setSettingsLoaded(true);
+      }
     }
     void load();
     return () => {
@@ -292,7 +299,12 @@ export function AppSettingsProvider({ children }: { children: ReactNode }) {
         setExchangeRatesSource("fallback");
         setExchangeRatesFetchedAt(null);
         setExchangeRatesExpiresAt(null);
-        setExchangeRatesError(error instanceof Error ? error.message : "Could not load live exchange rates.");
+        setExchangeRatesError(
+          getErrorMessage(
+            error,
+            "Live exchange rates could not be loaded. Static fallback rates are being used.",
+          ),
+        );
       } finally {
         if (active) setExchangeRatesLoading(false);
       }
@@ -306,22 +318,30 @@ export function AppSettingsProvider({ children }: { children: ReactNode }) {
   const persist = useCallback(
     async (updates: StoredSettings) => {
       if (!settingsLoaded) return;
-      await saveSettings({
-        avatarId,
-        compactMode,
-        privacyMode,
-        darkMode,
-        settlementReminders,
-        appCurrency,
-        appLanguage,
-        converterFrom,
-        converterTo,
-        converterAmount,
-        defaultTopUpMethod,
-        confirmBeforeWalletPayment,
-        notificationPreferences,
-        ...updates,
-      });
+
+      try {
+        await saveSettings({
+          avatarId,
+          compactMode,
+          privacyMode,
+          darkMode,
+          settlementReminders,
+          appCurrency,
+          appLanguage,
+          converterFrom,
+          converterTo,
+          converterAmount,
+          defaultTopUpMethod,
+          confirmBeforeWalletPayment,
+          notificationPreferences,
+          ...updates,
+        });
+      } catch (error) {
+        showErrorAlert(error, {
+          title: "Could not save app settings",
+          fallbackMessage: "This preference could not be stored on your device. Check available storage and try again.",
+        });
+      }
     },
     [appCurrency, appLanguage, avatarId, compactMode, confirmBeforeWalletPayment, converterAmount, converterFrom, converterTo, darkMode, defaultTopUpMethod, notificationPreferences, privacyMode, settlementReminders, settingsLoaded],
   );

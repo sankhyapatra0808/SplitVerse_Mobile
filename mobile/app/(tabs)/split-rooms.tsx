@@ -2,7 +2,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect } from "expo-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Alert, Pressable, ScrollView, StyleSheet, View } from "react-native";
+import { Alert, ImageBackground, Pressable, ScrollView, StyleSheet, View } from "react-native";
 import AmountText from "../../src/components/AmountText";
 import AppButton from "../../src/components/AppButton";
 import AppCard from "../../src/components/AppCard";
@@ -38,6 +38,7 @@ import {
   type SplitRoomItem,
   type SplitRoomMember,
 } from "../../src/lib/api";
+import { showErrorAlert } from "../../src/lib/errors";
 import { colors, radius, spacing, typography } from "../../src/theme/tokens";
 
 const categoryOptions = [
@@ -337,7 +338,7 @@ function removeOptimisticRoomItem(room: SplitRoom, itemId: string): SplitRoom {
 
 export default function SplitRooms() {
   const { user, dbUser } = useAuth();
-  const { formatCurrency, theme } = useAppSettings();
+  const { avatarId, formatCurrency, theme } = useAppSettings();
 
   const [rooms, setRooms] = useState<SplitRoom[]>([]);
   const [visibleRoomCount, setVisibleRoomCount] = useState(
@@ -398,6 +399,15 @@ export default function SplitRooms() {
     useState("");
 
   const selfEmail = dbUser?.email || user?.email || "";
+
+  const photoUrl =
+    avatarId === "initials"
+      ? undefined
+      : dbUser?.display_photo_url ||
+        dbUser?.profile_photo_url ||
+        dbUser?.photo_url ||
+        user?.photoURL ||
+        undefined;
 
   const selectedRoom = useMemo(
     () => rooms.find((room) => room.id === selectedRoomId) ?? rooms[0],
@@ -605,12 +615,10 @@ export default function SplitRooms() {
         setSelectedRoomId(nextRoomId);
       } catch (error) {
         if (!silent) {
-          Alert.alert(
-            "Rooms failed",
-            error instanceof Error
-              ? error.message
-              : "Could not load split rooms",
-          );
+          showErrorAlert(error, {
+            title: "Could not load split rooms",
+            fallbackMessage: "Your rooms, friends, and settlement totals could not be loaded. Pull down to try again.",
+          });
         }
       } finally {
         if (!silent) {
@@ -733,10 +741,10 @@ export default function SplitRooms() {
       setSelectedFriendEmails(nextFriendEmails);
       setRoomPaidByEmail(nextPaidByEmail);
 
-      Alert.alert(
-        "Create room failed",
-        error instanceof Error ? error.message : "Failed to create room",
-      );
+      showErrorAlert(error, {
+        title: "Could not create room",
+        fallbackMessage: "The split room was not created. Check the selected friends and try again.",
+      });
     } finally {
       setSavingRoom(false);
     }
@@ -823,10 +831,10 @@ export default function SplitRooms() {
       setItemAmount(previousAmount);
       setAssignedMemberId(previousAssignedMemberId);
 
-      Alert.alert(
-        "Add item failed",
-        error instanceof Error ? error.message : "Failed to add item",
-      );
+      showErrorAlert(error, {
+        title: "Could not add item",
+        fallbackMessage: "The item was not added to this room. Check the amount and assigned member, then try again.",
+      });
     } finally {
       setSavingItem(false);
     }
@@ -893,10 +901,10 @@ export default function SplitRooms() {
     } catch (error) {
       setRooms(previousRooms);
 
-      Alert.alert(
-        "Update failed",
-        error instanceof Error ? error.message : "Failed to update item",
-      );
+      showErrorAlert(error, {
+        title: "Could not update item",
+        fallbackMessage: "The split item was not updated. Refresh the room and try again.",
+      });
     } finally {
       setUpdatingItemId("");
     }
@@ -946,10 +954,10 @@ export default function SplitRooms() {
     } catch (error) {
       setRooms(previousRooms);
 
-      Alert.alert(
-        "Delete failed",
-        error instanceof Error ? error.message : "Failed to delete item",
-      );
+      showErrorAlert(error, {
+        title: "Could not delete item",
+        fallbackMessage: "The split item was not removed. Refresh the room and try again.",
+      });
     } finally {
       setDeletingItemId("");
     }
@@ -1001,10 +1009,10 @@ export default function SplitRooms() {
         "Final net settlement has been paid successfully.",
       );
     } catch (error) {
-      Alert.alert(
-        "Payment failed",
-        error instanceof Error ? error.message : "Could not complete payment",
-      );
+      showErrorAlert(error, {
+        title: "Settlement payment failed",
+        fallbackMessage: "The net settlement was not paid. Check your wallet balance and PIN, then try again.",
+      });
     } finally {
       setPayingNetSettlementUserId("");
     }
@@ -1056,12 +1064,10 @@ export default function SplitRooms() {
           : "There were no pending dues for this member.",
       );
     } catch (error) {
-      Alert.alert(
-        "Collect failed",
-        error instanceof Error
-          ? error.message
-          : "Failed to mark dues collected",
-      );
+      showErrorAlert(error, {
+        title: "Could not mark dues collected",
+        fallbackMessage: "The member's dues were not marked as collected. Refresh the room and try again.",
+      });
     } finally {
       setCollectingMemberId("");
     }
@@ -1108,10 +1114,10 @@ export default function SplitRooms() {
           `Reminder sent to ${response.remindedCount || 0} member(s).`,
       );
     } catch (error) {
-      Alert.alert(
-        "Reminder failed",
-        error instanceof Error ? error.message : "Failed to send reminder",
-      );
+      showErrorAlert(error, {
+        title: "Could not send reminder",
+        fallbackMessage: "The room reminder could not be sent to members. Please try again later.",
+      });
     } finally {
       setRemindingRoomId("");
     }
@@ -1153,10 +1159,10 @@ export default function SplitRooms() {
 
       Alert.alert("Member removed", `${getMemberName(member)} was removed.`);
     } catch (error) {
-      Alert.alert(
-        "Remove failed",
-        error instanceof Error ? error.message : "Failed to remove member",
-      );
+      showErrorAlert(error, {
+        title: "Could not remove member",
+        fallbackMessage: "This member could not be removed. Make sure they have no assigned items or pending dues.",
+      });
     } finally {
       setRemovingMemberId("");
     }
@@ -1213,10 +1219,10 @@ export default function SplitRooms() {
 
       Alert.alert("Room deleted", "The split room was deleted.");
     } catch (error) {
-      Alert.alert(
-        "Delete failed",
-        error instanceof Error ? error.message : "Could not delete room",
-      );
+      showErrorAlert(error, {
+        title: "Could not delete room",
+        fallbackMessage: "The room was not deleted. Make sure all dues are settled and try again.",
+      });
     } finally {
       setDeletingRoomId("");
     }
@@ -1272,10 +1278,10 @@ export default function SplitRooms() {
 
       Alert.alert("Room finalized", "This room has been finalized.");
     } catch (error) {
-      Alert.alert(
-        "Finalize failed",
-        error instanceof Error ? error.message : "Could not finalize room",
-      );
+      showErrorAlert(error, {
+        title: "Could not finalize room",
+        fallbackMessage: "The room was not finalized. Settle all pending dues and try again.",
+      });
     } finally {
       setFinalizingRoomId("");
     }
@@ -1332,10 +1338,10 @@ export default function SplitRooms() {
 
       Alert.alert("Room archived", "This room has been archived.");
     } catch (error) {
-      Alert.alert(
-        "Archive failed",
-        error instanceof Error ? error.message : "Could not archive room",
-      );
+      showErrorAlert(error, {
+        title: "Could not archive room",
+        fallbackMessage: "The room was not archived. Refresh the room and try again.",
+      });
     } finally {
       setArchivingRoomId("");
     }
@@ -1373,7 +1379,7 @@ export default function SplitRooms() {
     <Screen
       refreshing={loading}
       onRefresh={() => loadSplitRoomData()}
-      safeBackgroundColor={theme.mode === "dark" ? theme.background : theme.primary}
+      safeBackgroundColor={theme.background}
       contentStyle={[
         styles.screen,
         {
@@ -1382,19 +1388,45 @@ export default function SplitRooms() {
         },
       ]}
     >
-      <LinearGradient
-        colors={[theme.primary, theme.primaryActive]}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        style={styles.hero}
-      >
-        <Text style={styles.heroEyebrow}>Item-wise splitting</Text>
-        <Text style={styles.heroTitle}>Rooms</Text>
-        <Text style={styles.heroSubtitle}>
-          Create rooms, assign items to the right person, and keep every bill
-          fair.
-        </Text>
-      </LinearGradient>
+      <View style={styles.heroClip}>
+        {photoUrl ? (
+          <ImageBackground
+            source={{ uri: photoUrl }}
+            blurRadius={28}
+            style={StyleSheet.absoluteFillObject}
+            imageStyle={styles.heroImageInner}
+          />
+        ) : (
+          <LinearGradient
+            colors={
+              theme.mode === "dark"
+                ? ["#111318", "#050608"]
+                : [theme.surfaceStrong, theme.card]
+            }
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={StyleSheet.absoluteFillObject}
+          />
+        )}
+
+        <LinearGradient
+          colors={
+            theme.mode === "dark"
+              ? ["rgba(0,0,0,0.28)", "rgba(0,0,0,0.78)"]
+              : ["rgba(0,0,0,0.10)", "rgba(0,0,0,0.58)"]
+          }
+          start={{ x: 0, y: 0 }}
+          end={{ x: 0, y: 1 }}
+          style={styles.hero}
+        >
+          <Text style={styles.heroEyebrow}>Item-wise splitting</Text>
+          <Text style={styles.heroTitle}>Rooms</Text>
+          <Text style={styles.heroSubtitle}>
+            Create rooms, assign items to the right person, and keep every bill
+            fair.
+          </Text>
+        </LinearGradient>
+      </View>
 
       <AppCard style={styles.createCard}>
         <Text style={styles.cardEyebrow}>Create room</Text>
@@ -2878,6 +2910,14 @@ const styles = StyleSheet.create({
     paddingBottom: spacing.xxl + 160,
     backgroundColor: colors.surfaceSoft,
   },
+  heroClip: {
+    overflow: "hidden",
+    borderBottomLeftRadius: 32,
+    borderBottomRightRadius: 32,
+  },
+  heroImageInner: {
+    opacity: 0.95,
+  },
   hero: {
     minHeight: 218,
     borderBottomLeftRadius: 32,
@@ -2896,7 +2936,7 @@ const styles = StyleSheet.create({
     color: colors.onPrimary,
     fontSize: 34,
     fontWeight: "600",
-    lineHeight: 40,
+    lineHeight: 42,
   },
   heroSubtitle: {
     maxWidth: 320,

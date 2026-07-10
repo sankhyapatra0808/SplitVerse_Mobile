@@ -1,6 +1,7 @@
 import { router } from "expo-router";
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import AppToast, { type AppToastPayload } from "../components/AppToast";
+import { normalizeAppError } from "../lib/errors";
 import { useAuth } from "./AuthContext";
 import {
   getFriendsSummary,
@@ -79,9 +80,17 @@ export default function LiveNotificationsProvider({ children }: { children: Reac
   }, [user]);
 
   useEffect(() => {
-    void loadNotificationItems().catch(() => undefined);
+    const handleBackgroundError = (error: unknown) => {
+      const appError = normalizeAppError(error, {
+        title: "Notification refresh failed",
+        fallbackMessage: "Live notifications could not be refreshed in the background.",
+      });
+      console.warn("Live notification refresh failed:", appError.message);
+    };
+
+    void loadNotificationItems().catch(handleBackgroundError);
     const timer = setInterval(() => {
-      void loadNotificationItems().catch(() => undefined);
+      void loadNotificationItems().catch(handleBackgroundError);
     }, POLL_MS);
 
     return () => clearInterval(timer);

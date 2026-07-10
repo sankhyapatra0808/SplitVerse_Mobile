@@ -6,6 +6,7 @@ import {
 } from "@expo-google-fonts/libre-baskerville";
 import { useFonts } from "expo-font";
 import { Stack } from "expo-router";
+import AppErrorBoundary from "../src/components/AppErrorBoundary";
 import MandatoryWalletPinSetup from "../src/components/MandatoryWalletPinSetup";
 import { AppSettingsProvider } from "../src/context/AppSettingsContext";
 import { AuthProvider } from "../src/context/AuthContext";
@@ -24,13 +25,15 @@ export default function RootLayout() {
   }
 
   return (
-    <AppSettingsProvider>
-      <AuthProvider>
-        <LiveNotificationsProvider>
-          <Stack screenOptions={{ headerShown: false }} />
-          <MandatoryWalletPinSetup />
-        </LiveNotificationsProvider>
-      </AuthProvider>
-    </AppSettingsProvider>
+    <AppErrorBoundary>
+      <AppSettingsProvider>
+        <AuthProvider>
+          <LiveNotificationsProvider>
+            <Stack screenOptions={{ headerShown: false }} />
+            <MandatoryWalletPinSetup />
+          </LiveNotificationsProvider>
+        </AuthProvider>
+      </AppSettingsProvider>
+    </AppErrorBoundary>
   );
 }

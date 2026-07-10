@@ -22,6 +22,7 @@ import {
   type Friend,
   type FriendsSummary,
 } from "../../src/lib/api";
+import { showErrorAlert } from "../../src/lib/errors";
 import { radius, spacing, typography } from "../../src/theme/tokens";
 
 const emptySummary: FriendsSummary = {
@@ -69,6 +70,13 @@ export default function FriendsPage() {
       const data = await getFriendsSummary();
       friendsCache = data;
       setSummary(data);
+    } catch (error) {
+      if (!silent) {
+        showErrorAlert(error, {
+          title: "Could not load friends",
+          fallbackMessage: "Your friend list could not be loaded. Pull down to try again.",
+        });
+      }
     } finally {
       setLoading(false);
     }

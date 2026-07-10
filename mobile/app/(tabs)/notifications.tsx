@@ -1,7 +1,7 @@
 import { router, useFocusEffect } from "expo-router";
 import { LinearGradient } from "expo-linear-gradient";
 import { useCallback, useState } from "react";
-import { Pressable, StyleSheet, View } from "react-native";
+import { ImageBackground, Pressable, StyleSheet, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import AmountText from "../../src/components/AmountText";
 import AppCard from "../../src/components/AppCard";
@@ -25,6 +25,7 @@ import {
   markNotificationSignatureSeen,
   type LiveNotificationItem,
 } from "../../src/lib/notificationSignals";
+import { showErrorAlert } from "../../src/lib/errors";
 import { radius, spacing, typography } from "../../src/theme/tokens";
 
 let notificationCache: LiveNotificationItem[] | null = null;
@@ -32,13 +33,22 @@ let walletCache: WalletSummaryResponse | null = null;
 
 export default function Notifications() {
   const { user, dbUser } = useAuth();
-  const { theme, formatCurrency } = useAppSettings();
+  const { avatarId, theme, formatCurrency } = useAppSettings();
   const [items, setItems] = useState<LiveNotificationItem[]>(notificationCache ?? []);
   const [wallet, setWallet] = useState<WalletSummaryResponse | null>(walletCache);
   const [loading, setLoading] = useState(!notificationCache);
 
   const displayName = dbUser?.display_name || dbUser?.name || user?.displayName || "SplitVerse user";
   const email = dbUser?.email || user?.email || "";
+
+  const photoUrl =
+    avatarId === "initials"
+      ? undefined
+      : dbUser?.display_photo_url ||
+        dbUser?.profile_photo_url ||
+        dbUser?.photo_url ||
+        user?.photoURL ||
+        undefined;
 
   const loadNotifications = useCallback(async (silent = false) => {
     try {
@@ -62,6 +72,13 @@ export default function Notifications() {
       walletCache = walletData;
       setItems(nextItems);
       setWallet(walletData);
+    } catch (error) {
+      if (!silent) {
+        showErrorAlert(error, {
+          title: "Could not load notifications",
+          fallbackMessage: "Your friend, room, and wallet notifications could not be loaded. Pull down to try again.",
+        });
+      }
     } finally {
       setLoading(false);
     }
@@ -81,44 +98,71 @@ export default function Notifications() {
     <Screen
       refreshing={loading}
       onRefresh={() => loadNotifications(false)}
-      safeBackgroundColor={theme.primary}
+      safeBackgroundColor={theme.background}
       contentStyle={[styles.screen, { backgroundColor: theme.background }]}
     >
-      <LinearGradient colors={[theme.primary, theme.primaryActive]} style={styles.hero}>
-        <View style={styles.heroTop}>
-          <Pressable accessibilityLabel="Back" style={styles.backButton} onPress={() => router.back()}>
-            <Ionicons name="chevron-back" size={22} color="#ffffff" />
-          </Pressable>
-
-          <View style={styles.bellCircle}>
-            <Ionicons name="notifications" size={21} color="#ffffff" />
-          </View>
-        </View>
-
-        <View style={styles.userRow}>
-          <Avatar
-            name={displayName}
-            email={email}
-            imageUrl={dbUser?.display_photo_url || dbUser?.profile_photo_url || dbUser?.photo_url}
-            size={62}
+      <View style={styles.heroClip}>
+        {photoUrl ? (
+          <ImageBackground
+            source={{ uri: photoUrl }}
+            blurRadius={28}
+            style={StyleSheet.absoluteFillObject}
+            imageStyle={styles.heroImageInner}
           />
-          <View style={styles.userCopy}>
-            <Text style={styles.userName}>{displayName}</Text>
-            <Text style={styles.userEmail} numberOfLines={1}>{email}</Text>
-          </View>
-        </View>
+        ) : (
+          <LinearGradient
+            colors={
+              theme.mode === "dark"
+                ? ["#111318", "#050608"]
+                : [theme.surfaceStrong, theme.card]
+            }
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={StyleSheet.absoluteFillObject}
+          />
+        )}
 
-        <View style={styles.summaryRow}>
-          <View style={styles.summaryPill}>
-            <Text style={styles.summaryLabel}>Notifications</Text>
-            <Text style={styles.summaryValue}>{items.length}</Text>
+        <LinearGradient
+          colors={
+            theme.mode === "dark"
+              ? ["rgba(0,0,0,0.28)", "rgba(0,0,0,0.78)"]
+              : ["rgba(0,0,0,0.10)", "rgba(0,0,0,0.58)"]
+          }
+          start={{ x: 0, y: 0 }}
+          end={{ x: 0, y: 1 }}
+          style={styles.hero}
+        >
+          <View style={styles.heroTop}>
+            <Pressable accessibilityLabel="Back" style={styles.backButton} onPress={() => router.back()}>
+              <Ionicons name="chevron-back" size={22} color="#ffffff" />
+            </Pressable>
           </View>
-          <View style={styles.summaryPill}>
-            <Text style={styles.summaryLabel}>Net position</Text>
-            <Text style={styles.summaryValue}>{formatCurrency(wallet?.summary.netPosition ?? 0, { compact: true })}</Text>
+
+          <View style={styles.userRow}>
+            <Avatar
+              name={displayName}
+              email={email}
+              imageUrl={dbUser?.display_photo_url || dbUser?.profile_photo_url || dbUser?.photo_url}
+              size={62}
+            />
+            <View style={styles.userCopy}>
+              <Text style={styles.userName}>{displayName}</Text>
+              <Text style={styles.userEmail} numberOfLines={1}>{email}</Text>
+            </View>
           </View>
-        </View>
-      </LinearGradient>
+
+          <View style={styles.summaryRow}>
+            <View style={styles.summaryPill}>
+              <Text style={styles.summaryLabel}>Notifications</Text>
+              <Text style={styles.summaryValue}>{items.length}</Text>
+            </View>
+            <View style={styles.summaryPill}>
+              <Text style={styles.summaryLabel}>Net position</Text>
+              <Text style={styles.summaryValue}>{formatCurrency(wallet?.summary.netPosition ?? 0, { compact: true })}</Text>
+            </View>
+          </View>
+        </LinearGradient>
+      </View>
 
       <AppCard style={styles.card}>
         <Text style={[styles.cardEyebrow, { color: theme.body }]}>Today</Text>
@@ -168,14 +212,20 @@ const styles = StyleSheet.create({
     gap: spacing.base,
     paddingTop: 0,
   },
-  hero: {
+  heroClip: {
     marginHorizontal: -spacing.base,
     marginTop: -spacing.base,
+    overflow: "hidden",
+    borderBottomLeftRadius: 30,
+    borderBottomRightRadius: 30,
+  },
+  heroImageInner: {
+    opacity: 0.95,
+  },
+  hero: {
     paddingHorizontal: spacing.base,
     paddingTop: spacing.base,
     paddingBottom: spacing.lg,
-    borderBottomLeftRadius: 30,
-    borderBottomRightRadius: 30,
     gap: spacing.base,
   },
   heroTop: {
@@ -186,14 +236,7 @@ const styles = StyleSheet.create({
   backButton: {
     width: 42,
     height: 42,
-    alignItems: "center",
-    justifyContent: "center",
-    borderRadius: radius.pill,
-    backgroundColor: "rgba(255,255,255,0.16)",
-  },
-  bellCircle: {
-    width: 42,
-    height: 42,
+    marginTop: spacing.base,
     alignItems: "center",
     justifyContent: "center",
     borderRadius: radius.pill,
