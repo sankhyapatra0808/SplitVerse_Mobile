@@ -52,6 +52,7 @@ function getRequestAction(path: string) {
   if (path.includes("profile")) return "saving profile settings";
   if (path.includes("wallet-pin")) return "updating wallet security";
   if (path.includes("email-login-otp")) return "verifying the email login code";
+  if (path.includes("password-reset")) return "resetting your password";
   if (path.includes("auth")) return "verifying your account";
   return "contacting SplitVerse";
 }
@@ -809,6 +810,35 @@ export async function verifyEmailLoginOtp(sessionId: string, otp: string) {
     {
       method: "POST",
       body: JSON.stringify({ sessionId, otp }),
+    },
+  );
+}
+
+export async function requestPasswordResetOtp(email: string) {
+  return publicApiFetch<{ message: string; expiresInSeconds: number }>(
+    "/api/auth/password-reset/request",
+    {
+      method: "POST",
+      body: JSON.stringify({ email }),
+    },
+  );
+}
+
+export type ResetPasswordWithOtpPayload = {
+  email: string;
+  otp: string;
+  password: string;
+  confirmPassword: string;
+};
+
+export async function resetPasswordWithOtp(
+  payload: ResetPasswordWithOtpPayload,
+) {
+  return publicApiFetch<{ message: string }>(
+    "/api/auth/password-reset/confirm",
+    {
+      method: "POST",
+      body: JSON.stringify(payload),
     },
   );
 }

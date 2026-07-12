@@ -9,6 +9,7 @@ import {
   StyleSheet,
   View,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAppSettings } from "../context/useAppSettings";
 import { fontFamilies } from "../theme/fonts";
 import { radius, spacing } from "../theme/tokens";
@@ -38,6 +39,7 @@ export default function AnimatedTabBar({
   navigation,
 }: BottomTabBarProps) {
   const { theme } = useAppSettings();
+  const insets = useSafeAreaInsets();
   const visibleRoutes = useMemo(
     () => state.routes.filter((route) => Boolean(iconMap[route.name])),
     [state.routes],
@@ -79,6 +81,10 @@ export default function AnimatedTabBar({
         {
           backgroundColor: theme.background,
           borderTopColor: "transparent",
+          paddingBottom: Math.max(
+            insets.bottom,
+            Platform.OS === "ios" ? spacing.sm : spacing.xs,
+          ),
         },
       ]}
     >

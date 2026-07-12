@@ -89,7 +89,7 @@ export default function Screen({
 
   return (
     <SafeAreaView
-      edges={["top"]}
+      edges={["top", "bottom"]}
       style={[styles.safe, { backgroundColor: resolvedBackground }]}
       {...panResponder.panHandlers}
     >

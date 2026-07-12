@@ -1,294 +1,538 @@
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
-import { useState } from "react";
-import { Alert, Image, Pressable, StyleSheet, View } from "react-native";
-import AppButton from "../../src/components/AppButton";
-import AppCard from "../../src/components/AppCard";
-import AppTextInput from "../../src/components/AppTextInput";
-import Screen from "../../src/components/Screen";
-import SheetModal from "../../src/components/SheetModal";
-import Text from "../../src/components/LocalizedText";
+import { useEffect, useRef, useState } from "react";
+import {
+  ActivityIndicator,
+  Image,
+  Keyboard,
+  Pressable,
+  StyleSheet,
+  Text as NativeText,
+  TextInput,
+  View,
+} from "react-native";
+import {
+  AuthFullscreenScaffold,
+  FloatingAuthField,
+} from "../../src/components/AuthFullscreenScaffold";
 import { useAuth } from "../../src/context/AuthContext";
 import { useAppSettings } from "../../src/context/useAppSettings";
-import { showErrorAlert } from "../../src/lib/errors";
+import { AppError, getErrorPresentation } from "../../src/lib/errors";
 import { signInWithGoogleAndGetIdToken } from "../../src/lib/googleAuth";
+import {
+  getLoginAttemptCount,
+  recordFailedLoginAttempt,
+  MAX_DAILY_LOGIN_ATTEMPTS,
+} from "../../src/lib/loginAttemptGuard";
+import { setPendingLoginOtp } from "../../src/lib/pendingLoginOtp";
 import { isValidEmailAddress } from "../../src/lib/validation";
-import { colors, radius, spacing, typography } from "../../src/theme/tokens";
+
+const REMEMBER_LOGIN_KEY = "splitverse-auth-remember-login";
+
+type ActiveAction = "send-code" | "google" | null;
+
+function isFirebaseAuthError(error: unknown): boolean {
+  if (error instanceof AppError && error.originalError) {
+    return isFirebaseAuthError(error.originalError);
+  }
+
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    "code" in error &&
+    String((error as { code?: unknown }).code).startsWith("auth/")
+  );
+}
 
 export default function Login() {
-  const { theme } = useAppSettings();
-  const {
-    login,
-    loginWithGoogleIdToken,
-    startEmailLoginOtp,
-    completeEmailLoginWithOtp,
-  } = useAuth();
+  const { theme, t } = useAppSettings();
+  const { loginWithGoogleIdToken, startEmailLoginOtp } = useAuth();
+
+  const passwordRef = useRef<TextInput>(null);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [submitting, setSubmitting] = useState(false);
-  const [googleSubmitting, setGoogleSubmitting] = useState(false);
-  const [otpSubmitting, setOtpSubmitting] = useState(false);
-  const [otpSessionId, setOtpSessionId] = useState("");
-  const [otp, setOtp] = useState("");
-  const [otpEmail, setOtpEmail] = useState("");
-  const [otpPassword, setOtpPassword] = useState("");
+  const [rememberFor30Days, setRememberFor30Days] = useState(true);
+  const [passwordVisible, setPasswordVisible] = useState(false);
+  const [error, setError] = useState("");
+  const [activeAction, setActiveAction] = useState<ActiveAction>(null);
 
-  async function handleLogin() {
+  const loading = activeAction !== null;
+
+  useEffect(() => {
+    let active = true;
+
+    void AsyncStorage.getItem(REMEMBER_LOGIN_KEY).then((value) => {
+      if (active && value !== null) {
+        setRememberFor30Days(value === "true");
+      }
+    });
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  function clearInlineError() {
+    if (error) setError("");
+  }
+
+  async function persistRememberChoice(nextValue: boolean) {
+    setRememberFor30Days(nextValue);
+    await AsyncStorage.setItem(
+      REMEMBER_LOGIN_KEY,
+      nextValue ? "true" : "false",
+    );
+  }
+
+  async function handleSendOtp() {
+    Keyboard.dismiss();
+    setError("");
+
     const trimmedEmail = email.trim().toLowerCase();
 
     if (!trimmedEmail) {
-      Alert.alert("Email required", "Enter the email address linked to your SplitVerse account.");
+      setError("Enter the email address linked to your SplitVerse account.");
       return;
     }
 
     if (!isValidEmailAddress(trimmedEmail)) {
-      Alert.alert("Invalid email address", "Enter a complete email address, such as name@example.com.");
+      setError("Enter a complete email address, such as name@example.com.");
       return;
     }
 
     if (!password) {
-      Alert.alert("Password required", "Enter your SplitVerse account password.");
+      setError("Enter your SplitVerse account password.");
+      return;
+    }
+
+    if ((await getLoginAttemptCount(trimmedEmail)) >= MAX_DAILY_LOGIN_ATTEMPTS) {
+      setError("Too many login attempts today. Please try again tomorrow.");
       return;
     }
 
     try {
-      setSubmitting(true);
-      await login(trimmedEmail, password);
-      router.replace("/(tabs)/dashboard");
-    } catch (error) {
-      showErrorAlert(error, {
-        title: "Login failed",
-        fallbackMessage: "SplitVerse could not sign you in. Check your details and try again.",
+      setActiveAction("send-code");
+
+      await AsyncStorage.setItem(
+        REMEMBER_LOGIN_KEY,
+        rememberFor30Days ? "true" : "false",
+      );
+
+      const session = await startEmailLoginOtp(
+        trimmedEmail,
+        password,
+        rememberFor30Days,
+      );
+
+      setPendingLoginOtp({
+        email: trimmedEmail,
+        password,
+        remember: rememberFor30Days,
+        sessionId: session.sessionId,
+        destinationEmail: session.email,
       });
-    } finally {
-      setSubmitting(false);
-    }
-  }
 
-  async function handleStartOtpLogin() {
-    const trimmedEmail = email.trim().toLowerCase();
-
-    if (!trimmedEmail || !password) {
-      Alert.alert(
-        "Email and password required",
-        "Enter email and password first, then request the email login code.",
-      );
-      return;
-    }
-
-    if (!isValidEmailAddress(trimmedEmail)) {
-      Alert.alert("Invalid email address", "Enter a complete email address before requesting a login code.");
-      return;
-    }
-
-    try {
-      setOtpSubmitting(true);
-      const session = await startEmailLoginOtp(trimmedEmail, password);
-      setOtpSessionId(session.sessionId);
-      setOtpEmail(trimmedEmail);
-      setOtpPassword(password);
-      setOtp("");
-      Alert.alert(
-        "Code sent",
-        `A 6-digit login code was sent to ${session.email}.`,
-      );
-    } catch (error) {
-      showErrorAlert(error, {
+      router.push("/(auth)/verify-login-otp");
+    } catch (loginError) {
+      const presentation = getErrorPresentation(loginError, {
         title: "Could not send login code",
-        fallbackMessage: "The email login code could not be sent. Check your connection and try again.",
+        fallbackMessage:
+          "The email login code could not be sent. Check your details and try again.",
       });
-    } finally {
-      setOtpSubmitting(false);
-    }
-  }
 
-  async function handleCompleteOtpLogin() {
-    if (!otpSessionId || otp.length !== 6) {
-      Alert.alert("Code required", "Enter the 6-digit login code.");
-      return;
-    }
+      if (!isFirebaseAuthError(loginError)) {
+        setError(presentation.message);
+        return;
+      }
 
-    try {
-      setOtpSubmitting(true);
-      await completeEmailLoginWithOtp(otpEmail, otpPassword, otpSessionId, otp);
-      setOtpSessionId("");
-      setOtp("");
-      router.replace("/(tabs)/dashboard");
-    } catch (error) {
-      showErrorAlert(error, {
-        title: "Code verification failed",
-        fallbackMessage: "The login code could not be verified. Request a new code and try again.",
-      });
+      const attempts = await recordFailedLoginAttempt(trimmedEmail);
+      const attemptsLeft = Math.max(
+        0,
+        MAX_DAILY_LOGIN_ATTEMPTS - attempts,
+      );
+
+      setError(
+        attemptsLeft > 0
+          ? `${presentation.message} ${attemptsLeft} login attempt${
+              attemptsLeft === 1 ? "" : "s"
+            } left today.`
+          : "Too many login attempts today. Please try again tomorrow.",
+      );
     } finally {
-      setOtpSubmitting(false);
+      setActiveAction(null);
     }
   }
 
   async function handleGoogleLogin() {
+    Keyboard.dismiss();
+    setError("");
+
     try {
-      setGoogleSubmitting(true);
+      setActiveAction("google");
+
+      await AsyncStorage.setItem(
+        REMEMBER_LOGIN_KEY,
+        rememberFor30Days ? "true" : "false",
+      );
 
       const idToken = await signInWithGoogleAndGetIdToken();
-      await loginWithGoogleIdToken(idToken);
-
+      await loginWithGoogleIdToken(idToken, rememberFor30Days);
       router.replace("/(tabs)/dashboard");
-    } catch (error) {
-      showErrorAlert(error, {
+    } catch (googleError) {
+      const presentation = getErrorPresentation(googleError, {
         title: "Google sign-in failed",
-        fallbackMessage: "Google sign-in could not be completed. Please try again.",
+        fallbackMessage:
+          "Google sign-in could not be completed. Please try again.",
       });
+      setError(presentation.message);
     } finally {
-      setGoogleSubmitting(false);
+      setActiveAction(null);
     }
   }
 
   return (
-    <Screen>
-      <View style={styles.header}>
-        <Text style={styles.eyebrow}>Welcome back</Text>
-        <Text style={styles.title}>Sign in to SplitVerse</Text>
-        <Text style={styles.subtitle}>
-          Continue tracking fair item-wise splits and wallet settlements.
-        </Text>
-      </View>
+    <AuthFullscreenScaffold title="Login" layout="login">
+      {({ palette, compact }) => (
+        <View style={styles.formBody}>
+          <View style={[styles.fields, compact && styles.fieldsCompact]}>
+            <FloatingAuthField
+              label={t("Email")}
+              palette={palette}
+              compact={compact}
+              value={email}
+              onChangeText={(value) => {
+                setEmail(value);
+                clearInlineError();
+              }}
+              autoCapitalize="none"
+              autoCorrect={false}
+              keyboardType="email-address"
+              textContentType="emailAddress"
+              autoComplete="email"
+              editable={!loading}
+              returnKeyType="next"
+              blurOnSubmit={false}
+              onSubmitEditing={() => passwordRef.current?.focus()}
+            />
 
-      <AppCard style={styles.card}>
-        <AppTextInput
-          label="Email"
-          value={email}
-          onChangeText={setEmail}
-          autoCapitalize="none"
-          keyboardType="email-address"
-          placeholder="you@example.com"
-        />
+            <FloatingAuthField
+              ref={passwordRef}
+              label={t("Password")}
+              palette={palette}
+              compact={compact}
+              value={password}
+              onChangeText={(value) => {
+                setPassword(value);
+                clearInlineError();
+              }}
+              secureTextEntry={!passwordVisible}
+              textContentType="password"
+              autoComplete="password"
+              editable={!loading}
+              returnKeyType="done"
+              onSubmitEditing={() => void handleSendOtp()}
+              rightActionLabel={t("Forgot?")}
+              onRightActionPress={() => {
+                Keyboard.dismiss();
+                router.push("/(auth)/forgot-password");
+              }}
+              rightIconName={
+                passwordVisible ? "eye-off-outline" : "eye-outline"
+              }
+              rightIconAccessibilityLabel={
+                passwordVisible ? "Hide password" : "Show password"
+              }
+              onRightIconPress={() => setPasswordVisible((current) => !current)}
+            />
+          </View>
 
-        <AppTextInput
-          label="Password"
-          value={password}
-          onChangeText={setPassword}
-          secureTextEntry
-          placeholder="Your password"
-        />
+          <View style={styles.optionsRow}>
+            <Pressable
+              accessibilityRole="checkbox"
+              accessibilityState={{ checked: rememberFor30Days }}
+              onPress={() =>
+                void persistRememberChoice(!rememberFor30Days)
+              }
+              disabled={loading}
+              hitSlop={8}
+              style={styles.rememberButton}
+            >
+              <Ionicons
+                name={
+                  rememberFor30Days
+                    ? "checkbox-outline"
+                    : "square-outline"
+                }
+                size={18}
+                color={
+                  rememberFor30Days ? theme.primary : palette.muted
+                }
+              />
+              <NativeText
+                allowFontScaling={false}
+                style={[styles.optionText, { color: palette.muted }]}
+              >
+                Remember for 30 days
+              </NativeText>
+            </Pressable>
 
-        <AppButton title="Sign in" loading={submitting} onPress={handleLogin} />
+            <Pressable
+              onPress={() => {
+                Keyboard.dismiss();
+                router.push("/(auth)/terms-and-conditions");
+              }}
+              disabled={loading}
+              hitSlop={8}
+            >
+              <NativeText
+                allowFontScaling={false}
+                style={[styles.termsText, { color: palette.text }]}
+              >
+                Terms & Conditions
+              </NativeText>
+            </Pressable>
+          </View>
 
-        <AppButton
-          title="Send email login code"
-          variant="secondary"
-          loading={otpSubmitting && !otpSessionId}
-          onPress={handleStartOtpLogin}
-        />
+          <View style={styles.messageSlot}>
+            {error ? (
+              <NativeText
+                allowFontScaling={false}
+                style={[styles.inlineError, { color: theme.danger }]}
+                numberOfLines={3}
+              >
+                {error}
+              </NativeText>
+            ) : null}
+          </View>
 
-        <View style={styles.dividerRow}>
-          <View style={styles.divider} />
-          <Text style={styles.dividerText}>or</Text>
-          <View style={styles.divider} />
+          <Pressable
+            style={({ pressed }) => [
+              styles.primaryButton,
+              compact && styles.primaryButtonCompact,
+              {
+                backgroundColor: palette.button,
+                opacity: loading ? 0.68 : pressed ? 0.9 : 1,
+              },
+            ]}
+            onPress={() => void handleSendOtp()}
+            disabled={loading}
+          >
+            {activeAction === "send-code" ? (
+              <ActivityIndicator color={palette.buttonText} />
+            ) : (
+              <NativeText
+                allowFontScaling={false}
+                style={[
+                  styles.primaryButtonText,
+                  { color: palette.buttonText },
+                ]}
+              >
+                {t("Send OTP")}
+              </NativeText>
+            )}
+          </Pressable>
+
+          <View style={styles.dividerRow}>
+            <View
+              style={[
+                styles.divider,
+                { backgroundColor: palette.line },
+              ]}
+            />
+            <NativeText
+              allowFontScaling={false}
+              style={[styles.dividerText, { color: palette.muted }]}
+            >
+              {t("Or continue with")}
+            </NativeText>
+            <View
+              style={[
+                styles.divider,
+                { backgroundColor: palette.line },
+              ]}
+            />
+          </View>
+
+          <Pressable
+            style={({ pressed }) => [
+              styles.googleButton,
+              compact && styles.googleButtonCompact,
+              {
+                backgroundColor: palette.google,
+                borderColor: palette.googleBorder,
+                opacity: loading ? 0.65 : pressed ? 0.88 : 1,
+              },
+            ]}
+            onPress={() => void handleGoogleLogin()}
+            disabled={loading}
+          >
+            {activeAction === "google" ? (
+              <ActivityIndicator color={palette.text} />
+            ) : (
+              <>
+                <Image
+                  source={require("../../assets/google-logo.png")}
+                  style={styles.googleLogo}
+                  resizeMode="contain"
+                />
+                <NativeText
+                  allowFontScaling={false}
+                  style={[styles.googleText, { color: palette.text }]}
+                >
+                  Google
+                </NativeText>
+              </>
+            )}
+          </Pressable>
+
+          <View style={styles.footerRow}>
+            <NativeText
+              allowFontScaling={false}
+              style={[styles.footerText, { color: palette.muted }]}
+            >
+              {t("Don't have an account?")}{" "}
+            </NativeText>
+            <Pressable
+              onPress={() => router.push("/(auth)/signup")}
+              disabled={loading}
+              hitSlop={8}
+            >
+              <NativeText
+                allowFontScaling={false}
+                style={[styles.footerLink, { color: palette.text }]}
+              >
+                {t("Create now")}
+              </NativeText>
+            </Pressable>
+          </View>
         </View>
-
-        <Pressable
-          style={[styles.googleButton, { backgroundColor: theme.mode === "dark" ? theme.primary : "#ffffff", borderColor: theme.mode === "dark" ? theme.primary : theme.borderSoft }]}
-          onPress={handleGoogleLogin}
-          disabled={googleSubmitting}
-        >
-          <Image source={require("../../assets/google-logo.png")} style={styles.googleLogo} resizeMode="contain" />
-          <Text style={[styles.googleText, { color: theme.mode === "dark" ? theme.onPrimary : "#111111" }]}>
-            {googleSubmitting ? "Signing in" : "Continue with Google"}
-          </Text>
-        </Pressable>
-
-        <AppButton
-          title="Create account"
-          variant="secondary"
-          onPress={() => router.push("/(auth)/signup")}
-        />
-      </AppCard>
-
-      <SheetModal
-        visible={Boolean(otpSessionId)}
-        eyebrow="Email login code"
-        title="Verify your login"
-        onClose={() => {
-          setOtpSessionId("");
-          setOtp("");
-        }}
-      >
-        <Text style={styles.otpCopy}>
-          Enter the 6-digit code sent to {otpEmail}. The code expires in a few
-          minutes.
-        </Text>
-        <AppTextInput
-          label="Login code"
-          value={otp}
-          onChangeText={(value) => setOtp(value.replace(/\D/g, "").slice(0, 6))}
-          keyboardType="number-pad"
-          placeholder="123456"
-          editable={!otpSubmitting}
-        />
-        <AppButton
-          title={otpSubmitting ? "Verifying" : "Verify and sign in"}
-          loading={otpSubmitting}
-          onPress={handleCompleteOtpLogin}
-        />
-      </SheetModal>
-    </Screen>
+      )}
+    </AuthFullscreenScaffold>
   );
 }
 
 const styles = StyleSheet.create({
-  header: {
-    gap: spacing.sm,
-    paddingTop: spacing.xxl,
+  formBody: {
+    flex: 1,
   },
-  eyebrow: {
-    color: colors.primary,
-    ...typography.caption,
+  fields: {
+    gap: 8,
   },
-  title: {
-    color: colors.ink,
-    ...typography.titleLg,
+  fieldsCompact: {
+    gap: 4,
   },
-  subtitle: {
-    color: colors.body,
-    ...typography.body,
+  optionsRow: {
+    minHeight: 30,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 10,
+    marginTop: 7,
   },
-  card: {
-    gap: spacing.base,
-    marginTop: spacing.xl,
+  rememberButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  optionText: {
+    fontSize: 9,
+    lineHeight: 13,
+    fontWeight: "500",
+    includeFontPadding: true,
+  },
+  termsText: {
+    fontSize: 9,
+    lineHeight: 13,
+    fontWeight: "700",
+    textDecorationLine: "underline",
+    includeFontPadding: true,
+  },
+  messageSlot: {
+    minHeight: 31,
+    justifyContent: "center",
+    marginTop: 0,
+    marginBottom: 3,
+  },
+  inlineError: {
+    fontSize: 10,
+    lineHeight: 14,
+    fontWeight: "500",
+    includeFontPadding: true,
+  },
+  primaryButton: {
+    minHeight: 48,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 4,
+  },
+  primaryButtonCompact: {
+    minHeight: 40,
+  },
+  primaryButtonText: {
+    fontSize: 14,
+    lineHeight: 19,
+    fontWeight: "600",
+    includeFontPadding: true,
   },
   dividerRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: spacing.sm,
+    gap: 10,
+    marginTop: 16,
+    marginBottom: 10,
   },
   divider: {
     flex: 1,
-    height: 1,
-    backgroundColor: colors.hairlineSoft,
+    height: StyleSheet.hairlineWidth,
   },
   dividerText: {
-    color: colors.body,
-    ...typography.caption,
+    fontSize: 11,
+    lineHeight: 15,
+    fontWeight: "400",
+    includeFontPadding: true,
   },
   googleButton: {
-    minHeight: 48,
+    width: "100%",
+    minHeight: 44,
+    alignSelf: "center",
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    gap: spacing.sm,
+    gap: 9,
     borderWidth: 1,
-    borderColor: colors.hairlineSoft,
-    borderRadius: radius.pill,
-    backgroundColor: colors.canvas,
+    borderRadius: 4,
+  },
+  googleButtonCompact: {
+    minHeight: 38,
   },
   googleLogo: {
-    width: 22,
-    height: 22,
+    width: 18,
+    height: 18,
   },
   googleText: {
-    color: colors.ink,
-    ...typography.button,
+    fontSize: 13,
+    lineHeight: 18,
+    fontWeight: "500",
+    includeFontPadding: true,
   },
-  otpCopy: {
-    color: colors.body,
-    ...typography.bodySm,
+  footerRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: "auto",
+    paddingTop: 8,
+  },
+  footerText: {
+    fontSize: 10,
+    lineHeight: 14,
+    fontWeight: "400",
+    includeFontPadding: true,
+  },
+  footerLink: {
+    fontSize: 10,
+    lineHeight: 14,
+    fontWeight: "700",
+    includeFontPadding: true,
   },
 });
