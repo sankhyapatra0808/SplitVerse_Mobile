@@ -1,7 +1,7 @@
 import * as SecureStore from "expo-secure-store";
 
-const LAST_ACTIVE_KEY = "splitverse:last-active-at";
-const REMEMBER_SESSION_KEY = "splitverse:remember-session";
+const LAST_ACTIVE_KEY = "splitverse-last-active-at";
+const REMEMBER_SESSION_KEY = "splitverse-remember-session";
 const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
 
 let sessionStartedInThisProcess = false;
