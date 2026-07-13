@@ -36,15 +36,30 @@ const createWalletOrderSchema = z
 
 const verifyWalletPaymentSchema = z
   .object({
-    razorpayOrderId: z.string().trim().min(1, "Razorpay order id is required"),
-    razorpayPaymentId: z.string().trim().min(1, "Razorpay payment id is required"),
-    razorpaySignature: z.string().trim().min(1, "Razorpay signature is required"),
+    razorpayOrderId: z
+      .string()
+      .trim()
+      .regex(/^order_[A-Za-z0-9]+$/, "Razorpay order id is invalid")
+      .max(80),
+    razorpayPaymentId: z
+      .string()
+      .trim()
+      .regex(/^pay_[A-Za-z0-9]+$/, "Razorpay payment id is invalid")
+      .max(80),
+    razorpaySignature: z
+      .string()
+      .trim()
+      .regex(/^[a-fA-F0-9]{64}$/, "Razorpay signature is invalid"),
   })
   .strict();
 
 const devApproveSchema = z
   .object({
-    razorpayOrderId: z.string().trim().min(1, "Razorpay order id is required"),
+    razorpayOrderId: z
+      .string()
+      .trim()
+      .regex(/^order_[A-Za-z0-9]+$/, "Razorpay order id is invalid")
+      .max(80),
   })
   .strict();
 
@@ -140,6 +155,18 @@ async function creditWalletForPaidOrder({
 }) {
   const expectedPaise = toPaise(Number(order.amount));
   const paidPaise = Number(payment.amount);
+
+  if (source !== "dev" && payment.status !== "captured") {
+    throw Object.assign(new Error("Payment is not captured"), {
+      statusCode: 409,
+    });
+  }
+
+  if (!Number.isSafeInteger(paidPaise) || paidPaise <= 0) {
+    throw Object.assign(new Error("Payment amount is invalid"), {
+      statusCode: 400,
+    });
+  }
 
   if (payment.currency !== order.currency) {
     throw Object.assign(new Error("Payment currency does not match the order"), {
@@ -290,11 +317,15 @@ router.post(
 
       console.error("Create Razorpay wallet order failed:", error);
 
-      return res.status((error as Error & { statusCode?: number }).statusCode || 500).json({
+      const statusCode =
+        (error as Error & { statusCode?: number }).statusCode || 500;
+      return res.status(statusCode).json({
         message:
-          error instanceof Error
-            ? error.message
-            : "Failed to create Razorpay order",
+          statusCode >= 500
+            ? "Payment service is temporarily unavailable. Please try again."
+            : error instanceof Error
+              ? error.message
+              : "Failed to create Razorpay order",
       });
     }
   },
@@ -407,11 +438,15 @@ router.post(
 
       console.error("Verify Razorpay payment failed:", error);
 
-      return res.status((error as Error & { statusCode?: number }).statusCode || 500).json({
+      const statusCode =
+        (error as Error & { statusCode?: number }).statusCode || 500;
+      return res.status(statusCode).json({
         message:
-          error instanceof Error
-            ? error.message
-            : "Failed to verify Razorpay payment",
+          statusCode >= 500
+            ? "Payment verification is temporarily unavailable. Please try again."
+            : error instanceof Error
+              ? error.message
+              : "Failed to verify Razorpay payment",
       });
     } finally {
       client.release();
@@ -426,13 +461,23 @@ router.post(
     const client = await db.connect();
 
     try {
-      if (process.env.ENABLE_DEV_PAYMENT_APPROVAL !== "true") {
+      if (
+        process.env.NODE_ENV === "production" ||
+        process.env.ENABLE_DEV_PAYMENT_APPROVAL !== "true"
+      ) {
         return res.status(404).json({ message: "Not found" });
       }
 
       const secret = process.env.DEV_PAYMENT_APPROVAL_SECRET || "";
+      const suppliedSecret = req.header("x-dev-payment-secret") || "";
+      const secretBuffer = Buffer.from(secret);
+      const suppliedBuffer = Buffer.from(suppliedSecret);
+      const secretMatches =
+        secretBuffer.length > 0 &&
+        secretBuffer.length === suppliedBuffer.length &&
+        crypto.timingSafeEqual(secretBuffer, suppliedBuffer);
 
-      if (!secret || req.header("x-dev-payment-secret") !== secret) {
+      if (!secretMatches) {
         return res.status(403).json({ message: "Developer payment approval is protected" });
       }
 
@@ -656,9 +701,15 @@ export async function razorpayWebhookHandler(req: Request, res: Response) {
     await client.query("ROLLBACK").catch(() => undefined);
     console.error("Razorpay webhook failed:", error);
 
-    return res.status((error as Error & { statusCode?: number }).statusCode || 500).json({
+    const statusCode =
+      (error as Error & { statusCode?: number }).statusCode || 500;
+    return res.status(statusCode).json({
       message:
-        error instanceof Error ? error.message : "Razorpay webhook failed",
+        statusCode >= 500
+          ? "Webhook processing failed"
+          : error instanceof Error
+            ? error.message
+            : "Webhook processing failed",
     });
   } finally {
     client.release();

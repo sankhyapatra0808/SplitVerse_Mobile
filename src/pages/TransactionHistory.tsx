@@ -51,6 +51,21 @@ function formatSignedCurrency(
   return `${prefix}${formatCurrency(Math.abs(amount))}`;
 }
 
+function escapeHtml(value: unknown) {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
+
+function csvCell(value: unknown) {
+  const text = String(value ?? "").replace(/\r?\n/g, " ");
+  const formulaSafeText = /^[=+\-@\t\r]/.test(text) ? `'${text}` : text;
+  return `"${formulaSafeText.replace(/"/g, '""')}"`;
+}
+
 const visibleTransactionLimit = 10;
 
 const statusOptions: DropdownOption<TransactionStatus>[] = [
@@ -176,12 +191,12 @@ export default function TransactionHistory() {
       .map(
         (transaction) => `
           <tr>
-            <td>${transaction.title}</td>
-            <td>${transaction.room}</td>
-            <td>${transaction.amount}</td>
-            <td>${transaction.displayStatus}</td>
-            <td>${transaction.type}</td>
-            <td>${transaction.displayDate || formatTransactionDate(transaction.createdAt)}</td>
+            <td>${escapeHtml(transaction.title)}</td>
+            <td>${escapeHtml(transaction.room)}</td>
+            <td>${escapeHtml(transaction.amount)}</td>
+            <td>${escapeHtml(transaction.displayStatus)}</td>
+            <td>${escapeHtml(transaction.type)}</td>
+            <td>${escapeHtml(transaction.displayDate || formatTransactionDate(transaction.createdAt))}</td>
           </tr>`,
       )
       .join("");
@@ -289,7 +304,7 @@ export default function TransactionHistory() {
         const csvContent = [header, ...rows]
           .map((row) =>
             row
-              .map((cell) => `"${String(cell).replace(/"/g, '""')}"`)
+              .map(csvCell)
               .join(","),
           )
           .join("\n");

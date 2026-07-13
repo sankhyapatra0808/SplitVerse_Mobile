@@ -18,8 +18,8 @@ const topUpDescriptionPrefix = "Wallet top-up via ";
 const maxTopUpPerTransaction = Number(process.env.MAX_TOP_UP_PER_TRANSACTION || 10000);
 const maxTopUpPerDay = Number(process.env.MAX_TOP_UP_PER_DAY || 100000);
 const devWalletTopUpEnabled =
-  process.env.NODE_ENV !== "production" ||
-  process.env.ENABLE_DEV_WALLET_TOP_UP === "true";
+  process.env.NODE_ENV !== "production" &&
+  process.env.ENABLE_DEV_WALLET_TOP_UP !== "false";
 
 const topUpSchema = z
   .object({
@@ -134,9 +134,7 @@ router.post("/top-up", verifyFirebaseToken, async (req: AuthRequest, res) => {
     }
 
     if (!devWalletTopUpEnabled) {
-      return res.status(403).json({
-        message: "Direct wallet top-up is disabled in production. Use the verified payment flow.",
-      });
+      return res.status(404).json({ message: "Not found" });
     }
 
     const { amount: numericAmount, method } = parseRequestBody(

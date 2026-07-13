@@ -20,7 +20,8 @@ function safeFilePart(value: string) {
 
 function csvCell(value: unknown) {
   const text = String(value ?? "").replace(/\r?\n/g, " ");
-  return `"${text.replace(/"/g, '""')}"`;
+  const formulaSafeText = /^[=+\-@\t\r]/.test(text) ? `'${text}` : text;
+  return `"${formulaSafeText.replace(/"/g, '""')}"`;
 }
 
 function getTransactionTitle(transaction: TransactionItem) {
@@ -119,7 +120,9 @@ function buildPdfHtml(options: ExportTransactionOptions) {
   `;
 }
 
-export async function exportTransactionsFile(options: ExportTransactionOptions) {
+export async function exportTransactionsFile(
+  options: ExportTransactionOptions,
+): Promise<void> {
   const sharingAvailable = await Sharing.isAvailableAsync();
   if (!sharingAvailable) {
     throw new Error("Sharing is not available on this device.");
@@ -127,27 +130,37 @@ export async function exportTransactionsFile(options: ExportTransactionOptions) 
 
   const datePart = safeFilePart(new Date().toISOString().slice(0, 19));
   const titlePart = safeFilePart(options.title || "splitverse-transactions");
+  let temporaryUri = "";
 
-  if (options.format === "pdf") {
-    const html = buildPdfHtml(options);
-    const file = await Print.printToFileAsync({ html });
-    await Sharing.shareAsync(file.uri, {
-      mimeType: "application/pdf",
-      dialogTitle: "Export SplitVerse transactions",
-      UTI: "com.adobe.pdf",
+  try {
+    if (options.format === "pdf") {
+      const html = buildPdfHtml(options);
+      const file = await Print.printToFileAsync({ html });
+      temporaryUri = file.uri;
+
+      await Sharing.shareAsync(file.uri, {
+        mimeType: "application/pdf",
+        dialogTitle: "Export SplitVerse transactions",
+        UTI: "com.adobe.pdf",
+      });
+      return;
+    }
+
+    const csv = buildCsv(options);
+    temporaryUri = `${FileSystem.cacheDirectory}${titlePart}-${datePart}.csv`;
+    await FileSystem.writeAsStringAsync(temporaryUri, csv, {
+      encoding: FileSystem.EncodingType.UTF8,
     });
-    return file.uri;
+    await Sharing.shareAsync(temporaryUri, {
+      mimeType: "text/csv",
+      dialogTitle: "Export SplitVerse transactions",
+      UTI: "public.comma-separated-values-text",
+    });
+  } finally {
+    if (temporaryUri) {
+      await FileSystem.deleteAsync(temporaryUri, { idempotent: true }).catch(
+        () => undefined,
+      );
+    }
   }
-
-  const csv = buildCsv(options);
-  const uri = `${FileSystem.cacheDirectory}${titlePart}-${datePart}.csv`;
-  await FileSystem.writeAsStringAsync(uri, csv, {
-    encoding: FileSystem.EncodingType.UTF8,
-  });
-  await Sharing.shareAsync(uri, {
-    mimeType: "text/csv",
-    dialogTitle: "Export SplitVerse transactions",
-    UTI: "public.comma-separated-values-text",
-  });
-  return uri;
 }

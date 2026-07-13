@@ -107,7 +107,9 @@ export default function Notifications() {
     <Screen
       refreshing={loading}
       onRefresh={() => loadNotifications(false)}
-      safeBackgroundColor={theme.background}
+      safeBackgroundColor={
+        theme.mode === "dark" ? theme.background : theme.primary
+      }
       contentStyle={[styles.screen, { backgroundColor: theme.background }]}
     >
       <View style={styles.heroClip}>

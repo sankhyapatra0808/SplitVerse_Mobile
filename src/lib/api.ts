@@ -1,6 +1,105 @@
 import { auth } from "../config/firebase";
 
-export const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
+function resolveApiUrl() {
+  const configuredUrl = String(import.meta.env.VITE_API_URL || "").trim();
+  const fallbackUrl = import.meta.env.DEV
+    ? "http://localhost:5000"
+    : typeof window !== "undefined"
+      ? window.location.origin
+      : "";
+  const rawUrl = configuredUrl || fallbackUrl;
+
+  if (!rawUrl) {
+    throw new Error("VITE_API_URL is required for production builds.");
+  }
+
+  if (rawUrl.startsWith("/")) {
+    return rawUrl.replace(/\/$/, "");
+  }
+
+  const parsedUrl = new URL(rawUrl);
+  const localDevelopmentHost =
+    import.meta.env.DEV &&
+    ["localhost", "127.0.0.1", "10.0.2.2"].includes(parsedUrl.hostname);
+
+  if (parsedUrl.protocol !== "https:" && !localDevelopmentHost) {
+    throw new Error(
+      "VITE_API_URL must use HTTPS. Local HTTP is allowed only during development.",
+    );
+  }
+
+  return parsedUrl.toString().replace(/\/$/, "");
+}
+
+export const API_URL = resolveApiUrl();
+
+export class ApiError extends Error {
+  readonly status: number;
+  readonly code: string;
+  readonly retryAfterSeconds?: number;
+
+  constructor(options: {
+    message: string;
+    status: number;
+    code?: string;
+    retryAfterSeconds?: number;
+  }) {
+    super(options.message);
+    this.name = "ApiError";
+    this.status = options.status;
+    this.code = options.code || "API_ERROR";
+    this.retryAfterSeconds = options.retryAfterSeconds;
+  }
+}
+
+type ApiErrorPayload = {
+  message?: unknown;
+  code?: unknown;
+  retryAfterSeconds?: unknown;
+};
+
+async function readJsonResponse(response: Response) {
+  const rawText = await response.text();
+
+  if (!rawText) return null;
+
+  try {
+    return JSON.parse(rawText) as unknown;
+  } catch {
+    if (response.ok) {
+      throw new ApiError({
+        message: "The server returned an unreadable response.",
+        status: response.status,
+        code: "INVALID_RESPONSE",
+      });
+    }
+
+    return null;
+  }
+}
+
+function throwApiResponseError(response: Response, data: unknown): never {
+  const payload =
+    typeof data === "object" && data !== null
+      ? (data as ApiErrorPayload)
+      : {};
+
+  throw new ApiError({
+    message:
+      typeof payload.message === "string" && payload.message.trim()
+        ? payload.message
+        : "API request failed",
+    status: response.status,
+    code:
+      typeof payload.code === "string" && payload.code.trim()
+        ? payload.code
+        : "API_ERROR",
+    retryAfterSeconds:
+      Number.isFinite(Number(payload.retryAfterSeconds))
+        ? Number(payload.retryAfterSeconds)
+        : undefined,
+  });
+}
 
 type CachedAuthToken = {
   uid: string;
@@ -9,6 +108,11 @@ type CachedAuthToken = {
 };
 
 let cachedAuthToken: CachedAuthToken | null = null;
+
+export function clearCachedAuthToken() {
+  cachedAuthToken = null;
+}
+
 const authTokenExpiryBufferMs = 60 * 1000;
 const smallApiCache = new Map<
   string,
@@ -632,13 +736,13 @@ async function publicApiFetch<T>(
     },
   });
 
-  const data = await response.json();
+  const data = await readJsonResponse(response);
 
   if (!response.ok) {
-    throw new Error(data.message || "API request failed");
+    throwApiResponseError(response, data);
   }
 
-  return data;
+  return data as T;
 }
 
 export async function requestPasswordResetOtp(email: string) {
@@ -685,13 +789,13 @@ export async function apiFetch<T>(
     },
   });
 
-  const data = await response.json();
+  const data = await readJsonResponse(response);
 
   if (!response.ok) {
-    throw new Error(data.message || "API request failed");
+    throwApiResponseError(response, data);
   }
 
-  return data;
+  return data as T;
 }
 
 export type PublicPageContent = {
@@ -765,28 +869,38 @@ export type EmailLoginOtpSession = {
   expiresAt: string;
 };
 
-export async function requestEmailLoginOtp() {
-  return apiFetch<EmailLoginOtpSession>("/api/auth/email-login-otp/request", {
-    method: "POST",
-  });
+export async function requestEmailLoginOtp(
+  email: string,
+  password: string,
+) {
+  return publicApiFetch<EmailLoginOtpSession>(
+    "/api/auth/email-login-otp/request",
+    {
+      method: "POST",
+      body: JSON.stringify({ email, password }),
+    },
+  );
+}
+
+export async function resendEmailLoginOtp(sessionId: string) {
+  return publicApiFetch<EmailLoginOtpSession>(
+    "/api/auth/email-login-otp/resend",
+    {
+      method: "POST",
+      body: JSON.stringify({ sessionId }),
+    },
+  );
 }
 
 export async function verifyEmailLoginOtp(sessionId: string, otp: string) {
-  const response = await fetch(`${API_URL}/api/auth/email-login-otp/verify`, {
+  return publicApiFetch<{
+    verified: boolean;
+    customToken: string;
+    email: string;
+  }>("/api/auth/email-login-otp/verify", {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
     body: JSON.stringify({ sessionId, otp }),
   });
-
-  const data = await response.json();
-
-  if (!response.ok) {
-    throw new Error(data.message || "Failed to verify login code");
-  }
-
-  return data as { verified: boolean };
 }
 
 export async function deleteAccount(confirmationText: string) {

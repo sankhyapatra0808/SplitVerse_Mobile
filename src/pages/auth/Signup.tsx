@@ -24,8 +24,8 @@ import { withTopProgress } from "../../utils/topProgress";
 function getPasswordStrength(password: string) {
   let score = 0;
 
-  if (password.length >= 6) score += 1;
   if (password.length >= 10) score += 1;
+  if (password.length >= 14) score += 1;
   if (/[a-z]/.test(password) && /[A-Z]/.test(password)) score += 1;
   if (/\d/.test(password)) score += 1;
   if (/[^A-Za-z0-9]/.test(password)) score += 1;
@@ -80,17 +80,27 @@ export default function Signup() {
       return;
     }
 
-    if (password.length < 6) {
-      setError("Password must be at least 6 characters.");
+    if (password.length < 10) {
+      setError("Password must be at least 10 characters.");
       return;
     }
 
     try {
       setLoading(true);
-      await withTopProgress(() =>
-        signupWithEmail(name.trim(), email.trim(), password),
+      const normalizedEmail = email.trim().toLowerCase();
+      const session = await withTopProgress(() =>
+        signupWithEmail(name.trim(), normalizedEmail, password),
       );
-      navigate("/dashboard", { replace: true });
+      setPassword("");
+      navigate("/login", {
+        replace: true,
+        state: {
+          otpSession: session,
+          email: normalizedEmail,
+          remember: true,
+          status: `Account created. We sent a 6-digit login code to ${session.email}.`,
+        },
+      });
     } catch (signupError) {
       setError(getFirebaseErrorMessage(signupError));
     } finally {
@@ -166,7 +176,7 @@ export default function Signup() {
                 <LockKeyhole size={18} />
                 <input
                   type={showPass ? "text" : "password"}
-                  placeholder="At least 6 characters"
+                  placeholder="At least 10 characters"
                   value={password}
                   onChange={(event) => setPassword(event.target.value)}
                   autoComplete="new-password"

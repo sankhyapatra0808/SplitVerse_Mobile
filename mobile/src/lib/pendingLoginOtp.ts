@@ -1,6 +1,5 @@
 export type PendingLoginOtp = {
   email: string;
-  password: string;
   remember: boolean;
   sessionId: string;
   destinationEmail: string;

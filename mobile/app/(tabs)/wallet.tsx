@@ -301,7 +301,9 @@ export default function Wallet() {
     <Screen
       refreshing={loading || refreshingSilent}
       onRefresh={() => loadWallet()}
-      safeBackgroundColor={theme.background}
+      safeBackgroundColor={
+        theme.mode === "dark" ? theme.background : theme.primary
+      }
       contentStyle={[
         styles.screen,
         {

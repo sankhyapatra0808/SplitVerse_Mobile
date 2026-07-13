@@ -26,13 +26,22 @@ function getApiUrl(path: string) {
   const value = `${API_URL}${path}`;
 
   try {
-    return new URL(value).toString();
+    const parsedUrl = new URL(value);
+    const localDevelopmentHost =
+      __DEV__ &&
+      ["localhost", "127.0.0.1", "10.0.2.2"].includes(parsedUrl.hostname);
+
+    if (parsedUrl.protocol !== "https:" && !localDevelopmentHost) {
+      throw new Error("Insecure API URL");
+    }
+
+    return parsedUrl.toString();
   } catch {
     throw new AppError({
       code: "CONFIGURATION_ERROR",
       title: "Invalid server address",
       message:
-        "EXPO_PUBLIC_API_URL is not a valid web address. Use a complete URL beginning with https:// or http://.",
+        "EXPO_PUBLIC_API_URL must use HTTPS. Local HTTP is allowed only for localhost, 127.0.0.1, or 10.0.2.2 during development.",
     });
   }
 }
@@ -798,20 +807,38 @@ export type EmailLoginOtpSession = {
   expiresAt: string;
 };
 
-export async function requestEmailLoginOtp() {
-  return apiFetch<EmailLoginOtpSession>("/api/auth/email-login-otp/request", {
-    method: "POST",
-  });
+export async function requestEmailLoginOtp(
+  email: string,
+  password: string,
+) {
+  return publicApiFetch<EmailLoginOtpSession>(
+    "/api/auth/email-login-otp/request",
+    {
+      method: "POST",
+      body: JSON.stringify({ email, password }),
+    },
+  );
+}
+
+export async function resendEmailLoginOtp(sessionId: string) {
+  return publicApiFetch<EmailLoginOtpSession>(
+    "/api/auth/email-login-otp/resend",
+    {
+      method: "POST",
+      body: JSON.stringify({ sessionId }),
+    },
+  );
 }
 
 export async function verifyEmailLoginOtp(sessionId: string, otp: string) {
-  return publicApiFetch<{ verified: boolean }>(
-    "/api/auth/email-login-otp/verify",
-    {
-      method: "POST",
-      body: JSON.stringify({ sessionId, otp }),
-    },
-  );
+  return publicApiFetch<{
+    verified: boolean;
+    customToken: string;
+    email: string;
+  }>("/api/auth/email-login-otp/verify", {
+    method: "POST",
+    body: JSON.stringify({ sessionId, otp }),
+  });
 }
 
 export async function requestPasswordResetOtp(email: string) {

@@ -1,7 +1,7 @@
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
 import { router, useFocusEffect } from "expo-router";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -184,9 +184,7 @@ export default function Dashboard() {
   const [expenseAmount, setExpenseAmount] = useState("");
   const [savingExpense, setSavingExpense] = useState(false);
   const [expenseModalVisible, setExpenseModalVisible] = useState(false);
-  const [keyboardVisible, setKeyboardVisible] = useState(false);
   const [hasUnreadNotifications, setHasUnreadNotifications] = useState(false);
-  const expenseModalScrollRef = useRef<ScrollView>(null);
 
   const displayName =
     dbUser?.display_name ||
@@ -260,39 +258,6 @@ export default function Dashboard() {
   useEffect(() => {
     setSelectedGraphIndex(null);
   }, [graphMode]);
-
-  useEffect(() => {
-    const showEvent =
-      Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow";
-    const hideEvent =
-      Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide";
-
-    const showSubscription = Keyboard.addListener(showEvent, () => {
-      setKeyboardVisible(true);
-
-      setTimeout(() => {
-        expenseModalScrollRef.current?.scrollToEnd({ animated: true });
-      }, 160);
-    });
-
-    const hideSubscription = Keyboard.addListener(hideEvent, () => {
-      setKeyboardVisible(false);
-
-      // Reset the scroll position after the keyboard closes so the modal
-      // returns to its normal centered position instead of leaving a gap.
-      setTimeout(
-        () => {
-          expenseModalScrollRef.current?.scrollTo({ y: 0, animated: true });
-        },
-        Platform.OS === "ios" ? 120 : 80,
-      );
-    });
-
-    return () => {
-      showSubscription.remove();
-      hideSubscription.remove();
-    };
-  }, []);
 
   const loadDashboardData = useCallback(async (silent = false) => {
     try {
@@ -445,15 +410,11 @@ export default function Dashboard() {
   function closeExpenseModal() {
     if (!savingExpense) {
       Keyboard.dismiss();
-      setKeyboardVisible(false);
-      expenseModalScrollRef.current?.scrollTo({ y: 0, animated: false });
       setExpenseModalVisible(false);
     }
   }
 
   function openExpenseModal() {
-    setKeyboardVisible(false);
-    expenseModalScrollRef.current?.scrollTo({ y: 0, animated: false });
     setExpenseModalVisible(true);
   }
 
@@ -691,10 +652,6 @@ export default function Dashboard() {
         animationType="fade"
         statusBarTranslucent
         navigationBarTranslucent
-        onShow={() => {
-          setKeyboardVisible(false);
-          expenseModalScrollRef.current?.scrollTo({ y: 0, animated: false });
-        }}
         onRequestClose={closeExpenseModal}
       >
         <View style={styles.modalBackdrop}>
@@ -705,16 +662,12 @@ export default function Dashboard() {
 
           <KeyboardAvoidingView
             style={styles.modalKeyboardView}
-            behavior={Platform.OS === "ios" ? "padding" : "height"}
+            behavior={Platform.OS === "ios" ? "padding" : undefined}
             keyboardVerticalOffset={0}
           >
             <ScrollView
-              ref={expenseModalScrollRef}
               style={styles.modalScrollView}
-              contentContainerStyle={[
-                styles.modalScrollContent,
-                keyboardVisible && styles.modalScrollContentKeyboard,
-              ]}
+              contentContainerStyle={styles.modalScrollContent}
               keyboardShouldPersistTaps="handled"
               keyboardDismissMode={
                 Platform.OS === "ios" ? "interactive" : "on-drag"
@@ -825,14 +778,6 @@ export default function Dashboard() {
                           color: modalTextColor,
                         },
                       ]}
-                      onFocus={() => {
-                        setKeyboardVisible(true);
-                        setTimeout(() => {
-                          expenseModalScrollRef.current?.scrollToEnd({
-                            animated: true,
-                          });
-                        }, 220);
-                      }}
                     />
                   </View>
                 </View>
@@ -1073,11 +1018,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.base,
     paddingTop: spacing.lg,
     paddingBottom: spacing.xxl + 72,
-  },
-  modalScrollContentKeyboard: {
-    justifyContent: "flex-start",
-    paddingTop: 28,
-    paddingBottom: 28,
   },
   expenseModalCard: {
     width: "100%",

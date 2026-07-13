@@ -21,14 +21,15 @@ import { useAppSettings } from "../../src/context/useAppSettings";
 import { getErrorPresentation } from "../../src/lib/errors";
 import { signInWithGoogleAndGetIdToken } from "../../src/lib/googleAuth";
 import { isValidEmailAddress } from "../../src/lib/validation";
+import { setPendingLoginOtp } from "../../src/lib/pendingLoginOtp";
 
 type ActiveAction = "email" | "google" | null;
 
 function getPasswordStrength(password: string) {
   let score = 0;
 
-  if (password.length >= 6) score += 1;
   if (password.length >= 10) score += 1;
+  if (password.length >= 14) score += 1;
   if (/[a-z]/.test(password) && /[A-Z]/.test(password)) score += 1;
   if (/\d/.test(password)) score += 1;
   if (/[^A-Za-z0-9]/.test(password)) score += 1;
@@ -139,8 +140,8 @@ export default function Signup() {
       return;
     }
 
-    if (password.length < 6) {
-      setError("Password must be at least 6 characters.");
+    if (password.length < 10) {
+      setError("Password must be at least 10 characters.");
       return;
     }
 
@@ -158,8 +159,16 @@ export default function Signup() {
 
     try {
       setActiveAction("email");
-      await signup(trimmedEmail, password, trimmedName);
-      router.replace("/(tabs)/dashboard");
+      const session = await signup(trimmedEmail, password, trimmedName);
+      setPendingLoginOtp({
+        email: trimmedEmail,
+        remember: true,
+        sessionId: session.sessionId,
+        destinationEmail: session.email,
+      });
+      setPassword("");
+      setConfirmPassword("");
+      router.replace("/(auth)/verify-login-otp");
     } catch (signupError) {
       const presentation = getErrorPresentation(signupError, {
         title: "Account creation failed",

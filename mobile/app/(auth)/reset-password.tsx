@@ -61,8 +61,8 @@ export default function ResetPassword() {
       return;
     }
 
-    if (newPassword.length < 6) {
-      setError("Password must be at least 6 characters.");
+    if (newPassword.length < 10) {
+      setError("Password must be at least 10 characters.");
       newPasswordRef.current?.focus();
       return;
     }

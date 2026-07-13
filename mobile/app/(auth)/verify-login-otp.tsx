@@ -25,7 +25,7 @@ type ActiveAction = "verify" | "resend" | null;
 
 export default function VerifyLoginOtp() {
   const { theme } = useAppSettings();
-  const { completeEmailLoginWithOtp, startEmailLoginOtp } = useAuth();
+  const { completeEmailLoginWithOtp, resendEmailLoginOtp } = useAuth();
 
   const [otp, setOtp] = useState("");
   const [error, setError] = useState("");
@@ -60,8 +60,6 @@ export default function VerifyLoginOtp() {
       setActiveAction("verify");
 
       await completeEmailLoginWithOtp(
-        activeChallenge.email,
-        activeChallenge.password,
         activeChallenge.sessionId,
         sanitizedOtp,
         activeChallenge.remember,
@@ -92,11 +90,7 @@ export default function VerifyLoginOtp() {
     try {
       setActiveAction("resend");
 
-      const session = await startEmailLoginOtp(
-        activeChallenge.email,
-        activeChallenge.password,
-        activeChallenge.remember,
-      );
+      const session = await resendEmailLoginOtp(activeChallenge.sessionId);
 
       const nextChallenge = {
         ...activeChallenge,

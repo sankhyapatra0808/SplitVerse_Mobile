@@ -460,6 +460,8 @@ export default function Settings() {
   }
 
   async function handleDownloadMyData() {
+    let exportFile: File | null = null;
+
     try {
       setDownloadingData(true);
 
@@ -471,22 +473,21 @@ export default function Settings() {
 
       const timestamp = exportedAt.toISOString().replace(/[:.]/g, "-");
 
-      const file = new File(Paths.cache, `splitverse-data-${timestamp}.json`);
+      exportFile = new File(
+        Paths.cache,
+        `splitverse-data-${timestamp}.json`,
+      );
 
-      file.create();
-      file.write(JSON.stringify(data, null, 2));
+      exportFile.create();
+      exportFile.write(JSON.stringify(data, null, 2));
 
       const sharingAvailable = await Sharing.isAvailableAsync();
 
       if (!sharingAvailable) {
-        Alert.alert(
-          "Data export created",
-          `Your SplitVerse data file was created successfully.\n\n${file.uri}`,
-        );
-        return;
+        throw new Error("Sharing is not available on this device.");
       }
 
-      await Sharing.shareAsync(file.uri, {
+      await Sharing.shareAsync(exportFile.uri, {
         dialogTitle: "Save or share your SplitVerse data",
         mimeType: "application/json",
         UTI: "public.json",
@@ -497,6 +498,12 @@ export default function Settings() {
         fallbackMessage: "Your SplitVerse data file could not be created or shared. Check device storage and try again.",
       });
     } finally {
+      try {
+        exportFile?.delete();
+      } catch {
+        // Cache cleanup must not interrupt the rest of the settings screen.
+      }
+
       setDownloadingData(false);
     }
   }

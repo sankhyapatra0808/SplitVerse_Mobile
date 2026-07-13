@@ -1398,7 +1398,9 @@ export default function SplitRooms() {
     <Screen
       refreshing={loading}
       onRefresh={() => loadSplitRoomData()}
-      safeBackgroundColor={theme.background}
+      safeBackgroundColor={
+        theme.mode === "dark" ? theme.background : theme.primary
+      }
       contentStyle={[
         styles.screen,
         {
@@ -1438,18 +1440,15 @@ export default function SplitRooms() {
           end={{ x: 0, y: 1 }}
           style={styles.hero}
         >
-          <Text style={styles.heroEyebrow}>Item-wise splitting</Text>
           <Text style={styles.heroTitle}>Rooms</Text>
           <Text style={styles.heroSubtitle}>
-            Create rooms, assign items to the right person, and keep every bill
-            fair.
+            Create rooms. Assign items. Split bills fairly.
           </Text>
         </LinearGradient>
       </View>
 
       <AppCard style={styles.createCard}>
-        <Text style={styles.cardEyebrow}>Create room</Text>
-        <Text style={styles.cardTitle}>Start a new split</Text>
+        <Text style={styles.cardTitle}>Start a new room</Text>
 
         <AppTextInput
           label="Room name"
@@ -1550,9 +1549,6 @@ export default function SplitRooms() {
                         <View style={styles.optionCopy}>
                           <Text style={styles.optionTitle} numberOfLines={1}>
                             {getFriendName(friend)}
-                          </Text>
-                          <Text style={styles.optionSubtext} numberOfLines={1}>
-                            {friend.email}
                           </Text>
                         </View>
 
@@ -3749,5 +3745,9 @@ const styles = StyleSheet.create({
   },
   input65: {
     minHeight: 65,
+  },
+
+  delAddItem: {
+    display: 'none', 
   },
 });

@@ -10,6 +10,8 @@ import { adminAuth } from "../config/firebaseAdmin.js";
 import { isEmailConfigured, sendTransactionalEmail } from "../utils/email.js";
 import {
   type AuthRequest,
+  requireRecentAuthentication,
+  verifyFirebaseCredentialToken,
   verifyFirebaseToken,
 } from "../middleware/verifyFirebaseToken.js";
 import { parseRequestBody, sendValidationError } from "../middleware/validateRequest.js";
@@ -17,12 +19,24 @@ import {
   sendWalletPinError,
   verifyWalletPinForUser,
 } from "../utils/walletPin.js";
+import { verifyFirebaseEmailPassword } from "../utils/firebasePasswordAuth.js";
 
 const router = express.Router();
 const deleteAccountConfirmationText = "/DeleteAccount";
 const loginOtpLength = 6;
-const loginOtpExpiryMs = 10 * 60 * 1000;
-const maxLoginOtpAttempts = 5;
+const loginOtpExpiryMs = Number(
+  process.env.LOGIN_OTP_EXPIRY_MS || 10 * 60 * 1000,
+);
+const maxLoginOtpAttempts = Number(process.env.LOGIN_OTP_MAX_ATTEMPTS || 5);
+const loginOtpMaxRequests = Number(process.env.LOGIN_OTP_MAX_REQUESTS || 5);
+const loginOtpRequestWindowMinutes = Number(
+  process.env.LOGIN_OTP_REQUEST_WINDOW_MINUTES || 15,
+);
+const loginOtpMaxResends = Number(process.env.LOGIN_OTP_MAX_RESENDS || 3);
+const loginOtpResendCooldownMs = Number(
+  process.env.LOGIN_OTP_RESEND_COOLDOWN_MS || 30 * 1000,
+);
+const loginOtpPepper = process.env.LOGIN_OTP_PEPPER?.trim() || "";
 const supportedAppCurrencies = new Set([
   "INR",
   "USD",
@@ -65,10 +79,10 @@ const walletPinResetOtpWindowMinutes = Number(
   process.env.WALLET_PIN_RESET_OTP_WINDOW_MINUTES || 15,
 );
 const walletPinOtpPepper =
-  process.env.WALLET_PIN_OTP_PEPPER ||
-  process.env.RAZORPAY_WEBHOOK_SECRET ||
-  process.env.SETUP_ROUTE_SECRET ||
-  "splitverse-local-wallet-pin-otp-pepper";
+  process.env.WALLET_PIN_RESET_OTP_PEPPER?.trim() ||
+  (process.env.NODE_ENV === "production"
+    ? ""
+    : "splitverse-development-wallet-pin-otp-pepper");
 
 const passwordResetOtpLength = 6;
 const passwordResetOtpExpiryMs = Number(
@@ -84,9 +98,10 @@ const passwordResetOtpWindowMinutes = Number(
   process.env.PASSWORD_RESET_OTP_WINDOW_MINUTES || 15,
 );
 const passwordResetOtpPepper =
-  process.env.PASSWORD_RESET_OTP_PEPPER ||
-  walletPinOtpPepper ||
-  "splitverse-local-password-reset-otp-pepper";
+  process.env.PASSWORD_RESET_OTP_PEPPER?.trim() ||
+  (process.env.NODE_ENV === "production"
+    ? ""
+    : "splitverse-development-password-reset-otp-pepper");
 
 const cloudinaryCloudName = process.env.CLOUDINARY_CLOUD_NAME?.trim();
 const cloudinaryApiKey = process.env.CLOUDINARY_API_KEY?.trim();
@@ -160,7 +175,7 @@ const passwordResetEmailSchema = z
 
 const passwordResetPasswordSchema = z
   .string({ message: "New password is required" })
-  .min(6, "Password must be at least 6 characters")
+  .min(10, "Password must be at least 10 characters")
   .max(128, "Password is too long");
 
 const passwordResetRequestSchema = z
@@ -193,6 +208,36 @@ const allowedProfilePhotoMimeTypes = new Set([
   "image/gif",
 ]);
 
+function detectProfilePhotoMimeType(buffer: Buffer) {
+  if (buffer.length >= 3 && buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff) {
+    return "image/jpeg";
+  }
+
+  if (
+    buffer.length >= 8 &&
+    buffer.subarray(0, 8).equals(
+      Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+    )
+  ) {
+    return "image/png";
+  }
+
+  if (
+    buffer.length >= 12 &&
+    buffer.subarray(0, 4).toString("ascii") === "RIFF" &&
+    buffer.subarray(8, 12).toString("ascii") === "WEBP"
+  ) {
+    return "image/webp";
+  }
+
+  const gifHeader = buffer.subarray(0, 6).toString("ascii");
+  if (gifHeader === "GIF87a" || gifHeader === "GIF89a") {
+    return "image/gif";
+  }
+
+  return null;
+}
+
 const profilePhotoUpload = multer({
   storage: multer.memoryStorage(),
   limits: {
@@ -209,15 +254,36 @@ const profilePhotoUpload = multer({
   },
 });
 
-type LoginOtpSession = {
-  firebaseUid: string;
-  email: string;
-  otpHash: string;
-  expiresAt: number;
-  attempts: number;
-};
+const loginOtpRequestSchema = z
+  .object({
+    email: z
+      .string({ message: "Email address is required" })
+      .trim()
+      .email("Enter a valid email address")
+      .max(254, "Email address is too long")
+      .transform((value) => value.toLowerCase()),
+    password: z
+      .string({ message: "Password is required" })
+      .min(1, "Password is required")
+      .max(128, "Password is too long"),
+  })
+  .strict();
 
-const loginOtpSessions = new Map<string, LoginOtpSession>();
+const loginOtpVerifySchema = z
+  .object({
+    sessionId: z.string().trim().uuid("Login session is invalid"),
+    otp: z
+      .string()
+      .trim()
+      .regex(/^\d{6}$/, "Enter the 6-digit login code"),
+  })
+  .strict();
+
+const loginOtpResendSchema = z
+  .object({
+    sessionId: z.string().trim().uuid("Login session is invalid"),
+  })
+  .strict();
 
 type Queryable = {
   query: <T extends QueryResultRow = QueryResultRow>(
@@ -270,6 +336,17 @@ function getWalletPinStrengthIssue(pin: string) {
   }
 
   return "";
+}
+
+function assertOtpPepperConfigured(secret: string, feature: string) {
+  const sufficientlyStrong = secret.length >= 32;
+
+  if (sufficientlyStrong || process.env.NODE_ENV !== "production") return;
+
+  throw Object.assign(
+    new Error(`${feature} is temporarily unavailable.`),
+    { statusCode: 503, code: "OTP_SECURITY_NOT_CONFIGURED" },
+  );
 }
 
 function createWalletPinResetOtp() {
@@ -425,14 +502,17 @@ async function sendPasswordResetOtpEmail({
 }
 
 
-function cleanupExpiredLoginOtpSessions() {
-  const now = Date.now();
+function assertLoginOtpConfigured() {
+  if (loginOtpPepper.length >= 32 || process.env.NODE_ENV !== "production") {
+    return;
+  }
 
-  loginOtpSessions.forEach((session, sessionId) => {
-    if (session.expiresAt <= now) {
-      loginOtpSessions.delete(sessionId);
-    }
-  });
+  if (process.env.NODE_ENV === "production") {
+    throw Object.assign(
+      new Error("Email login is temporarily unavailable."),
+      { statusCode: 503, code: "LOGIN_OTP_NOT_CONFIGURED" },
+    );
+  }
 }
 
 function createLoginOtp() {
@@ -441,8 +521,17 @@ function createLoginOtp() {
     .toString();
 }
 
-function hashLoginOtp(otp: string) {
-  return crypto.createHash("sha256").update(otp).digest("hex");
+function hashLoginOtp(
+  otp: string,
+  sessionId: string,
+  firebaseUid: string,
+) {
+  const pepper = loginOtpPepper || "splitverse-development-login-otp-pepper";
+
+  return crypto
+    .createHmac("sha256", pepper)
+    .update(`${sessionId}:${firebaseUid}:${otp}`)
+    .digest("hex");
 }
 
 function timingSafeEqualHex(left: string, right: string) {
@@ -469,7 +558,10 @@ function normalizeProfilePhotoUrl(value: unknown) {
   try {
     const parsedUrl = new URL(photoUrl);
 
-    if (parsedUrl.protocol !== "https:" && parsedUrl.protocol !== "http:") {
+    const httpAllowed =
+      process.env.NODE_ENV !== "production" && parsedUrl.protocol === "http:";
+
+    if (parsedUrl.protocol !== "https:" && !httpAllowed) {
       return null;
     }
 
@@ -590,122 +682,401 @@ async function sendLoginOtpEmail({
   return "sent";
 }
 
-router.post(
-  "/email-login-otp/request",
-  verifyFirebaseToken,
-  async (req: AuthRequest, res) => {
-    try {
-      cleanupExpiredLoginOtpSessions();
+router.post("/email-login-otp/request", async (req, res) => {
+  try {
+    assertLoginOtpConfigured();
+    const { email, password } = parseRequestBody(loginOtpRequestSchema, req.body);
+    const credential = await verifyFirebaseEmailPassword(email, password);
 
-      const firebaseUser = req.user;
+    const requestCountResult = await db.query<{ request_count: number }>(
+      `
+      SELECT COUNT(*)::int AS request_count
+      FROM email_login_otp_sessions
+      WHERE firebase_uid = $1
+      AND created_at > NOW() - ($2::int * INTERVAL '1 minute');
+      `,
+      [credential.uid, loginOtpRequestWindowMinutes],
+    );
 
-      if (!firebaseUser) {
-        return res.status(401).json({
-          message: "Unauthorized",
-        });
-      }
-
-      if (firebaseUser.firebase?.sign_in_provider !== "password") {
-        return res.status(400).json({
-          message: "OTP login is only available for email and password sign-in",
-        });
-      }
-
-      if (!firebaseUser.email) {
-        return res.status(400).json({
-          message: "Firebase user email is missing",
-        });
-      }
-
-      const otp = createLoginOtp();
-      const emailStatus = await sendLoginOtpEmail({
-        email: firebaseUser.email,
-        otp,
-      });
-
-      if (emailStatus !== "sent") {
-        return res.status(503).json({
-          message:
-            emailStatus === "not_configured"
-              ? "Email OTP delivery is not configured. Add Brevo SMTP settings in server/.env."
-              : "Could not send the login OTP email. Please try again.",
-        });
-      }
-
-      const sessionId = crypto.randomUUID();
-      const expiresAt = Date.now() + loginOtpExpiryMs;
-
-      loginOtpSessions.set(sessionId, {
-        firebaseUid: firebaseUser.uid,
-        email: firebaseUser.email,
-        otpHash: hashLoginOtp(otp),
-        expiresAt,
-        attempts: 0,
-      });
-
-      return res.status(201).json({
-        sessionId,
-        email: firebaseUser.email,
-        expiresAt: new Date(expiresAt).toISOString(),
-      });
-    } catch (error) {
-      console.error("Request login OTP failed:", error);
-
-      return res.status(500).json({
-        message: "Failed to request login OTP",
+    if (
+      Number(requestCountResult.rows[0]?.request_count || 0) >=
+      loginOtpMaxRequests
+    ) {
+      return res.status(429).json({
+        code: "LOGIN_OTP_RATE_LIMITED",
+        message: "Too many login code requests. Please try again later.",
       });
     }
-  },
-);
 
-router.post("/email-login-otp/verify", (req, res) => {
-  cleanupExpiredLoginOtpSessions();
+    const sessionId = crypto.randomUUID();
+    const otp = createLoginOtp();
+    const expiresAt = new Date(Date.now() + loginOtpExpiryMs);
+    const emailStatus = await sendLoginOtpEmail({
+      email: credential.email,
+      otp,
+    });
 
-  const sessionId = String(req.body?.sessionId ?? "");
-  const otp = String(req.body?.otp ?? "").replace(/\D/g, "");
+    if (emailStatus !== "sent") {
+      return res.status(503).json({
+        code: "LOGIN_OTP_DELIVERY_FAILED",
+        message:
+          emailStatus === "not_configured"
+            ? "Email login is temporarily unavailable."
+            : "Could not send the login code. Please try again.",
+      });
+    }
 
-  if (!sessionId || otp.length !== loginOtpLength) {
-    return res.status(400).json({
-      message: "Enter the 6-digit login code",
+    const client = await db.connect();
+
+    try {
+      await client.query("BEGIN");
+      await client.query(
+        `
+        UPDATE email_login_otp_sessions
+        SET consumed_at = NOW()
+        WHERE firebase_uid = $1
+        AND consumed_at IS NULL;
+        `,
+        [credential.uid],
+      );
+      await client.query(
+        `
+        INSERT INTO email_login_otp_sessions (
+          id,
+          firebase_uid,
+          email,
+          otp_hash,
+          expires_at
+        )
+        VALUES ($1, $2, $3, $4, $5);
+        `,
+        [
+          sessionId,
+          credential.uid,
+          credential.email,
+          hashLoginOtp(otp, sessionId, credential.uid),
+          expiresAt,
+        ],
+      );
+      await client.query("COMMIT");
+    } catch (error) {
+      await client.query("ROLLBACK").catch(() => undefined);
+      throw error;
+    } finally {
+      client.release();
+    }
+
+    return res.status(201).json({
+      sessionId,
+      email: credential.email,
+      expiresAt: expiresAt.toISOString(),
+    });
+  } catch (error) {
+    if (sendValidationError(res, error)) {
+      return;
+    }
+
+    const statusCode =
+      typeof error === "object" &&
+      error !== null &&
+      "statusCode" in error &&
+      Number.isInteger(Number((error as { statusCode?: unknown }).statusCode))
+        ? Number((error as { statusCode?: unknown }).statusCode)
+        : 500;
+    const code =
+      typeof error === "object" && error !== null && "code" in error
+        ? String((error as { code?: unknown }).code || "LOGIN_OTP_REQUEST_FAILED")
+        : "LOGIN_OTP_REQUEST_FAILED";
+
+    if (statusCode >= 500) {
+      console.error("Request login OTP failed:", error);
+    }
+
+    return res.status(statusCode).json({
+      code,
+      message:
+        statusCode === 401
+          ? "Incorrect email or password."
+          : statusCode === 429
+            ? "Too many sign-in attempts. Please try again later."
+            : statusCode >= 500
+              ? "Email login is temporarily unavailable."
+              : error instanceof Error
+                ? error.message
+                : "Could not request login code.",
     });
   }
-
-  const session = loginOtpSessions.get(sessionId);
-
-  if (!session) {
-    return res.status(404).json({
-      message: "Login code expired. Please request a new code.",
-    });
-  }
-
-  if (session.attempts >= maxLoginOtpAttempts) {
-    loginOtpSessions.delete(sessionId);
-
-    return res.status(429).json({
-      message: "Too many incorrect codes. Please request a new code.",
-    });
-  }
-
-  const matches = timingSafeEqualHex(hashLoginOtp(otp), session.otpHash);
-
-  if (!matches) {
-    session.attempts += 1;
-
-    return res.status(401).json({
-      message: "Incorrect login code",
-    });
-  }
-
-  loginOtpSessions.delete(sessionId);
-
-  return res.json({
-    verified: true,
-  });
 });
 
+router.post("/email-login-otp/resend", async (req, res) => {
+  const client = await db.connect();
+
+  try {
+    assertLoginOtpConfigured();
+    const { sessionId } = parseRequestBody(loginOtpResendSchema, req.body);
+
+    await client.query("BEGIN");
+    const sessionResult = await client.query<{
+      id: string;
+      firebase_uid: string;
+      email: string;
+      resend_count: number;
+      last_sent_at: Date | string;
+      expires_at: Date | string;
+      consumed_at: Date | string | null;
+    }>(
+      `
+      SELECT
+        id,
+        firebase_uid,
+        email,
+        resend_count,
+        last_sent_at,
+        expires_at,
+        consumed_at
+      FROM email_login_otp_sessions
+      WHERE id = $1
+      FOR UPDATE;
+      `,
+      [sessionId],
+    );
+    const session = sessionResult.rows[0];
+
+    if (!session || session.consumed_at) {
+      await client.query("ROLLBACK");
+      return res.status(404).json({
+        code: "LOGIN_OTP_SESSION_EXPIRED",
+        message: "Login code expired. Please start sign-in again.",
+      });
+    }
+
+    if (new Date(session.expires_at).getTime() <= Date.now()) {
+      await client.query(
+        `UPDATE email_login_otp_sessions SET consumed_at = NOW() WHERE id = $1;`,
+        [session.id],
+      );
+      await client.query("COMMIT");
+      return res.status(410).json({
+        code: "LOGIN_OTP_SESSION_EXPIRED",
+        message: "Login code expired. Please start sign-in again.",
+      });
+    }
+
+    if (Number(session.resend_count) >= loginOtpMaxResends) {
+      await client.query("ROLLBACK");
+      return res.status(429).json({
+        code: "LOGIN_OTP_RESEND_LIMITED",
+        message: "Too many resend requests. Please start sign-in again.",
+      });
+    }
+
+    const elapsedSinceLastSend =
+      Date.now() - new Date(session.last_sent_at).getTime();
+
+    if (elapsedSinceLastSend < loginOtpResendCooldownMs) {
+      await client.query("ROLLBACK");
+      return res.status(429).json({
+        code: "LOGIN_OTP_RESEND_COOLDOWN",
+        message: "Please wait before requesting another login code.",
+        retryAfterSeconds: Math.ceil(
+          (loginOtpResendCooldownMs - elapsedSinceLastSend) / 1000,
+        ),
+      });
+    }
+
+    const otp = createLoginOtp();
+    const emailStatus = await sendLoginOtpEmail({ email: session.email, otp });
+
+    if (emailStatus !== "sent") {
+      await client.query("ROLLBACK");
+      return res.status(503).json({
+        code: "LOGIN_OTP_DELIVERY_FAILED",
+        message: "Could not send a new login code. Please try again.",
+      });
+    }
+
+    const expiresAt = new Date(Date.now() + loginOtpExpiryMs);
+    await client.query(
+      `
+      UPDATE email_login_otp_sessions
+      SET
+        otp_hash = $2,
+        failed_attempts = 0,
+        resend_count = resend_count + 1,
+        last_sent_at = NOW(),
+        expires_at = $3
+      WHERE id = $1;
+      `,
+      [
+        session.id,
+        hashLoginOtp(otp, session.id, session.firebase_uid),
+        expiresAt,
+      ],
+    );
+    await client.query("COMMIT");
+
+    return res.json({
+      sessionId: session.id,
+      email: session.email,
+      expiresAt: expiresAt.toISOString(),
+    });
+  } catch (error) {
+    await client.query("ROLLBACK").catch(() => undefined);
+
+    if (sendValidationError(res, error)) {
+      return;
+    }
+
+    console.error("Resend login OTP failed:", error);
+    return res.status(500).json({
+      code: "LOGIN_OTP_RESEND_FAILED",
+      message: "Could not resend the login code. Please try again.",
+    });
+  } finally {
+    client.release();
+  }
+});
+
+router.post("/email-login-otp/verify", async (req, res) => {
+  const client = await db.connect();
+
+  try {
+    assertLoginOtpConfigured();
+    const { sessionId, otp } = parseRequestBody(loginOtpVerifySchema, req.body);
+
+    await client.query("BEGIN");
+    const sessionResult = await client.query<{
+      id: string;
+      firebase_uid: string;
+      email: string;
+      otp_hash: string;
+      failed_attempts: number;
+      expires_at: Date | string;
+      consumed_at: Date | string | null;
+    }>(
+      `
+      SELECT
+        id,
+        firebase_uid,
+        email,
+        otp_hash,
+        failed_attempts,
+        expires_at,
+        consumed_at
+      FROM email_login_otp_sessions
+      WHERE id = $1
+      FOR UPDATE;
+      `,
+      [sessionId],
+    );
+    const session = sessionResult.rows[0];
+
+    if (!session || session.consumed_at) {
+      await client.query("ROLLBACK");
+      return res.status(404).json({
+        code: "LOGIN_OTP_SESSION_EXPIRED",
+        message: "Login code expired. Please request a new code.",
+      });
+    }
+
+    if (new Date(session.expires_at).getTime() <= Date.now()) {
+      await client.query(
+        `UPDATE email_login_otp_sessions SET consumed_at = NOW() WHERE id = $1;`,
+        [session.id],
+      );
+      await client.query("COMMIT");
+      return res.status(410).json({
+        code: "LOGIN_OTP_SESSION_EXPIRED",
+        message: "Login code expired. Please request a new code.",
+      });
+    }
+
+    if (Number(session.failed_attempts) >= maxLoginOtpAttempts) {
+      await client.query(
+        `UPDATE email_login_otp_sessions SET consumed_at = NOW() WHERE id = $1;`,
+        [session.id],
+      );
+      await client.query("COMMIT");
+      return res.status(423).json({
+        code: "LOGIN_OTP_ATTEMPTS_EXCEEDED",
+        message: "Too many incorrect codes. Please start sign-in again.",
+      });
+    }
+
+    const submittedHash = hashLoginOtp(
+      otp,
+      session.id,
+      session.firebase_uid,
+    );
+    const matches = timingSafeEqualHex(submittedHash, session.otp_hash);
+
+    if (!matches) {
+      const nextAttempts = Number(session.failed_attempts || 0) + 1;
+      const consume = nextAttempts >= maxLoginOtpAttempts;
+      await client.query(
+        `
+        UPDATE email_login_otp_sessions
+        SET
+          failed_attempts = $2,
+          consumed_at = CASE WHEN $3::boolean THEN NOW() ELSE consumed_at END
+        WHERE id = $1;
+        `,
+        [session.id, nextAttempts, consume],
+      );
+      await client.query("COMMIT");
+
+      return res.status(consume ? 423 : 401).json({
+        code: consume
+          ? "LOGIN_OTP_ATTEMPTS_EXCEEDED"
+          : "LOGIN_OTP_INCORRECT",
+        message: consume
+          ? "Too many incorrect codes. Please start sign-in again."
+          : "Incorrect login code.",
+        attemptsRemaining: Math.max(maxLoginOtpAttempts - nextAttempts, 0),
+      });
+    }
+
+    const verifiedAt = Math.floor(Date.now() / 1000);
+    const customToken = await adminAuth.createCustomToken(
+      session.firebase_uid,
+      {
+        splitverseOtpVerified: true,
+        splitverseOtpVerifiedAt: verifiedAt,
+        splitverseLoginSessionId: session.id,
+      },
+    );
+
+    await client.query(
+      `UPDATE email_login_otp_sessions SET consumed_at = NOW() WHERE id = $1;`,
+      [session.id],
+    );
+    await client.query("COMMIT");
+
+    return res.json({
+      verified: true,
+      customToken,
+      email: session.email,
+    });
+  } catch (error) {
+    await client.query("ROLLBACK").catch(() => undefined);
+
+    if (sendValidationError(res, error)) {
+      return;
+    }
+
+    console.error("Verify login OTP failed:", error);
+    return res.status(500).json({
+      code: "LOGIN_OTP_VERIFY_FAILED",
+      message: "Could not verify the login code. Please try again.",
+    });
+  } finally {
+    client.release();
+  }
+});
 
 router.post("/password-reset/request", async (req, res) => {
   try {
+    assertOtpPepperConfigured(passwordResetOtpPepper, "Password reset");
     const { email } = parseRequestBody(passwordResetRequestSchema, req.body);
 
     if (!isEmailConfigured()) {
@@ -803,6 +1174,7 @@ router.post("/password-reset/confirm", async (req, res) => {
   const client = await db.connect();
 
   try {
+    assertOtpPepperConfigured(passwordResetOtpPepper, "Password reset");
     const { email, otp, password } = parseRequestBody(
       passwordResetConfirmSchema,
       req.body,
@@ -925,7 +1297,7 @@ router.post("/password-reset/confirm", async (req, res) => {
 
 router.post(
   "/sync-user",
-  verifyFirebaseToken,
+  verifyFirebaseCredentialToken,
   async (req: AuthRequest, res) => {
     try {
       const firebaseUser = req.user;
@@ -1092,6 +1464,15 @@ router.post(
         });
       }
 
+      const detectedMimeType = detectProfilePhotoMimeType(file.buffer);
+
+      if (!detectedMimeType || !allowedProfilePhotoMimeTypes.has(detectedMimeType)) {
+        return res.status(400).json({
+          message: "The selected file is not a valid JPG, PNG, WEBP, or GIF image",
+        });
+      }
+
+      file.mimetype = detectedMimeType;
       const profilePhotoUrl = await uploadProfilePhotoToCloudinary(file, firebaseUser.uid);
       const result = await db.query(
         `
@@ -1141,11 +1522,18 @@ router.post(
           ? Number((error as { statusCode?: unknown }).statusCode)
           : 500;
 
-      return res.status(Number.isFinite(statusCode) ? statusCode : 500).json({
+      const safeStatusCode =
+        Number.isFinite(statusCode) && statusCode >= 400 && statusCode < 600
+          ? statusCode
+          : 500;
+
+      return res.status(safeStatusCode).json({
         message:
-          error instanceof Error
-            ? error.message
-            : "Failed to upload profile photo",
+          safeStatusCode >= 500
+            ? "Profile photo upload is temporarily unavailable. Please try again."
+            : error instanceof Error
+              ? error.message
+              : "Failed to upload profile photo",
       });
     }
   },
@@ -1512,6 +1900,7 @@ router.post(
     const client = await db.connect();
 
     try {
+      assertOtpPepperConfigured(walletPinOtpPepper, "Wallet PIN reset");
       const firebaseUser = req.user;
 
       if (!firebaseUser) {
@@ -1644,6 +2033,7 @@ router.post(
     const client = await db.connect();
 
     try {
+      assertOtpPepperConfigured(walletPinOtpPepper, "Wallet PIN reset");
       const firebaseUser = req.user;
 
       if (!firebaseUser) {
@@ -1820,6 +2210,7 @@ router.post(
 router.delete(
   "/account",
   verifyFirebaseToken,
+  requireRecentAuthentication(),
   async (req: AuthRequest, res) => {
     const client = await db.connect();
 

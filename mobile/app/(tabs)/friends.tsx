@@ -113,6 +113,9 @@ export default function FriendsPage() {
   return (
     <Screen
       refreshing={loading}
+      safeBackgroundColor={
+        theme.mode === "dark" ? theme.background : theme.primary
+      }
       onRefresh={() => loadFriends(false)}
       contentStyle={[styles.screen, { backgroundColor: theme.background }]}
     >

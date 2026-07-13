@@ -17,7 +17,7 @@ import logo from "../../assets/Logo-v2.png";
 import "../../styles/AuthPages.css";
 import { GoogleIcon } from "./SocialIcons";
 import { useAuth } from "../../context/useAuth";
-import type { EmailLoginOtpSession } from "../../lib/api";
+import { ApiError, type EmailLoginOtpSession } from "../../lib/api";
 import { getFirebaseErrorMessage } from "../../utils/firebaseError";
 import { withTopProgress } from "../../utils/topProgress";
 
@@ -25,6 +25,10 @@ type LocationState = {
   from?: {
     pathname?: string;
   };
+  otpSession?: EmailLoginOtpSession;
+  email?: string;
+  remember?: boolean;
+  status?: string;
 };
 
 const maxDailyLoginAttempts = 5;
@@ -53,14 +57,13 @@ function clearLoginAttempts(email: string) {
   window.localStorage.removeItem(getLoginAttemptKey(email));
 }
 
-function isFirebaseAuthError(error: unknown) {
+function isInvalidCredentialError(error: unknown) {
   return (
-    typeof error === "object" &&
-    error !== null &&
-    "code" in error &&
-    String((error as { code?: unknown }).code).startsWith("auth/")
+    error instanceof ApiError &&
+    (error.status === 401 || error.code === "INVALID_LOGIN_CREDENTIALS")
   );
 }
+
 
 export default function Login() {
   const navigate = useNavigate();
@@ -68,23 +71,27 @@ export default function Login() {
   const {
     completeEmailLoginWithOtp,
     loginWithProvider,
+    resendEmailLoginOtp,
     startEmailLoginOtp,
   } = useAuth();
 
-  const [email, setEmail] = useState("");
+  const locationState = (location.state as LocationState | null) ?? null;
+  const [email, setEmail] = useState(() => locationState?.email || "");
   const [password, setPassword] = useState("");
   const [otp, setOtp] = useState("");
   const [otpSession, setOtpSession] = useState<EmailLoginOtpSession | null>(
-    null,
+    () => locationState?.otpSession ?? null,
   );
   const [showPass, setShowPass] = useState(false);
-  const [remember, setRemember] = useState(true);
+  const [remember, setRemember] = useState(
+    () => locationState?.remember ?? true,
+  );
   const [error, setError] = useState("");
-  const [status, setStatus] = useState("");
+  const [status, setStatus] = useState(() => locationState?.status || "");
   const [loading, setLoading] = useState(false);
 
   const from =
-    (location.state as LocationState | null)?.from?.pathname || "/dashboard";
+    locationState?.from?.pathname || "/dashboard";
   const otpActive = Boolean(otpSession);
 
   const resetOtpStep = () => {
@@ -127,8 +134,6 @@ export default function Login() {
         setLoading(true);
         await withTopProgress(() =>
           completeEmailLoginWithOtp(
-            trimmedEmail,
-            password,
             remember,
             otpSession.sessionId,
             sanitizedOtp,
@@ -161,12 +166,13 @@ export default function Login() {
         startEmailLoginOtp(trimmedEmail, password, remember),
       );
       setOtpSession(session);
+      setPassword("");
       setOtp("");
       setStatus(
         `We sent a 6-digit login code to ${session.email}. It expires in 10 minutes.`,
       );
     } catch (loginError) {
-      if (!isFirebaseAuthError(loginError)) {
+      if (!isInvalidCredentialError(loginError)) {
         setError(getFirebaseErrorMessage(loginError));
         return;
       }
@@ -192,8 +198,10 @@ export default function Login() {
 
     try {
       setLoading(true);
+      if (!otpSession) return;
+
       const session = await withTopProgress(() =>
-        startEmailLoginOtp(email.trim(), password, remember),
+        resendEmailLoginOtp(otpSession.sessionId),
       );
       setOtpSession(session);
       setOtp("");

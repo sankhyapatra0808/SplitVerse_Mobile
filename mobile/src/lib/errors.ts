@@ -547,7 +547,7 @@ export function normalizeAppError(
     return createContextError(
       "WEAK_PASSWORD",
       "Password is too weak",
-      "Use a stronger password with at least 6 characters. A mix of letters, numbers, and symbols is safer.",
+      "Use a stronger password with at least 10 characters. A mix of letters, numbers, and symbols is safer.",
       error,
     );
   }

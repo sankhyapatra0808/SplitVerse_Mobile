@@ -3,6 +3,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
@@ -12,7 +13,7 @@ import {
   GoogleAuthProvider,
   onAuthStateChanged,
   signInWithCredential,
-  signInWithEmailAndPassword,
+  signInWithCustomToken,
   signOut,
   updateProfile,
   type User,
@@ -22,6 +23,7 @@ import { normalizeAppError } from "../lib/errors";
 import {
   getCurrentDbUser,
   requestEmailLoginOtp,
+  resendEmailLoginOtp as resendEmailLoginOtpApi,
   requestPasswordResetOtp as requestPasswordResetOtpApi,
   resetPasswordWithOtp as resetPasswordWithOtpApi,
   syncCurrentUser,
@@ -42,12 +44,11 @@ type AuthContextValue = {
   user: User | null;
   dbUser: DbUser | null;
   initializing: boolean;
-  login: (
+  signup: (
     email: string,
     password: string,
-    remember?: boolean,
-  ) => Promise<void>;
-  signup: (email: string, password: string, name?: string) => Promise<void>;
+    name?: string,
+  ) => Promise<EmailLoginOtpSession>;
   loginWithGoogleIdToken: (
     idToken: string,
     remember?: boolean,
@@ -57,9 +58,8 @@ type AuthContextValue = {
     password: string,
     remember?: boolean,
   ) => Promise<EmailLoginOtpSession>;
+  resendEmailLoginOtp: (sessionId: string) => Promise<EmailLoginOtpSession>;
   completeEmailLoginWithOtp: (
-    email: string,
-    password: string,
     sessionId: string,
     otp: string,
     remember?: boolean,
@@ -76,10 +76,24 @@ type AuthContextValue = {
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
+async function hasAuthorizedClientSession(user: User) {
+  const tokenResult = await user.getIdTokenResult();
+  const provider = String(tokenResult.signInProvider || "");
+
+  if (provider === "password") return false;
+
+  if (provider === "custom") {
+    return tokenResult.claims.splitverseOtpVerified === true;
+  }
+
+  return Boolean(provider);
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [dbUser, setDbUser] = useState<DbUser | null>(null);
   const [initializing, setInitializing] = useState(true);
+  const credentialBootstrapInProgress = useRef(false);
 
   async function refreshDbUser() {
     if (!auth.currentUser) {
@@ -130,6 +144,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
 
       try {
+        if (credentialBootstrapInProgress.current) {
+          setDbUser(null);
+          setInitializing(false);
+          return;
+        }
+
+        const authorized = await hasAuthorizedClientSession(nextUser);
+
+        if (!authorized) {
+          setDbUser(null);
+          await clearSessionActivity();
+          await clearRememberSession();
+          await signOut(auth);
+          setInitializing(false);
+          return;
+        }
+
         const expired = await isSessionExpired();
 
         if (expired) {
@@ -185,26 +216,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       dbUser,
       initializing,
 
-      login: async (email, password, remember = true) => {
-        try {
-          await setRememberSession(remember);
-          await signInWithEmailAndPassword(auth, email.trim(), password);
-          await syncSignedInUser();
-        } catch (error) {
-          throw normalizeAppError(error, {
-            title: "Login failed",
-            fallbackMessage:
-              "SplitVerse could not sign you in. Check your details and try again.",
-          });
-        }
-      },
-
       signup: async (email, password, name) => {
+        credentialBootstrapInProgress.current = true;
+
         try {
-          await setRememberSession(true);
+          const normalizedEmail = email.trim().toLowerCase();
           const credential = await createUserWithEmailAndPassword(
             auth,
-            email.trim(),
+            normalizedEmail,
             password,
           );
 
@@ -212,17 +231,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             await updateProfile(credential.user, {
               displayName: name.trim(),
             });
-
             await credential.user.getIdToken(true);
           }
 
-          await syncSignedInUser();
+          await syncCurrentUser();
+          return await requestEmailLoginOtp(normalizedEmail, password);
         } catch (error) {
           throw normalizeAppError(error, {
             title: "Account creation failed",
             fallbackMessage:
               "SplitVerse could not create your account. Check the entered details and try again.",
           });
+        } finally {
+          setDbUser(null);
+          await clearSessionActivity();
+          await signOut(auth).catch(() => undefined);
+          credentialBootstrapInProgress.current = false;
         }
       },
 
@@ -241,40 +265,42 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
       },
 
-      startEmailLoginOtp: async (email, password, remember = true) => {
-        let signedInForOtp = false;
-
+      startEmailLoginOtp: async (email, password) => {
         try {
-          await setRememberSession(remember);
-          await signInWithEmailAndPassword(auth, email.trim(), password);
-          signedInForOtp = true;
-          return await requestEmailLoginOtp();
+          return await requestEmailLoginOtp(
+            email.trim().toLowerCase(),
+            password,
+          );
         } catch (error) {
           throw normalizeAppError(error, {
             title: "Could not send login code",
             fallbackMessage:
               "SplitVerse could not send the email login code. Check your sign-in details and try again.",
           });
-        } finally {
-          if (signedInForOtp) {
-            setDbUser(null);
-            await clearSessionActivity();
-            await signOut(auth);
-          }
+        }
+      },
+
+      resendEmailLoginOtp: async (sessionId) => {
+        try {
+          return await resendEmailLoginOtpApi(sessionId);
+        } catch (error) {
+          throw normalizeAppError(error, {
+            title: "Could not resend login code",
+            fallbackMessage:
+              "SplitVerse could not resend the email login code. Please try again.",
+          });
         }
       },
 
       completeEmailLoginWithOtp: async (
-        email,
-        password,
         sessionId,
         otp,
         remember = true,
       ) => {
         try {
-          await verifyEmailLoginOtp(sessionId, otp);
+          const response = await verifyEmailLoginOtp(sessionId, otp);
           await setRememberSession(remember);
-          await signInWithEmailAndPassword(auth, email.trim(), password);
+          await signInWithCustomToken(auth, response.customToken);
           await syncSignedInUser();
         } catch (error) {
           throw normalizeAppError(error, {
@@ -314,7 +340,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       },
 
       refreshDbUser,
-
       logout,
     }),
     [user, dbUser, initializing],

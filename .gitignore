@@ -1,53 +1,22 @@
-# Dependencies
-node_modules/
-server/node_modules/
+# Dependencies and build output
+**/node_modules/
+**/dist/
+**/.expo/
+**/.cache/
+**/*.tsbuildinfo
 
-# Build outputs
-dist/
-build/
-server/dist/
-.vite/
+# Environment and credentials
+**/.env
+**/.env.*
+!**/.env.example
+**/*service-account*.json
+**/*.pem
+**/*.key
+**/*.p8
+**/*.p12
+**/*.jks
 
-# Local environment files - never commit real secrets
-.env
-.env.local
-.env.development.local
-.env.test.local
-.env.production
-.env.production.local
-.env*.local
-server/.env
-server/.env.local
-server/.env.development.local
-server/.env.test.local
-server/.env.production
-server/.env.production.local
-server/.env*.local
-
-# Keep safe templates tracked
-!.env.example
-!server/.env.example
-
-# Secret/key material
-*.pem
-*.key
-*.p8
-*.p12
-*.cert
-*.crt
-*service-account*.json
-*firebase-admin*.json
-
-# Logs and reports
-logs/
+# Local and user-generated data
+server/uploads/
 *.log
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-pnpm-debug.log*
-
-# OS/editor files
 .DS_Store
-Thumbs.db
-.vscode/
-.idea/

@@ -32,16 +32,19 @@ const REMEMBER_LOGIN_KEY = "splitverse-auth-remember-login";
 
 type ActiveAction = "send-code" | "google" | null;
 
-function isFirebaseAuthError(error: unknown): boolean {
-  if (error instanceof AppError && error.originalError) {
-    return isFirebaseAuthError(error.originalError);
+function isInvalidCredentialError(error: unknown): boolean {
+  if (error instanceof AppError) {
+    if (error.status === 401) return true;
+    return error.originalError
+      ? isInvalidCredentialError(error.originalError)
+      : false;
   }
 
   return (
     typeof error === "object" &&
     error !== null &&
     "code" in error &&
-    String((error as { code?: unknown }).code).startsWith("auth/")
+    String((error as { code?: unknown }).code).includes("INVALID_LOGIN_CREDENTIALS")
   );
 }
 
@@ -127,11 +130,11 @@ export default function Login() {
 
       setPendingLoginOtp({
         email: trimmedEmail,
-        password,
         remember: rememberFor30Days,
         sessionId: session.sessionId,
         destinationEmail: session.email,
       });
+      setPassword("");
 
       router.push("/(auth)/verify-login-otp");
     } catch (loginError) {
@@ -141,7 +144,7 @@ export default function Login() {
           "The email login code could not be sent. Check your details and try again.",
       });
 
-      if (!isFirebaseAuthError(loginError)) {
+      if (!isInvalidCredentialError(loginError)) {
         setError(presentation.message);
         return;
       }

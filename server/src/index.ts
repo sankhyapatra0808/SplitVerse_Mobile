@@ -81,7 +81,9 @@ function isAllowedVercelPreview(origin: string) {
 }
 
 const jsonBodyLimit = process.env.JSON_BODY_LIMIT || "100kb";
-const setupRoutesEnabled = process.env.ENABLE_SETUP_ROUTES === "true";
+const setupRoutesEnabled =
+  process.env.ENABLE_SETUP_ROUTES === "true" &&
+  (!isProduction || process.env.ALLOW_PRODUCTION_SETUP_ROUTES === "true");
 const setupRouteSecret = process.env.SETUP_ROUTE_SECRET || "";
 
 app.disable("x-powered-by");
@@ -95,7 +97,10 @@ app.use(
 );
 
 app.use((req, res, next) => {
-  const requestId = req.header("x-request-id") || crypto.randomUUID();
+  const suppliedRequestId = req.header("x-request-id")?.trim() || "";
+  const requestId = /^[A-Za-z0-9._:-]{1,80}$/.test(suppliedRequestId)
+    ? suppliedRequestId
+    : crypto.randomUUID();
   const startedAt = process.hrtime.bigint();
 
   res.setHeader("x-request-id", requestId);
@@ -212,12 +217,25 @@ const razorpayWebhookLimiter = rateLimit({
   message: { message: "Too many webhook requests. Please slow down." },
 });
 
+function safeSecretMatches(expected: string, supplied: string) {
+  const expectedBuffer = Buffer.from(expected);
+  const suppliedBuffer = Buffer.from(supplied);
+
+  return (
+    expectedBuffer.length > 0 &&
+    expectedBuffer.length === suppliedBuffer.length &&
+    crypto.timingSafeEqual(expectedBuffer, suppliedBuffer)
+  );
+}
+
 function protectSetupRoutes(req: Request, res: Response, next: NextFunction) {
   if (!setupRoutesEnabled) {
     return res.status(404).json({ message: "Not found" });
   }
 
-  if (!setupRouteSecret || req.header("x-setup-secret") !== setupRouteSecret) {
+  const suppliedSecret = req.header("x-setup-secret") || "";
+
+  if (!safeSecretMatches(setupRouteSecret, suppliedSecret)) {
     return res.status(403).json({ message: "Setup route is protected" });
   }
 
@@ -228,6 +246,9 @@ app.use("/api", apiLimiter);
 app.use("/api/auth", authLimiter);
 app.use(
   [
+    "/api/auth/email-login-otp/request",
+    "/api/auth/email-login-otp/resend",
+    "/api/auth/email-login-otp/verify",
     "/api/auth/password-reset/request",
     "/api/auth/password-reset/confirm",
     "/api/auth/wallet-pin/reset-otp/request",
@@ -258,6 +279,12 @@ app.use(
   express.static(path.join(process.cwd(), "uploads"), {
     immutable: true,
     maxAge: "7d",
+    dotfiles: "deny",
+    index: false,
+    setHeaders(res) {
+      res.setHeader("X-Content-Type-Options", "nosniff");
+      res.setHeader("Cache-Control", "public, max-age=604800, immutable");
+    },
   }),
 );
 
@@ -276,20 +303,25 @@ app.get("/", (_req, res) => {
 });
 
 app.get("/api/health", (_req, res) => {
-  res.json({
+  const response: Record<string, unknown> = {
     status: "ok",
     service: "splitverse-api",
     timestamp: new Date().toISOString(),
-    dependencies: {
+  };
+
+  if (!isProduction || process.env.HEALTH_INCLUDE_DIAGNOSTICS === "true") {
+    response.dependencies = {
       firebaseAuth: getFirebaseAuthDependencyHealth(),
-    },
-    renderCaches: {
+    };
+    response.renderCaches = {
       friendAcceptPage: getAcceptPageCacheStats(),
-    },
-  });
+    };
+  }
+
+  res.json(response);
 });
 
-app.get("/api/db-test", async (_req, res) => {
+app.get("/api/db-test", protectSetupRoutes, async (_req, res) => {
   try {
     const result = await testDbConnection();
 

@@ -3,9 +3,8 @@ import {
   browserSessionPersistence,
   createUserWithEmailAndPassword,
   onAuthStateChanged,
-  sendPasswordResetEmail,
   setPersistence,
-  signInWithEmailAndPassword,
+  signInWithCustomToken,
   signInWithPopup,
   signOut,
   updateProfile,
@@ -15,6 +14,7 @@ import {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
@@ -23,18 +23,16 @@ import {
   googleProvider,
   isFirebaseConfigured,
 } from "../config/firebase";
-
 import {
+  clearCachedAuthToken,
   getCurrentDbUser,
   requestEmailLoginOtp,
+  resendEmailLoginOtp as resendEmailLoginOtpApi,
   syncCurrentUser,
   verifyEmailLoginOtp,
   type DbUser,
 } from "../lib/api";
-import {
-  AuthContext,
-  type AuthContextValue,
-} from "./useAuth";
+import { AuthContext, type AuthContextValue } from "./useAuth";
 
 export type { SocialProvider } from "./useAuth";
 
@@ -57,7 +55,7 @@ function setRememberedSession(remember: boolean) {
   if (remember) {
     window.localStorage.setItem(
       rememberedSessionExpiryKey,
-      String(Date.now() + rememberedSessionDurationMs)
+      String(Date.now() + rememberedSessionDurationMs),
     );
     return;
   }
@@ -65,12 +63,38 @@ function setRememberedSession(remember: boolean) {
   window.localStorage.removeItem(rememberedSessionExpiryKey);
 }
 
+function clearRememberedSession() {
+  window.localStorage.removeItem(rememberedSessionExpiryKey);
+}
+
 function isRememberedSessionExpired() {
-  const expiresAt = Number(
-    window.localStorage.getItem(rememberedSessionExpiryKey) || 0
+  const rawExpiresAt = window.localStorage.getItem(
+    rememberedSessionExpiryKey,
   );
 
-  return expiresAt > 0 && Date.now() > expiresAt;
+  if (!rawExpiresAt) return false;
+
+  const expiresAt = Number(rawExpiresAt);
+
+  if (!Number.isFinite(expiresAt) || expiresAt <= 0) {
+    clearRememberedSession();
+    return true;
+  }
+
+  return Date.now() > expiresAt;
+}
+
+async function hasAuthorizedClientSession(user: User) {
+  const tokenResult = await user.getIdTokenResult();
+  const provider = String(tokenResult.signInProvider || "");
+
+  if (provider === "password") return false;
+
+  if (provider === "custom") {
+    return tokenResult.claims.splitverseOtpVerified === true;
+  }
+
+  return Boolean(provider);
 }
 
 type AuthProviderProps = {
@@ -81,6 +105,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const [user, setUser] = useState<User | null>(null);
   const [dbUser, setDbUser] = useState<DbUser | null>(null);
   const [loading, setLoading] = useState(true);
+  const credentialBootstrapInProgress = useRef(false);
 
   const refreshDbUser = useCallback(async () => {
     if (!auth.currentUser) {
@@ -88,35 +113,73 @@ export function AuthProvider({ children }: AuthProviderProps) {
       return null;
     }
 
-    const response = await getCurrentDbUser();
+    try {
+      const response = await getCurrentDbUser();
+      setDbUser(response.user);
+      return response.user;
+    } catch {
+      clearCachedAuthToken();
+      const synced = await syncCurrentUser();
+      setDbUser(synced.user);
+      return synced.user;
+    }
+  }, []);
+
+  const syncSignedInUser = useCallback(async () => {
+    clearCachedAuthToken();
+    const response = await syncCurrentUser();
     setDbUser(response.user);
     return response.user;
   }, []);
 
+  const logout = useCallback(async () => {
+    clearRememberedSession();
+    clearCachedAuthToken();
+    setUser(null);
+    setDbUser(null);
+    await signOut(auth);
+  }, []);
+
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
-      if (currentUser && isRememberedSessionExpired()) {
-        window.localStorage.removeItem(rememberedSessionExpiryKey);
+      clearCachedAuthToken();
+
+      if (!currentUser) {
         setUser(null);
         setDbUser(null);
-        await signOut(auth);
         setLoading(false);
         return;
       }
 
-      setUser(currentUser);
-
-      if (!currentUser) {
+      if (credentialBootstrapInProgress.current) {
+        // Email signup briefly creates a password-provider Firebase session.
+        // It is used only to create/sync the account and is never exposed as an
+        // authenticated SplitVerse session.
+        setUser(null);
         setDbUser(null);
         setLoading(false);
         return;
       }
 
       try {
+        const authorized = await hasAuthorizedClientSession(currentUser);
+
+        if (!authorized || isRememberedSessionExpired()) {
+          clearRememberedSession();
+          await signOut(auth);
+          setUser(null);
+          setDbUser(null);
+          return;
+        }
+
+        setUser(currentUser);
         await refreshDbUser();
       } catch (error) {
         console.error("Failed to load database user:", error);
+        setUser(null);
         setDbUser(null);
+        clearRememberedSession();
+        await signOut(auth).catch(() => undefined);
       } finally {
         setLoading(false);
       }
@@ -131,91 +194,64 @@ export function AuthProvider({ children }: AuthProviderProps) {
       dbUser,
       loading,
 
-      async loginWithEmail(email, password, remember = true) {
+      async startEmailLoginOtp(email, password) {
         assertFirebaseConfigured();
-
-        await setPersistence(
-          auth,
-          remember ? browserLocalPersistence : browserSessionPersistence
-        );
-
-        await signInWithEmailAndPassword(auth, email, password);
-        setRememberedSession(remember);
-
-        const response = await syncCurrentUser();
-        setDbUser(response.user);
+        return requestEmailLoginOtp(email.trim().toLowerCase(), password);
       },
 
-      async startEmailLoginOtp(email, password, remember = true) {
-        assertFirebaseConfigured();
-
-        await setPersistence(
-          auth,
-          remember ? browserLocalPersistence : browserSessionPersistence
-        );
-
-        let signedInForOtp = false;
-
-        try {
-          await signInWithEmailAndPassword(auth, email, password);
-          signedInForOtp = true;
-
-          return await requestEmailLoginOtp();
-        } finally {
-          if (signedInForOtp) {
-            window.localStorage.removeItem(rememberedSessionExpiryKey);
-            setUser(null);
-            setDbUser(null);
-            await signOut(auth);
-          }
-        }
+      async resendEmailLoginOtp(sessionId) {
+        return resendEmailLoginOtpApi(sessionId);
       },
 
-      async completeEmailLoginWithOtp(
-        email,
-        password,
-        remember,
-        sessionId,
-        otp,
-      ) {
+      async completeEmailLoginWithOtp(remember, sessionId, otp) {
         assertFirebaseConfigured();
 
-        await verifyEmailLoginOtp(sessionId, otp);
+        const response = await verifyEmailLoginOtp(sessionId, otp);
 
         await setPersistence(
           auth,
-          remember ? browserLocalPersistence : browserSessionPersistence
+          remember ? browserLocalPersistence : browserSessionPersistence,
         );
-
-        await signInWithEmailAndPassword(auth, email, password);
+        clearCachedAuthToken();
+        await signInWithCustomToken(auth, response.customToken);
         setRememberedSession(remember);
-
-        const response = await syncCurrentUser();
-        setDbUser(response.user);
+        await syncSignedInUser();
       },
 
       async signupWithEmail(name, email, password) {
         assertFirebaseConfigured();
+        credentialBootstrapInProgress.current = true;
 
-        await setPersistence(auth, browserLocalPersistence);
+        try {
+          const normalizedEmail = email.trim().toLowerCase();
 
-        const credential = await createUserWithEmailAndPassword(
-          auth,
-          email,
-          password
-        );
+          await setPersistence(auth, browserSessionPersistence);
 
-        if (credential.user && name.trim()) {
-          await updateProfile(credential.user, {
-            displayName: name.trim(),
-          });
+          const credential = await createUserWithEmailAndPassword(
+            auth,
+            normalizedEmail,
+            password,
+          );
 
-          await credential.user.getIdToken(true);
+          if (name.trim()) {
+            await updateProfile(credential.user, {
+              displayName: name.trim(),
+            });
+            await credential.user.getIdToken(true);
+          }
+
+          clearCachedAuthToken();
+          await syncCurrentUser();
+
+          return await requestEmailLoginOtp(normalizedEmail, password);
+        } finally {
+          clearRememberedSession();
+          clearCachedAuthToken();
+          setUser(null);
+          setDbUser(null);
+          await signOut(auth).catch(() => undefined);
+          credentialBootstrapInProgress.current = false;
         }
-
-        const response = await syncCurrentUser();
-        setRememberedSession(true);
-        setDbUser(response.user);
       },
 
       async loginWithProvider(provider, remember = true) {
@@ -223,30 +259,19 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
         await setPersistence(
           auth,
-          remember ? browserLocalPersistence : browserSessionPersistence
+          remember ? browserLocalPersistence : browserSessionPersistence,
         );
 
+        clearCachedAuthToken();
         await signInWithPopup(auth, socialProviders[provider]);
         setRememberedSession(remember);
-
-        const response = await syncCurrentUser();
-        setDbUser(response.user);
-      },
-
-      async resetPassword(email) {
-        assertFirebaseConfigured();
-        await sendPasswordResetEmail(auth, email);
+        await syncSignedInUser();
       },
 
       refreshDbUser,
-
-      async logout() {
-        window.localStorage.removeItem(rememberedSessionExpiryKey);
-        setDbUser(null);
-        await signOut(auth);
-      },
+      logout,
     }),
-    [user, dbUser, loading, refreshDbUser]
+    [user, dbUser, loading, refreshDbUser, syncSignedInUser, logout],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
