@@ -321,8 +321,8 @@ export default function Wallet() {
             <LinearGradient
               colors={
                 theme.mode === "dark"
-                  ? ["rgba(0,0,0,0.30)", "rgba(0,0,0,0.78)"]
-                  : ["rgba(0,0,0,0.12)", "rgba(0,0,0,0.58)"]
+                  ? ["rgba(0,0,0,0.30)", "rgba(0, 0, 0, 0.86)"]
+                  : ["rgba(255, 255, 255, 0.08)", "rgb(255, 255, 255)"]
               }
               start={{ x: 0, y: 0 }}
               end={{ x: 0, y: 1 }}

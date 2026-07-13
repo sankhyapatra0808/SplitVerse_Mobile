@@ -26,7 +26,10 @@ export default function RoomHistory() {
   const [loading, setLoading] = useState(!roomHistoryCache);
 
   const sortedRooms = useMemo(
-    () => [...rooms].sort((a, b) => String(b.created_at ?? "").localeCompare(String(a.created_at ?? ""))),
+    () =>
+      [...rooms].sort((a, b) =>
+        String(b.created_at ?? "").localeCompare(String(a.created_at ?? "")),
+      ),
     [rooms],
   );
 
@@ -40,7 +43,8 @@ export default function RoomHistory() {
       if (!silent) {
         showErrorAlert(error, {
           title: "Could not load room history",
-          fallbackMessage: "Your split-room history could not be loaded. Pull down to try again.",
+          fallbackMessage:
+            "Your split-room history could not be loaded. Pull down to try again.",
         });
       }
     } finally {
@@ -63,9 +67,17 @@ export default function RoomHistory() {
   }
 
   return (
-    <Screen refreshing={loading} onRefresh={() => loadRooms(false)} contentStyle={[styles.screen, { backgroundColor: theme.background }]}>
+    <Screen
+      refreshing={loading}
+      onRefresh={() => loadRooms(false)}
+      contentStyle={[styles.screen, { backgroundColor: theme.background }]}
+    >
       <View style={styles.topBar}>
-        <Pressable accessibilityLabel="Back" style={[styles.backButton, { backgroundColor: theme.surfaceStrong }]} onPress={() => router.back()}>
+        <Pressable
+          accessibilityLabel="Back"
+          style={[styles.backButton, { backgroundColor: theme.surfaceStrong }]}
+          onPress={() => router.back()}
+        >
           <Ionicons name="chevron-back" size={21} color={theme.primary} />
         </Pressable>
       </View>
@@ -73,12 +85,17 @@ export default function RoomHistory() {
       <View style={styles.header}>
         <Text style={[styles.eyebrow, { color: theme.primary }]}>Rooms</Text>
         <Text style={[styles.title, { color: theme.text }]}>Room history</Text>
-        <Text style={[styles.subtitle, { color: theme.body }]}>You are part of {rooms.length} room{rooms.length === 1 ? "" : "s"}.</Text>
+        <Text style={[styles.subtitle, { color: theme.body }]}>
+          You are part of {rooms.length} room{rooms.length === 1 ? "" : "s"}.
+        </Text>
       </View>
 
       <AppCard style={styles.card}>
         {sortedRooms.length === 0 ? (
-          <EmptyState title="No rooms yet" message="Rooms you create or join will appear here." />
+          <EmptyState
+            title="No rooms yet"
+            message="Rooms you create or join will appear here."
+          />
         ) : (
           <View style={styles.list}>
             {sortedRooms.map((room) => {
@@ -88,20 +105,51 @@ export default function RoomHistory() {
                   key={room.id}
                   style={({ pressed }) => [
                     styles.roomRow,
-                    { borderColor: theme.border, backgroundColor: theme.surface, transform: [{ scale: pressed ? 0.992 : 1 }] },
+                    {
+                      borderColor: theme.border,
+                      backgroundColor: theme.surface,
+                      transform: [{ scale: pressed ? 0.992 : 1 }],
+                    },
                   ]}
                   onPress={() => router.push("/(tabs)/split-rooms")}
                 >
                   <View style={styles.roomTopLine}>
-                    <Text style={[styles.roomName, { color: theme.text }]} numberOfLines={1}>{room.name}</Text>
-                    <Text style={[styles.roomMembers, { color: theme.body }]}>{room.memberCount ?? room.members?.length ?? 0} members</Text>
+                    <Text
+                      style={[styles.roomName, { color: theme.text }]}
+                      numberOfLines={1}
+                    >
+                      {room.name}
+                    </Text>
+                    <Text style={[styles.roomMembers, { color: theme.body }]}>
+                      {room.memberCount ?? room.members?.length ?? 0} members
+                    </Text>
                   </View>
                   <View style={styles.roomBottomLine}>
                     <View style={styles.roomCopy}>
-                      <Text style={[styles.roomMeta, { color: theme.body }]} numberOfLines={1}>{getCategoryLabel(room.category)} · {room.status || "active"}</Text>
-                      <Text style={[styles.statusPill, { backgroundColor: theme.surfaceStrong, color: theme.body }]}>{outstanding > 0 ? "Due pending" : "All paid"}</Text>
+                      <Text
+                        style={[styles.roomMeta, { color: theme.body }]}
+                        numberOfLines={1}
+                      >
+                        {getCategoryLabel(room.category)} ·{" "}
+                        {room.status || "active"}
+                      </Text>
+                      <Text
+                        style={[
+                          styles.statusPill,
+                          {
+                            backgroundColor: theme.surfaceStrong,
+                            color: theme.body,
+                          },
+                        ]}
+                      >
+                        {outstanding > 0 ? "Due pending" : "All paid"}
+                      </Text>
                     </View>
-                    <AmountText amount={Number(room.totalAmount || 0)} size="sm" tone="primary" />
+                    <AmountText
+                      amount={Number(room.totalAmount || 0)}
+                      size="sm"
+                      tone="primary"
+                    />
                   </View>
                 </Pressable>
               );
@@ -116,19 +164,46 @@ export default function RoomHistory() {
 const styles = StyleSheet.create({
   screen: { gap: spacing.base },
   topBar: { paddingTop: spacing.sm },
-  backButton: { width: 42, height: 42, alignItems: "center", justifyContent: "center", borderRadius: radius.pill },
+  backButton: {
+    width: 42,
+    height: 42,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: radius.pill,
+  },
   header: { gap: spacing.xs },
   eyebrow: { ...typography.caption },
   title: { ...typography.titleLg },
   subtitle: { ...typography.bodySm },
   card: { gap: spacing.base },
   list: { gap: spacing.sm },
-  roomRow: { gap: spacing.sm, borderWidth: 1, borderRadius: radius.xl, padding: spacing.base },
-  roomTopLine: { flexDirection: "row", justifyContent: "space-between", gap: spacing.base },
+  roomRow: {
+    gap: spacing.sm,
+    borderWidth: 1,
+    borderRadius: radius.xl,
+    padding: spacing.base,
+  },
+  roomTopLine: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    gap: spacing.base,
+  },
   roomName: { flex: 1, minWidth: 0, ...typography.titleSm },
   roomMembers: { ...typography.bodySm },
-  roomBottomLine: { flexDirection: "row", alignItems: "flex-end", justifyContent: "space-between", gap: spacing.base },
+  roomBottomLine: {
+    flexDirection: "row",
+    alignItems: "flex-end",
+    justifyContent: "space-between",
+    gap: spacing.base,
+  },
   roomCopy: { flex: 1, minWidth: 0, gap: spacing.xs },
   roomMeta: { ...typography.bodySm },
-  statusPill: { alignSelf: "flex-start", overflow: "hidden", borderRadius: radius.pill, paddingHorizontal: spacing.sm, paddingVertical: spacing.xs, ...typography.caption },
+  statusPill: {
+    alignSelf: "flex-start",
+    overflow: "hidden",
+    borderRadius: radius.pill,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs,
+    ...typography.caption,
+  },
 });

@@ -34,11 +34,19 @@ let walletCache: WalletSummaryResponse | null = null;
 export default function Notifications() {
   const { user, dbUser } = useAuth();
   const { avatarId, theme, formatCurrency } = useAppSettings();
-  const [items, setItems] = useState<LiveNotificationItem[]>(notificationCache ?? []);
-  const [wallet, setWallet] = useState<WalletSummaryResponse | null>(walletCache);
+  const [items, setItems] = useState<LiveNotificationItem[]>(
+    notificationCache ?? [],
+  );
+  const [wallet, setWallet] = useState<WalletSummaryResponse | null>(
+    walletCache,
+  );
   const [loading, setLoading] = useState(!notificationCache);
 
-  const displayName = dbUser?.display_name || dbUser?.name || user?.displayName || "SplitVerse user";
+  const displayName =
+    dbUser?.display_name ||
+    dbUser?.name ||
+    user?.displayName ||
+    "SplitVerse user";
   const email = dbUser?.email || user?.email || "";
 
   const photoUrl =
@@ -76,7 +84,8 @@ export default function Notifications() {
       if (!silent) {
         showErrorAlert(error, {
           title: "Could not load notifications",
-          fallbackMessage: "Your friend, room, and wallet notifications could not be loaded. Pull down to try again.",
+          fallbackMessage:
+            "Your friend, room, and wallet notifications could not be loaded. Pull down to try again.",
         });
       }
     } finally {
@@ -125,15 +134,19 @@ export default function Notifications() {
         <LinearGradient
           colors={
             theme.mode === "dark"
-              ? ["rgba(0,0,0,0.28)", "rgba(0,0,0,0.78)"]
-              : ["rgba(0,0,0,0.10)", "rgba(0,0,0,0.58)"]
+              ? ["rgba(0,0,0,0.30)", "rgba(0, 0, 0, 0.86)"]
+              : ["rgba(255, 255, 255, 0.08)", "rgb(255, 255, 255)"]
           }
           start={{ x: 0, y: 0 }}
           end={{ x: 0, y: 1 }}
           style={styles.hero}
         >
           <View style={styles.heroTop}>
-            <Pressable accessibilityLabel="Back" style={styles.backButton} onPress={() => router.back()}>
+            <Pressable
+              accessibilityLabel="Back"
+              style={styles.backButton}
+              onPress={() => router.back()}
+            >
               <Ionicons name="chevron-back" size={22} color="#ffffff" />
             </Pressable>
           </View>
@@ -142,12 +155,18 @@ export default function Notifications() {
             <Avatar
               name={displayName}
               email={email}
-              imageUrl={dbUser?.display_photo_url || dbUser?.profile_photo_url || dbUser?.photo_url}
+              imageUrl={
+                dbUser?.display_photo_url ||
+                dbUser?.profile_photo_url ||
+                dbUser?.photo_url
+              }
               size={62}
             />
             <View style={styles.userCopy}>
               <Text style={styles.userName}>{displayName}</Text>
-              <Text style={styles.userEmail} numberOfLines={1}>{email}</Text>
+              <Text style={styles.userEmail} numberOfLines={1}>
+                {email}
+              </Text>
             </View>
           </View>
 
@@ -158,7 +177,11 @@ export default function Notifications() {
             </View>
             <View style={styles.summaryPill}>
               <Text style={styles.summaryLabel}>Net position</Text>
-              <Text style={styles.summaryValue}>{formatCurrency(wallet?.summary.netPosition ?? 0, { compact: true })}</Text>
+              <Text style={styles.summaryValue}>
+                {formatCurrency(wallet?.summary.netPosition ?? 0, {
+                  compact: true,
+                })}
+              </Text>
             </View>
           </View>
         </LinearGradient>
@@ -166,10 +189,15 @@ export default function Notifications() {
 
       <AppCard style={styles.card}>
         <Text style={[styles.cardEyebrow, { color: theme.body }]}>Today</Text>
-        <Text style={[styles.cardTitle, { color: theme.text }]}>Notifications and reminders</Text>
+        <Text style={[styles.cardTitle, { color: theme.text }]}>
+          Notifications and reminders
+        </Text>
 
         {items.length === 0 ? (
-          <EmptyState title="No notifications" message="Friend requests, dues, and wallet reminders will appear here." />
+          <EmptyState
+            title="No notifications"
+            message="Friend requests, dues, and wallet reminders will appear here."
+          />
         ) : (
           <View style={styles.list}>
             {items.map((item) => (
@@ -185,19 +213,40 @@ export default function Notifications() {
                 key={item.id}
                 onPress={() => openNotification(item)}
               >
-                <View style={[styles.iconCircle, { backgroundColor: theme.primarySoft }]}> 
+                <View
+                  style={[
+                    styles.iconCircle,
+                    { backgroundColor: theme.primarySoft },
+                  ]}
+                >
                   <Ionicons
-                    name={item.kind === "friend" ? "person-add" : item.kind === "wallet" ? "wallet" : "receipt"}
+                    name={
+                      item.kind === "friend"
+                        ? "person-add"
+                        : item.kind === "wallet"
+                          ? "wallet"
+                          : "receipt"
+                    }
                     size={18}
                     color={theme.primary}
                   />
                 </View>
                 <View style={styles.rowCopy}>
-                  <Text style={[styles.rowTitle, { color: theme.text }]}>{item.title}</Text>
-                  <Text style={[styles.rowText, { color: theme.body }]}>{item.detail}</Text>
+                  <Text style={[styles.rowTitle, { color: theme.text }]}>
+                    {item.title}
+                  </Text>
+                  <Text style={[styles.rowText, { color: theme.body }]}>
+                    {item.detail}
+                  </Text>
                 </View>
-                {item.amount ? <AmountText amount={item.amount} size="sm" tone="primary" /> : null}
-                <Ionicons name="chevron-forward" size={17} color={theme.muted} />
+                {item.amount ? (
+                  <AmountText amount={item.amount} size="sm" tone="primary" />
+                ) : null}
+                <Ionicons
+                  name="chevron-forward"
+                  size={17}
+                  color={theme.muted}
+                />
               </Pressable>
             ))}
           </View>

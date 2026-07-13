@@ -355,14 +355,15 @@ export default function Dashboard() {
       setHasUnreadNotifications(
         Boolean(
           notificationSignature &&
-            notificationSignature !== seenNotificationSignature,
+          notificationSignature !== seenNotificationSignature,
         ),
       );
     } catch (error) {
       if (!silent) {
         showErrorAlert(error, {
           title: "Could not load dashboard",
-          fallbackMessage: "Your dashboard data could not be loaded. Pull down to try again.",
+          fallbackMessage:
+            "Your dashboard data could not be loaded. Pull down to try again.",
         });
       }
     } finally {
@@ -433,7 +434,8 @@ export default function Dashboard() {
     } catch (error) {
       showErrorAlert(error, {
         title: "Could not add expense",
-        fallbackMessage: "Today's expense could not be saved. Check your connection and try again.",
+        fallbackMessage:
+          "Today's expense could not be saved. Check your connection and try again.",
       });
     } finally {
       setSavingExpense(false);
@@ -477,13 +479,7 @@ export default function Dashboard() {
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="Open notifications"
-          style={[
-            styles.notificationButton,
-            {
-              backgroundColor: "rgba(255,255,255,0.16)",
-              borderColor: "rgba(255,255,255,0.28)",
-            },
-          ]}
+          style={[styles.notificationButton]}
           onPress={() => router.push("/(tabs)/notifications")}
         >
           <Ionicons name="notifications-outline" size={22} color="#fff" />
@@ -525,8 +521,8 @@ export default function Dashboard() {
               <LinearGradient
                 colors={
                   theme.mode === "dark"
-                    ? ["rgba(0,0,0,0.30)", "rgba(0,0,0,0.72)"]
-                    : ["rgba(0,0,0,0.08)", "rgba(0,82,255,0.42)"]
+                    ? ["rgba(0,0,0,0.30)", "rgba(0, 0, 0, 0.86)"]
+                    : ["rgba(255, 255, 255, 0.08)", "rgb(255, 255, 255)"]
                 }
                 style={styles.heroOverlay}
               >
@@ -921,10 +917,6 @@ const styles = StyleSheet.create({
   notificationButton: {
     minHeight: 42,
     minWidth: 42,
-    borderWidth: 1,
-    borderRadius: radius.pill,
-    backgroundColor: "rgba(255,255,255,0.16)",
-    paddingHorizontal: spacing.base,
     alignItems: "center",
     justifyContent: "center",
   },
@@ -1048,16 +1040,19 @@ const styles = StyleSheet.create({
     borderBottomRightRadius: 32,
   },
   heroImage: {
-    minHeight: 336,
+    minHeight: 218,
   },
   heroImageInner: {
     opacity: 0.95,
   },
   heroOverlay: {
-    minHeight: 336,
+    minHeight: 218,
+    borderBottomLeftRadius: 32,
+    borderBottomRightRadius: 32,
     paddingHorizontal: spacing.base,
     paddingTop: spacing.xl,
     paddingBottom: spacing.xxl,
+    justifyContent: "flex-end",
   },
   pageTapReset: {
     flexGrow: 1,

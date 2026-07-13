@@ -2,7 +2,14 @@ import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect } from "expo-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Alert, ImageBackground, Pressable, ScrollView, StyleSheet, View } from "react-native";
+import {
+  Alert,
+  ImageBackground,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  View,
+} from "react-native";
 import AmountText from "../../src/components/AmountText";
 import AppButton from "../../src/components/AppButton";
 import AppCard from "../../src/components/AppCard";
@@ -617,7 +624,8 @@ export default function SplitRooms() {
         if (!silent) {
           showErrorAlert(error, {
             title: "Could not load split rooms",
-            fallbackMessage: "Your rooms, friends, and settlement totals could not be loaded. Pull down to try again.",
+            fallbackMessage:
+              "Your rooms, friends, and settlement totals could not be loaded. Pull down to try again.",
           });
         }
       } finally {
@@ -743,7 +751,8 @@ export default function SplitRooms() {
 
       showErrorAlert(error, {
         title: "Could not create room",
-        fallbackMessage: "The split room was not created. Check the selected friends and try again.",
+        fallbackMessage:
+          "The split room was not created. Check the selected friends and try again.",
       });
     } finally {
       setSavingRoom(false);
@@ -833,7 +842,8 @@ export default function SplitRooms() {
 
       showErrorAlert(error, {
         title: "Could not add item",
-        fallbackMessage: "The item was not added to this room. Check the amount and assigned member, then try again.",
+        fallbackMessage:
+          "The item was not added to this room. Check the amount and assigned member, then try again.",
       });
     } finally {
       setSavingItem(false);
@@ -903,7 +913,8 @@ export default function SplitRooms() {
 
       showErrorAlert(error, {
         title: "Could not update item",
-        fallbackMessage: "The split item was not updated. Refresh the room and try again.",
+        fallbackMessage:
+          "The split item was not updated. Refresh the room and try again.",
       });
     } finally {
       setUpdatingItemId("");
@@ -956,7 +967,8 @@ export default function SplitRooms() {
 
       showErrorAlert(error, {
         title: "Could not delete item",
-        fallbackMessage: "The split item was not removed. Refresh the room and try again.",
+        fallbackMessage:
+          "The split item was not removed. Refresh the room and try again.",
       });
     } finally {
       setDeletingItemId("");
@@ -1011,7 +1023,8 @@ export default function SplitRooms() {
     } catch (error) {
       showErrorAlert(error, {
         title: "Settlement payment failed",
-        fallbackMessage: "The net settlement was not paid. Check your wallet balance and PIN, then try again.",
+        fallbackMessage:
+          "The net settlement was not paid. Check your wallet balance and PIN, then try again.",
       });
     } finally {
       setPayingNetSettlementUserId("");
@@ -1066,7 +1079,8 @@ export default function SplitRooms() {
     } catch (error) {
       showErrorAlert(error, {
         title: "Could not mark dues collected",
-        fallbackMessage: "The member's dues were not marked as collected. Refresh the room and try again.",
+        fallbackMessage:
+          "The member's dues were not marked as collected. Refresh the room and try again.",
       });
     } finally {
       setCollectingMemberId("");
@@ -1116,7 +1130,8 @@ export default function SplitRooms() {
     } catch (error) {
       showErrorAlert(error, {
         title: "Could not send reminder",
-        fallbackMessage: "The room reminder could not be sent to members. Please try again later.",
+        fallbackMessage:
+          "The room reminder could not be sent to members. Please try again later.",
       });
     } finally {
       setRemindingRoomId("");
@@ -1161,7 +1176,8 @@ export default function SplitRooms() {
     } catch (error) {
       showErrorAlert(error, {
         title: "Could not remove member",
-        fallbackMessage: "This member could not be removed. Make sure they have no assigned items or pending dues.",
+        fallbackMessage:
+          "This member could not be removed. Make sure they have no assigned items or pending dues.",
       });
     } finally {
       setRemovingMemberId("");
@@ -1221,7 +1237,8 @@ export default function SplitRooms() {
     } catch (error) {
       showErrorAlert(error, {
         title: "Could not delete room",
-        fallbackMessage: "The room was not deleted. Make sure all dues are settled and try again.",
+        fallbackMessage:
+          "The room was not deleted. Make sure all dues are settled and try again.",
       });
     } finally {
       setDeletingRoomId("");
@@ -1280,7 +1297,8 @@ export default function SplitRooms() {
     } catch (error) {
       showErrorAlert(error, {
         title: "Could not finalize room",
-        fallbackMessage: "The room was not finalized. Settle all pending dues and try again.",
+        fallbackMessage:
+          "The room was not finalized. Settle all pending dues and try again.",
       });
     } finally {
       setFinalizingRoomId("");
@@ -1340,7 +1358,8 @@ export default function SplitRooms() {
     } catch (error) {
       showErrorAlert(error, {
         title: "Could not archive room",
-        fallbackMessage: "The room was not archived. Refresh the room and try again.",
+        fallbackMessage:
+          "The room was not archived. Refresh the room and try again.",
       });
     } finally {
       setArchivingRoomId("");
@@ -1412,8 +1431,8 @@ export default function SplitRooms() {
         <LinearGradient
           colors={
             theme.mode === "dark"
-              ? ["rgba(0,0,0,0.28)", "rgba(0,0,0,0.78)"]
-              : ["rgba(0,0,0,0.10)", "rgba(0,0,0,0.58)"]
+              ? ["rgba(0,0,0,0.30)", "rgba(0, 0, 0, 0.86)"]
+              : ["rgba(255, 255, 255, 0.08)", "rgb(255, 255, 255)"]
           }
           start={{ x: 0, y: 0 }}
           end={{ x: 0, y: 1 }}
@@ -2915,11 +2934,14 @@ const styles = StyleSheet.create({
     borderBottomLeftRadius: 32,
     borderBottomRightRadius: 32,
   },
+  heroImage: {
+    minHeight: 228,
+  },
   heroImageInner: {
     opacity: 0.95,
   },
   hero: {
-    minHeight: 218,
+    minHeight: 228,
     borderBottomLeftRadius: 32,
     borderBottomRightRadius: 32,
     paddingHorizontal: spacing.base,

@@ -236,7 +236,8 @@ export default function Profile() {
       if (!silent) {
         showErrorAlert(error, {
           title: "Could not load profile",
-          fallbackMessage: "Your profile, friends, rooms, and transaction data could not be loaded. Pull down to try again.",
+          fallbackMessage:
+            "Your profile, friends, rooms, and transaction data could not be loaded. Pull down to try again.",
         });
       }
     } finally {
@@ -261,7 +262,10 @@ export default function Profile() {
       return;
     }
     if (!isValidEmailAddress(targetEmail)) {
-      Alert.alert("Invalid email address", "Enter your friend's complete email address, such as name@example.com.");
+      Alert.alert(
+        "Invalid email address",
+        "Enter your friend's complete email address, such as name@example.com.",
+      );
       return;
     }
     try {
@@ -273,7 +277,8 @@ export default function Profile() {
     } catch (error) {
       showErrorAlert(error, {
         title: "Friend request failed",
-        fallbackMessage: "The friend request could not be sent. Check the email address and try again.",
+        fallbackMessage:
+          "The friend request could not be sent. Check the email address and try again.",
       });
     } finally {
       setSendingRequest(false);
@@ -290,7 +295,8 @@ export default function Profile() {
     } catch (error) {
       showErrorAlert(error, {
         title: "Could not accept request",
-        fallbackMessage: "The friend request could not be accepted. Refresh your requests and try again.",
+        fallbackMessage:
+          "The friend request could not be accepted. Refresh your requests and try again.",
       });
     } finally {
       setAcceptingRequestId("");
@@ -305,7 +311,8 @@ export default function Profile() {
     } catch (error) {
       showErrorAlert(error, {
         title: "Could not load friend activity",
-        fallbackMessage: "This friend's shared room and settlement activity could not be loaded. Try again.",
+        fallbackMessage:
+          "This friend's shared room and settlement activity could not be loaded. Try again.",
       });
     } finally {
       setActivityLoadingId("");
@@ -346,7 +353,8 @@ export default function Profile() {
     } catch (error) {
       showErrorAlert(error, {
         title: "Transaction export failed",
-        fallbackMessage: "The transaction file could not be created or shared. Check device storage and try again.",
+        fallbackMessage:
+          "The transaction file could not be created or shared. Check device storage and try again.",
       });
     } finally {
       setExporting(false);
@@ -387,8 +395,8 @@ export default function Profile() {
             <LinearGradient
               colors={
                 theme.mode === "dark"
-                  ? ["rgba(0,0,0,0.30)", "rgba(0,0,0,0.72)"]
-                  : ["rgba(0,0,0,0.08)", "rgba(0,82,255,0.42)"]
+                  ? ["rgba(0,0,0,0.30)", "rgba(0, 0, 0, 0.86)"]
+                  : ["rgba(255, 255, 255, 0.08)", "rgb(255, 255, 255)"]
               }
               style={styles.heroOverlay}
             >
