@@ -81,6 +81,24 @@ function getRoomPaidByEmail(room: SplitRoom) {
   return room.paidByEmail || room.paid_by_email || room.ownerEmail || "";
 }
 
+function getRoomPaidByName(room: SplitRoom) {
+  const paidByEmail = getRoomPaidByEmail(room).trim().toLowerCase();
+
+  if (!paidByEmail) {
+    return "Host";
+  }
+
+  const paidByMember = room.members?.find(
+    (member) => member.email?.trim().toLowerCase() === paidByEmail,
+  );
+
+  if (paidByMember) {
+    return getMemberName(paidByMember);
+  }
+
+  return paidByEmail.split("@")[0] || "Host";
+}
+
 function getItemPlaceholder(category?: string | null) {
   switch (category) {
     case "restaurant":
@@ -1957,7 +1975,7 @@ export default function SplitRooms() {
                   >
                     <Text style={styles.summaryLabel}>Paid by</Text>
                     <Text style={styles.summaryValue} numberOfLines={1}>
-                      {getRoomPaidByEmail(selectedRoom) || "Host"}
+                      {getRoomPaidByName(selectedRoom)}
                     </Text>
                   </View>
                 </View>
