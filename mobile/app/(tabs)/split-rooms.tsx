@@ -1007,7 +1007,7 @@ export default function SplitRooms() {
 
       Alert.alert(
         "Payment complete",
-        "Final net settlement has been paid successfully.",
+        "Viola, Final net settlement has been paid successfully.",
       );
     } catch (error) {
       showErrorAlert(error, {
@@ -1472,7 +1472,6 @@ export default function SplitRooms() {
       <AppCard style={styles.roomsCard}>
         <View style={styles.cardHeadRow}>
           <View>
-            <Text style={styles.cardEyebrow}>Rooms</Text>
             <Text style={styles.cardTitle}>Active rooms</Text>
           </View>
         </View>
@@ -1480,10 +1479,109 @@ export default function SplitRooms() {
         {loading ? (
           <RoomsListSkeleton rows={3} />
         ) : rooms.length === 0 ? (
-          <EmptyState
-            title="Create your first split room"
-            message="Rooms you create or join will appear here."
-          />
+          <View
+            style={[
+              styles.emptyRoomsPanel,
+              { borderColor: theme.border, backgroundColor: theme.surface },
+            ]}
+          >
+            <View
+              style={[
+                styles.emptyRoomsIconWrap,
+                { backgroundColor: theme.primarySoft },
+              ]}
+            >
+              <Ionicons name="people-outline" size={30} color={theme.primary} />
+            </View>
+
+            <Text style={styles.emptyRoomsTitle}>
+              Create your first split room
+            </Text>
+            <Text style={styles.emptyRoomsDescription}>
+              Create rooms. Assign items. Split bills fairly
+            </Text>
+
+            <View style={styles.emptyRoomsSteps}>
+              <View style={styles.emptyRoomsStep}>
+                <View
+                  style={[
+                    styles.emptyRoomsStepNumber,
+                    { backgroundColor: theme.primarySoft },
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.emptyRoomsStepNumberText,
+                      { color: theme.primary },
+                    ]}
+                  >
+                    1
+                  </Text>
+                </View>
+                <Text style={styles.emptyRoomsStepText}>Create a room</Text>
+              </View>
+
+              <View style={styles.emptyRoomsStep}>
+                <View
+                  style={[
+                    styles.emptyRoomsStepNumber,
+                    { backgroundColor: theme.primarySoft },
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.emptyRoomsStepNumberText,
+                      { color: theme.primary },
+                    ]}
+                  >
+                    2
+                  </Text>
+                </View>
+                <Text style={styles.emptyRoomsStepText}>
+                  Choose your friends
+                </Text>
+              </View>
+
+              <View style={styles.emptyRoomsStep}>
+                <View
+                  style={[
+                    styles.emptyRoomsStepNumber,
+                    { backgroundColor: theme.primarySoft },
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.emptyRoomsStepNumberText,
+                      { color: theme.primary },
+                    ]}
+                  >
+                    3
+                  </Text>
+                </View>
+                <Text style={styles.emptyRoomsStepText}>
+                  Split items fairly
+                </Text>
+              </View>
+            </View>
+
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Start your first room"
+              style={({ pressed }) => [
+                styles.emptyRoomsCreateButton,
+                {
+                  backgroundColor: roomActionColor,
+                  opacity: pressed ? 0.84 : 1,
+                },
+              ]}
+              onPress={openCreateRoomModal}
+            >
+              <Ionicons name="add" size={21} color="#fff" />
+              <Text style={styles.emptyRoomsCreateButtonText}>
+                Start a room
+              </Text>
+            </Pressable>
+          </View>
         ) : (
           <ScrollView
             style={styles.roomListScroll}
@@ -1538,7 +1636,7 @@ export default function SplitRooms() {
                   <View style={styles.roomBodyLine}>
                     <View style={styles.roomInfoColumn}>
                       <Text style={styles.roomMeta} numberOfLines={1}>
-                        {room.isOwner ? " · Owner" : ""}
+                        {room.isOwner ? "Owner" : ""}
                       </Text>
 
                       <View style={styles.roomAmountBox}>
@@ -1553,40 +1651,6 @@ export default function SplitRooms() {
 
                     {room.isOwner ? (
                       <View style={styles.roomActionColumn}>
-                        <Pressable
-                          accessibilityLabel="Finalize room"
-                          disabled={blocked || finalizingRoomId === room.id}
-                          style={[
-                            styles.roomInlineAction,
-                            {
-                              backgroundColor: blocked
-                                ? theme.surfaceStrong
-                                : theme.primary,
-                              opacity: blocked ? 0.58 : 1,
-                            },
-                          ]}
-                          onPress={(event) => {
-                            event.stopPropagation();
-                            requestFinalizeRoom(room);
-                          }}
-                        >
-                          <Ionicons
-                            name="checkmark-done"
-                            size={17}
-                            color={blocked ? theme.muted : theme.onPrimary}
-                          />
-                          <Text
-                            style={[
-                              styles.roomInlineActionText,
-                              {
-                                color: blocked ? theme.muted : theme.onPrimary,
-                              },
-                            ]}
-                          >
-                            Finalize
-                          </Text>
-                        </Pressable>
-
                         <Pressable
                           accessibilityLabel="Delete room"
                           disabled={blocked || deletingRoomId === room.id}
@@ -1632,498 +1696,461 @@ export default function SplitRooms() {
         )}
       </AppCard>
 
-      <AppCard style={styles.addItemCard}>
-        <Text style={styles.cardEyebrow}>Add item</Text>
-        <Text style={styles.cardTitle}>
-          {selectedRoom ? `Assign in ${selectedRoom.name}` : "No room selected"}
-        </Text>
-
-        {!selectedRoom ? (
-          <EmptyState
-            title="Create a room first"
-            message="After creating a room, you can assign items member by member."
-          />
-        ) : !selectedRoom.isOwner ? (
-          <EmptyState
-            title="Only host can add items"
-            message="You can view this room, but only the room owner can add or edit items."
-          />
-        ) : selectedRoomClosed ? (
-          <EmptyState
-            title="Room is closed"
-            message="Finalized or archived rooms cannot accept new items."
-          />
-        ) : (
-          <>
-            <AppTextInput
-              label="Item"
-              value={itemTitle}
-              onChangeText={setItemTitle}
-              placeholder={itemPlaceholder}
-              editable={!savingItem}
-              style={styles.input65}
-            />
-
-            <AppTextInput
-              label="Amount"
-              value={itemAmount}
-              onChangeText={setItemAmount}
-              placeholder={formatCurrency(420)}
-              keyboardType="decimal-pad"
-              editable={!savingItem}
-              style={styles.input65}
-            />
-
-            <View style={styles.dropdownWrap}>
-              <Pressable
-                style={[
-                  styles.selector,
-                  { borderColor: theme.border, backgroundColor: theme.surface },
-                ]}
-                onPress={() => {
-                  setAssignMemberModalOpen((open) => !open);
-                  setFriendModalOpen(false);
-                  setPaidByModalOpen(false);
-                }}
-                disabled={savingItem || sortedMembers.length === 0}
-              >
-                <View style={styles.selectorCopy}>
-                  <Text style={styles.selectorLabel}>Assign to</Text>
-                  <Text style={styles.selectorValue} numberOfLines={1}>
-                    {selectedAssignedMember
-                      ? getMemberName(selectedAssignedMember)
-                      : "Choose member"}
-                  </Text>
-                </View>
-
-                <Ionicons
-                  name={assignMemberModalOpen ? "chevron-up" : "chevron-down"}
-                  size={18}
-                  color={theme.body}
-                />
-              </Pressable>
-
-              {assignMemberModalOpen ? (
-                <View
-                  style={[
-                    styles.dropdownMenu,
-                    { borderColor: theme.border, backgroundColor: theme.card },
-                  ]}
-                >
-                  <ScrollView
-                    style={styles.dropdownScroll}
-                    nestedScrollEnabled
-                    showsVerticalScrollIndicator={false}
-                  >
-                    {sortedMembers.map((member) => {
-                      const selected = member.id === assignedMemberId;
-
-                      return (
-                        <Pressable
-                          key={member.id}
-                          style={[
-                            styles.dropdownOption,
-                            {
-                              borderColor: theme.border,
-                              backgroundColor: theme.surface,
-                            },
-                            selected && {
-                              borderColor: theme.primary,
-                              backgroundColor: theme.primarySoft,
-                            },
-                          ]}
-                          onPress={() => {
-                            setAssignedMemberId(member.id);
-                            setAssignMemberModalOpen(false);
-                          }}
-                        >
-                          <Avatar
-                            name={getMemberName(member)}
-                            email={member.email}
-                            imageUrl={
-                              member.display_photo_url ||
-                              member.profile_photo_url ||
-                              member.photo_url
-                            }
-                            size={36}
-                          />
-
-                          <View style={styles.optionCopy}>
-                            <Text style={styles.optionTitle} numberOfLines={1}>
-                              {getMemberName(member)}
-                            </Text>
-                            <Text
-                              style={styles.optionSubtext}
-                              numberOfLines={1}
-                            >
-                              {member.email}
-                            </Text>
-                          </View>
-
-                          <Ionicons
-                            name={
-                              selected ? "checkmark-circle" : "ellipse-outline"
-                            }
-                            size={19}
-                            color={selected ? theme.primary : theme.muted}
-                          />
-                        </Pressable>
-                      );
-                    })}
-                  </ScrollView>
-                </View>
-              ) : null}
-            </View>
-
-            <AppButton
-              title={savingItem ? "Adding item" : "Add item"}
-              loading={savingItem}
-              onPress={() => {
-                setAssignMemberModalOpen(false);
-                void handleAddItem();
-              }}
-            />
-          </>
-        )}
-      </AppCard>
-
-      <AppCard style={styles.detailsCard}>
-        <Text style={styles.cardEyebrow}>Selected room</Text>
-        <Text style={styles.cardTitle}>
-          {selectedRoom ? selectedRoom.name : "No room selected"}
-        </Text>
-
-        {selectedRoom && canManageSelectedRoom() ? (
-          <Pressable
-            style={[
-              styles.roomActionsButton,
-              { backgroundColor: theme.surfaceStrong },
-            ]}
-            onPress={() => setRoomActionsOpen(true)}
-          >
-            <Text style={styles.roomActionsButtonText}>Room actions</Text>
-          </Pressable>
-        ) : null}
-
-        {!selectedRoom ? (
-          <EmptyState
-            title="No active room"
-            message="Create a room to see its summary."
-          />
-        ) : (
-          <>
-            <View style={styles.summaryGrid}>
-              <View
-                style={[
-                  styles.summaryBox,
-                  { borderColor: theme.border, backgroundColor: theme.surface },
-                ]}
-              >
-                <Text style={styles.summaryLabel}>Total</Text>
-                <AmountText
-                  amount={selectedRoom.totalAmount ?? 0}
-                  size="sm"
-                  tone="primary"
-                />
-              </View>
-
-              <View
-                style={[
-                  styles.summaryBox,
-                  { borderColor: theme.border, backgroundColor: theme.surface },
-                ]}
-              >
-                <Text style={styles.summaryLabel}>Outstanding</Text>
-                <AmountText
-                  amount={selectedRoom.outstandingAmount ?? 0}
-                  size="sm"
-                  tone={
-                    (selectedRoom.outstandingAmount ?? 0) > 0
-                      ? "danger"
-                      : "success"
-                  }
-                />
-              </View>
-
-              <View
-                style={[
-                  styles.summaryBox,
-                  { borderColor: theme.border, backgroundColor: theme.surface },
-                ]}
-              >
-                <Text style={styles.summaryLabel}>Collected</Text>
-                <AmountText
-                  amount={selectedRoom.collectedAmount ?? 0}
-                  size="sm"
-                  tone="success"
-                />
-              </View>
-
-              <View
-                style={[
-                  styles.summaryBox,
-                  { borderColor: theme.border, backgroundColor: theme.surface },
-                ]}
-              >
-                <Text style={styles.summaryLabel}>Paid by</Text>
-                <Text style={styles.summaryValue} numberOfLines={1}>
-                  {getRoomPaidByEmail(selectedRoom) || "Host"}
+      {rooms.length > 0 ? (
+        <>
+          {selectedRoom?.isOwner ? (
+            <AppCard style={styles.addItemCard}>
+              <View style={styles.sectionHeadingBlock}>
+                <Text style={styles.cardTitle}>Add item</Text>
+                <Text style={styles.sectionHeadingContext}>
+                  {selectedRoom
+                    ? `Assign in ${selectedRoom.name}`
+                    : "No room selected"}
                 </Text>
               </View>
+
+              {!selectedRoom ? (
+                <EmptyState title="Create a room first" />
+              ) : !selectedRoom.isOwner ? (
+                <EmptyState title="Only host can add items" />
+              ) : selectedRoomClosed ? (
+                <EmptyState title="Room is closed" />
+              ) : (
+                <>
+                  <AppTextInput
+                    label="Item"
+                    value={itemTitle}
+                    onChangeText={setItemTitle}
+                    placeholder={itemPlaceholder}
+                    editable={!savingItem}
+                    style={styles.input65}
+                  />
+
+                  <AppTextInput
+                    label="Amount"
+                    value={itemAmount}
+                    onChangeText={setItemAmount}
+                    placeholder={formatCurrency(420)}
+                    keyboardType="decimal-pad"
+                    editable={!savingItem}
+                    style={styles.input65}
+                  />
+
+                  <View style={styles.dropdownWrap}>
+                    <Pressable
+                      style={[
+                        styles.selector,
+                        {
+                          borderColor: theme.border,
+                          backgroundColor: theme.surface,
+                        },
+                      ]}
+                      onPress={() => {
+                        setAssignMemberModalOpen((open) => !open);
+                        setFriendModalOpen(false);
+                        setPaidByModalOpen(false);
+                      }}
+                      disabled={savingItem || sortedMembers.length === 0}
+                    >
+                      <View style={styles.selectorCopy}>
+                        <Text style={styles.selectorLabel}>Assign to</Text>
+                        <Text style={styles.selectorValue} numberOfLines={1}>
+                          {selectedAssignedMember
+                            ? getMemberName(selectedAssignedMember)
+                            : "Choose member"}
+                        </Text>
+                      </View>
+
+                      <Ionicons
+                        name={
+                          assignMemberModalOpen ? "chevron-up" : "chevron-down"
+                        }
+                        size={18}
+                        color={theme.body}
+                      />
+                    </Pressable>
+
+                    {assignMemberModalOpen ? (
+                      <View
+                        style={[
+                          styles.dropdownMenu,
+                          {
+                            borderColor: theme.border,
+                            backgroundColor: theme.card,
+                          },
+                        ]}
+                      >
+                        <ScrollView
+                          style={styles.dropdownScroll}
+                          nestedScrollEnabled
+                          showsVerticalScrollIndicator={false}
+                        >
+                          {sortedMembers.map((member) => {
+                            const selected = member.id === assignedMemberId;
+
+                            return (
+                              <Pressable
+                                key={member.id}
+                                style={[
+                                  styles.dropdownOption,
+                                  {
+                                    borderColor: theme.border,
+                                    backgroundColor: theme.surface,
+                                  },
+                                  selected && {
+                                    borderColor: theme.primary,
+                                    backgroundColor: theme.primarySoft,
+                                  },
+                                ]}
+                                onPress={() => {
+                                  setAssignedMemberId(member.id);
+                                  setAssignMemberModalOpen(false);
+                                }}
+                              >
+                                <Avatar
+                                  name={getMemberName(member)}
+                                  email={member.email}
+                                  imageUrl={
+                                    member.display_photo_url ||
+                                    member.profile_photo_url ||
+                                    member.photo_url
+                                  }
+                                  size={36}
+                                />
+
+                                <View style={styles.optionCopy}>
+                                  <Text
+                                    style={styles.optionTitle}
+                                    numberOfLines={1}
+                                  >
+                                    {getMemberName(member)}
+                                  </Text>
+                                  <Text
+                                    style={styles.optionSubtext}
+                                    numberOfLines={1}
+                                  >
+                                    {member.email}
+                                  </Text>
+                                </View>
+
+                                <Ionicons
+                                  name={
+                                    selected
+                                      ? "checkmark-circle"
+                                      : "ellipse-outline"
+                                  }
+                                  size={19}
+                                  color={selected ? theme.primary : theme.muted}
+                                />
+                              </Pressable>
+                            );
+                          })}
+                        </ScrollView>
+                      </View>
+                    ) : null}
+                  </View>
+
+                  <AppButton
+                    title={savingItem ? "Adding item" : "Add item"}
+                    loading={savingItem}
+                    onPress={() => {
+                      setAssignMemberModalOpen(false);
+                      void handleAddItem();
+                    }}
+                  />
+                </>
+              )}
+            </AppCard>
+          ) : null}
+
+          <AppCard style={styles.detailsCard}>
+            <View style={styles.sectionHeadingBlock}>
+              <Text style={styles.cardTitle}>Selected room</Text>
+              <Text style={styles.sectionHeadingContext}>
+                {selectedRoom ? selectedRoom.name : "No room selected"}
+              </Text>
             </View>
 
-            <View style={styles.membersSection}>
-              <View style={styles.cardHeadRow}>
-                <View>
-                  <Text style={styles.cardEyebrow}>Members</Text>
-                  <Text style={styles.cardTitleSmall}>Room members</Text>
-                </View>
-              </View>
+            {selectedRoom && canManageSelectedRoom() ? (
+              <Pressable
+                style={[
+                  styles.roomActionsButton,
+                  { backgroundColor: theme.surfaceStrong },
+                ]}
+                onPress={() => setRoomActionsOpen(true)}
+              >
+                <Text style={styles.roomActionsButtonText}>Room actions</Text>
+              </Pressable>
+            ) : null}
 
-              <View style={styles.memberList}>
-                {sortedMembers.map((member) => (
+            {!selectedRoom ? (
+              <EmptyState
+                title="No active room"
+                message="Create a room to see its summary."
+              />
+            ) : (
+              <>
+                <View style={styles.summaryGrid}>
                   <View
                     style={[
-                      styles.memberRow,
+                      styles.summaryBox,
                       {
                         borderColor: theme.border,
                         backgroundColor: theme.surface,
                       },
                     ]}
-                    key={member.id}
                   >
-                    <Avatar
-                      name={getMemberName(member)}
-                      email={member.email}
-                      imageUrl={
-                        member.display_photo_url ||
-                        member.profile_photo_url ||
-                        member.photo_url
-                      }
-                      size={42}
+                    <Text style={styles.summaryLabel}>Total</Text>
+                    <AmountText
+                      amount={selectedRoom.totalAmount ?? 0}
+                      size="sm"
+                      tone="primary"
                     />
-
-                    <View style={styles.memberCopy}>
-                      <Text style={styles.memberName} numberOfLines={1}>
-                        {getMemberName(member)}
-                      </Text>
-                      <Text style={styles.memberEmail} numberOfLines={1}>
-                        {member.email}
-                      </Text>
-                    </View>
-
-                    {member.isOwner ? (
-                      <Text style={styles.memberRole}>Host</Text>
-                    ) : null}
                   </View>
-                ))}
+
+                  <View
+                    style={[
+                      styles.summaryBox,
+                      {
+                        borderColor: theme.border,
+                        backgroundColor: theme.surface,
+                      },
+                    ]}
+                  >
+                    <Text style={styles.summaryLabel}>Outstanding</Text>
+                    <AmountText
+                      amount={selectedRoom.outstandingAmount ?? 0}
+                      size="sm"
+                      tone={
+                        (selectedRoom.outstandingAmount ?? 0) > 0
+                          ? "danger"
+                          : "success"
+                      }
+                    />
+                  </View>
+
+                  <View
+                    style={[
+                      styles.summaryBox,
+                      {
+                        borderColor: theme.border,
+                        backgroundColor: theme.surface,
+                      },
+                    ]}
+                  >
+                    <Text style={styles.summaryLabel}>Collected</Text>
+                    <AmountText
+                      amount={selectedRoom.collectedAmount ?? 0}
+                      size="sm"
+                      tone="success"
+                    />
+                  </View>
+
+                  <View
+                    style={[
+                      styles.summaryBox,
+                      {
+                        borderColor: theme.border,
+                        backgroundColor: theme.surface,
+                      },
+                    ]}
+                  >
+                    <Text style={styles.summaryLabel}>Paid by</Text>
+                    <Text style={styles.summaryValue} numberOfLines={1}>
+                      {getRoomPaidByEmail(selectedRoom) || "Host"}
+                    </Text>
+                  </View>
+                </View>
+              </>
+            )}
+          </AppCard>
+
+          <AppCard style={styles.memberBalanceCard}>
+            <View style={styles.cardHeadRow}>
+              <View style={styles.sectionHeadingBlock}>
+                <Text style={styles.cardTitle}>Members</Text>
+                <Text style={styles.sectionHeadingContext}>
+                  Member balances
+                </Text>
+              </View>
+
+              {selectedRoom?.isOwner && selectedRoomHasMemberPendingDues ? (
+                <Pressable
+                  style={styles.reminderButton}
+                  onPress={requestSendRoomReminder}
+                  disabled={remindingRoomId === selectedRoom?.id}
+                >
+                  <Text style={styles.reminderButtonText}>
+                    {remindingRoomId === selectedRoom?.id
+                      ? "Sending"
+                      : "Remind"}
+                  </Text>
+                </Pressable>
+              ) : null}
+            </View>
+
+            {!selectedRoom ? (
+              <EmptyState title="No room selected" />
+            ) : selectedMemberBalances.length === 0 ? (
+              <EmptyState title="No member balances" />
+            ) : (
+              <View style={styles.memberBalanceList}>
+                {selectedMemberBalances.map((balance) => {
+                  const member = getBalanceMember(balance);
+                  const assignedAmount = getBalanceAssignedAmount(balance);
+                  const pendingAmount = getBalancePendingAmount(balance);
+
+                  return (
+                    <Pressable
+                      key={balance.memberId}
+                      style={[
+                        styles.memberBalanceRow,
+                        {
+                          borderColor: theme.border,
+                          backgroundColor: theme.surface,
+                        },
+                        pendingAmount > 0 && {
+                          borderColor: theme.primary,
+                          backgroundColor: theme.card,
+                        },
+                      ]}
+                      onPress={() => setMemberBalanceTarget(balance)}
+                    >
+                      <View style={styles.memberBalanceTop}>
+                        <Avatar
+                          name={member ? getMemberName(member) : balance.name}
+                          email={member?.email}
+                          imageUrl={
+                            member?.display_photo_url ||
+                            member?.profile_photo_url ||
+                            member?.photo_url
+                          }
+                          size={44}
+                        />
+
+                        <View style={styles.memberBalanceCopy}>
+                          <Text
+                            style={styles.memberBalanceName}
+                            numberOfLines={1}
+                          >
+                            {balance.name ||
+                              (member ? getMemberName(member) : "Member")}
+                          </Text>
+
+                          <Text
+                            style={styles.memberBalanceDetail}
+                            numberOfLines={1}
+                          >
+                            {balance.detail ||
+                              (pendingAmount > 0
+                                ? "Dues pending"
+                                : assignedAmount > 0
+                                  ? "Settled"
+                                  : "No dues yet")}
+                          </Text>
+                        </View>
+
+                        <View style={styles.memberBalanceAmountBox}>
+                          <AmountText
+                            amount={
+                              pendingAmount > 0 ? pendingAmount : assignedAmount
+                            }
+                            size="sm"
+                            tone={
+                              pendingAmount > 0
+                                ? "danger"
+                                : assignedAmount > 0
+                                  ? "success"
+                                  : "default"
+                            }
+                          />
+                          <Text style={styles.memberBalanceAmountLabel}>
+                            {pendingAmount > 0 ? "pending" : "assigned"}
+                          </Text>
+                        </View>
+                      </View>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            )}
+          </AppCard>
+
+          <AppCard style={styles.netSettlementCard}>
+            <View style={styles.cardHeadRow}>
+              <View style={styles.netSettlementHeadCopy}>
+                <Text style={styles.cardEyebrow}>Adjusted settlements</Text>
+                <View style={styles.netSettlementTitleRow}>
+                  <Text
+                    style={[styles.cardTitle, styles.netSettlementTitleText]}
+                  >
+                    Final payable after adjustment
+                  </Text>
+
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel="How adjusted settlements work"
+                    hitSlop={10}
+                    style={({ pressed }) => [
+                      styles.netSettlementInfoButton,
+                      {
+                        backgroundColor: theme.surfaceStrong,
+                        opacity: pressed ? 0.68 : 1,
+                      },
+                    ]}
+                    onPress={() =>
+                      Alert.alert(
+                        "How adjusted settlements work",
+                        "SplitVerse cancels opposite dues between the same friends first, then shows only the final amount that actually needs to move.",
+                      )
+                    }
+                  >
+                    <Ionicons
+                      name="information-circle-outline"
+                      size={21}
+                      color={theme.primary}
+                    />
+                  </Pressable>
+                </View>
               </View>
             </View>
-          </>
-        )}
-      </AppCard>
 
-      <AppCard style={styles.memberBalanceCard}>
-        <View style={styles.cardHeadRow}>
-          <View>
-            <Text style={styles.cardEyebrow}>Members</Text>
-            <Text style={styles.cardTitle}>Member balances</Text>
-          </View>
+            <View style={styles.netSettlementSummary}>
+              <Pressable
+                style={[
+                  styles.netSettlementMetric,
+                  styles.payableMetric,
+                  { borderColor: theme.border, backgroundColor: theme.surface },
+                ]}
+                onPress={() => setNetSettlementInfoDialog("payable")}
+              >
+                <Text style={styles.netMetricLabel}>Payable</Text>
+                <AmountText
+                  amount={netSettlementOutgoingTotal}
+                  size="md"
+                  tone={netSettlementOutgoingTotal > 0 ? "danger" : "success"}
+                />
+              </Pressable>
 
-          {selectedRoom?.isOwner && selectedRoomHasMemberPendingDues ? (
-            <Pressable
-              style={styles.reminderButton}
-              onPress={requestSendRoomReminder}
-              disabled={remindingRoomId === selectedRoom?.id}
-            >
-              <Text style={styles.reminderButtonText}>
-                {remindingRoomId === selectedRoom?.id ? "Sending" : "Remind"}
-              </Text>
-            </Pressable>
-          ) : null}
-        </View>
-
-        {!selectedRoom ? (
-          <EmptyState
-            title="No room selected"
-            message="Select a room to view member balances."
-          />
-        ) : selectedMemberBalances.length === 0 ? (
-          <EmptyState
-            title="No member balances"
-            message="Add items to see member-wise assigned and pending amounts."
-          />
-        ) : (
-          <View style={styles.memberBalanceList}>
-            {selectedMemberBalances.map((balance) => {
-              const member = getBalanceMember(balance);
-              const assignedAmount = getBalanceAssignedAmount(balance);
-              const pendingAmount = getBalancePendingAmount(balance);
-
-              return (
-                <Pressable
-                  key={balance.memberId}
-                  style={[
-                    styles.memberBalanceRow,
-                    {
-                      borderColor: theme.border,
-                      backgroundColor: theme.surface,
-                    },
-                    pendingAmount > 0 && {
-                      borderColor: theme.primary,
-                      backgroundColor: theme.card,
-                    },
-                  ]}
-                  onPress={() => setMemberBalanceTarget(balance)}
-                >
-                  <View style={styles.memberBalanceTop}>
-                    <Avatar
-                      name={member ? getMemberName(member) : balance.name}
-                      email={member?.email}
-                      imageUrl={
-                        member?.display_photo_url ||
-                        member?.profile_photo_url ||
-                        member?.photo_url
-                      }
-                      size={44}
-                    />
-
-                    <View style={styles.memberBalanceCopy}>
-                      <Text style={styles.memberBalanceName} numberOfLines={1}>
-                        {balance.name ||
-                          (member ? getMemberName(member) : "Member")}
-                      </Text>
-
-                      <Text
-                        style={styles.memberBalanceDetail}
-                        numberOfLines={1}
-                      >
-                        {balance.detail ||
-                          (pendingAmount > 0
-                            ? "Dues pending"
-                            : assignedAmount > 0
-                              ? "Settled"
-                              : "No dues yet")}
-                      </Text>
-                    </View>
-
-                    <View style={styles.memberBalanceAmountBox}>
-                      <AmountText
-                        amount={
-                          pendingAmount > 0 ? pendingAmount : assignedAmount
-                        }
-                        size="sm"
-                        tone={
-                          pendingAmount > 0
-                            ? "danger"
-                            : assignedAmount > 0
-                              ? "success"
-                              : "default"
-                        }
-                      />
-                      <Text style={styles.memberBalanceAmountLabel}>
-                        {pendingAmount > 0 ? "pending" : "assigned"}
-                      </Text>
-                    </View>
-                  </View>
-                </Pressable>
-              );
-            })}
-          </View>
-        )}
-      </AppCard>
-
-      <AppCard style={styles.pendingDuesCard}>
-        <View style={styles.cardHeadRow}>
-          <View>
-            <Text style={styles.cardEyebrow}>Your dues</Text>
-            <Text style={styles.cardTitle}>Pending in this room</Text>
-          </View>
-
-          <AmountText
-            amount={selectedRoomMyPendingTotal}
-            size="sm"
-            tone={selectedRoomMyPendingTotal > 0 ? "danger" : "success"}
-          />
-        </View>
-
-        {!selectedRoom ? (
-          <EmptyState title="No room selected" />
-        ) : selectedRoomMyPendingItems.length === 0 ? (
-          <EmptyState
-            title="No pending dues"
-            message="Items assigned to you and not collected will appear here."
-          />
-        ) : (
-          <View style={styles.myDueList}>
-            {selectedRoomMyPendingItems.map((item) => (
-              <View style={styles.myDueRow} key={item.id}>
-                <View style={styles.memberBalanceCopy}>
-                  <Text style={styles.memberBalanceName} numberOfLines={1}>
-                    {item.title}
-                  </Text>
-                  <Text style={styles.memberBalanceDetail}>
-                    Assigned to you
-                  </Text>
-                </View>
-
-                <AmountText amount={item.amount} size="sm" tone="danger" />
-              </View>
-            ))}
-          </View>
-        )}
-      </AppCard>
-
-      <AppCard style={styles.netSettlementCard}>
-        <View style={styles.cardHeadRow}>
-          <View style={styles.netSettlementHeadCopy}>
-            <Text style={styles.cardEyebrow}>Adjusted settlements</Text>
-            <Text style={styles.cardTitle}>Final payable after adjustment</Text>
-            <Text style={styles.netSettlementNote}>
-              SplitVerse cancels opposite dues between the same friends first,
-              then shows only the final amount that actually needs to move.
-            </Text>
-          </View>
-        </View>
-
-        <View style={styles.netSettlementSummary}>
-          <Pressable
-            style={[
-              styles.netSettlementMetric,
-              styles.payableMetric,
-              { borderColor: theme.border, backgroundColor: theme.surface },
-            ]}
-            onPress={() => setNetSettlementInfoDialog("payable")}
-          >
-            <Text style={styles.netMetricLabel}>Payable</Text>
-            <AmountText
-              amount={netSettlementOutgoingTotal}
-              size="md"
-              tone={netSettlementOutgoingTotal > 0 ? "danger" : "success"}
-            />
-            <Text style={styles.netMetricHelper}>You pay after offsets</Text>
-          </Pressable>
-
-          <Pressable
-            style={[
-              styles.netSettlementMetric,
-              styles.receivableMetric,
-              { borderColor: theme.border, backgroundColor: theme.surface },
-            ]}
-            onPress={() => setNetSettlementInfoDialog("receivable")}
-          >
-            <Text style={styles.netMetricLabel}>Receivable</Text>
-            <AmountText
-              amount={netSettlementIncomingTotal}
-              size="md"
-              tone="success"
-            />
-            <Text style={styles.netMetricHelper}>
-              You receive after offsets
-            </Text>
-          </Pressable>
-        </View>
-      </AppCard>
+              <Pressable
+                style={[
+                  styles.netSettlementMetric,
+                  styles.receivableMetric,
+                  { borderColor: theme.border, backgroundColor: theme.surface },
+                ]}
+                onPress={() => setNetSettlementInfoDialog("receivable")}
+              >
+                <Text style={styles.netMetricLabel}>Receivable</Text>
+                <AmountText
+                  amount={netSettlementIncomingTotal}
+                  size="md"
+                  tone="success"
+                />
+              </Pressable>
+            </View>
+          </AppCard>
+        </>
+      ) : null}
 
       <Modal
         visible={createRoomModalVisible}
@@ -2742,10 +2769,7 @@ export default function SplitRooms() {
         </View>
 
         {visibleNetSettlements.length === 0 ? (
-          <EmptyState
-            title={`No ${netSettlementInfoDialog} settlements`}
-            message="Adjusted settlement details will appear after room dues exist."
-          />
+          <EmptyState title={`No ${netSettlementInfoDialog} settlements yet`} />
         ) : (
           <View style={styles.netSettlementList}>
             {visibleNetSettlements.map((settlement) => {
@@ -2767,17 +2791,6 @@ export default function SplitRooms() {
                   key={`${settlement.fromUserId}-${settlement.toUserId}`}
                 >
                   <View style={styles.netSettlementRowMain}>
-                    <Text
-                      style={[
-                        styles.netDirectionPill,
-                        settlement.isOutgoing
-                          ? styles.netDirectionPayable
-                          : styles.netDirectionReceivable,
-                      ]}
-                    >
-                      {settlement.isOutgoing ? "Payable" : "Receivable"}
-                    </Text>
-
                     <Text style={styles.netSettlementTitle} numberOfLines={1}>
                       {settlementTitle}
                     </Text>
@@ -2861,7 +2874,7 @@ export default function SplitRooms() {
         ) : !selectedRoom.isOwner ? (
           <EmptyState
             title="Only host can manage"
-            message="Only the room owner can delete, finalize, or archive this room."
+            message="Only the room owner can delete this room."
           />
         ) : (
           <>
@@ -2901,27 +2914,6 @@ export default function SplitRooms() {
 
             <AppButton
               title={
-                finalizingRoomId === selectedRoom.id
-                  ? "Finalizing"
-                  : "Finalize room"
-              }
-              loading={finalizingRoomId === selectedRoom.id}
-              onPress={() => requestFinalizeRoom(selectedRoom)}
-            />
-
-            <AppButton
-              title={
-                archivingRoomId === selectedRoom.id
-                  ? "Archiving"
-                  : "Archive room"
-              }
-              variant="secondary"
-              loading={archivingRoomId === selectedRoom.id}
-              onPress={requestArchiveRoom}
-            />
-
-            <AppButton
-              title={
                 deletingRoomId === selectedRoom.id ? "Deleting" : "Delete room"
               }
               variant="secondary"
@@ -2940,7 +2932,9 @@ export default function SplitRooms() {
         closeTitle="Cancel"
       >
         {netSettlementTarget ? (
-          <View style={styles.pinSummaryCard}>
+          <View
+            style={[styles.pinSummaryCard, { backgroundColor: theme.mode === "dark" ? theme.background : theme.surface }]}
+          >
             <Text style={styles.cardEyebrow}>You are paying</Text>
             <Text style={styles.cardTitleSmall}>
               {netSettlementTarget.toName || netSettlementTarget.toEmail}
@@ -2953,8 +2947,7 @@ export default function SplitRooms() {
             />
 
             <Text style={styles.netExplanationText}>
-              This amount is the final balance after SplitVerse adjusts opposite
-              dues across shared rooms.
+              This amount is the final balance after adjustments
             </Text>
           </View>
         ) : null}
@@ -3031,17 +3024,17 @@ const styles = StyleSheet.create({
     borderBottomRightRadius: 32,
   },
   heroImage: {
-    minHeight: 228,
+    minHeight: 190,
   },
   heroImageInner: {
     opacity: 0.95,
   },
   hero: {
-    minHeight: 228,
+    minHeight: 190,
     borderBottomLeftRadius: 32,
     borderBottomRightRadius: 32,
     paddingHorizontal: spacing.base,
-    paddingTop: spacing.xl,
+    paddingTop: spacing.base,
     paddingBottom: spacing.xxl,
     justifyContent: "flex-end",
   },
@@ -3077,9 +3070,11 @@ const styles = StyleSheet.create({
     width: 42,
     height: 42,
     borderWidth: 1,
+    marginTop: spacing.xs,
     borderRadius: radius.pill,
     alignItems: "center",
     justifyContent: "center",
+    alignSelf: "flex-start",
     flexShrink: 0,
   },
   header: {
@@ -3103,6 +3098,80 @@ const styles = StyleSheet.create({
     gap: spacing.base,
     marginHorizontal: spacing.base,
     marginTop: -spacing.xl,
+  },
+  emptyRoomsPanel: {
+    minHeight: 330,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: spacing.base,
+    borderWidth: 1,
+    borderRadius: radius.xl,
+    paddingHorizontal: spacing.base,
+    paddingVertical: spacing.xl,
+  },
+  emptyRoomsIconWrap: {
+    width: 62,
+    height: 62,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: radius.pill,
+  },
+  emptyRoomsTitle: {
+    color: colors.ink,
+    textAlign: "center",
+    ...typography.titleMd,
+  },
+  emptyRoomsDescription: {
+    maxWidth: 330,
+    color: colors.body,
+    textAlign: "center",
+    ...typography.bodySm,
+  },
+  emptyRoomsSteps: {
+    width: "100%",
+    gap: spacing.sm,
+  },
+  emptyRoomsStep: {
+    minHeight: 42,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+  },
+  emptyRoomsStepNumber: {
+    width: 28,
+    height: 28,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: radius.pill,
+  },
+  emptyRoomsStepNumberText: {
+    fontSize: 12,
+    fontWeight: "800",
+  },
+  emptyRoomsStepText: {
+    flex: 1,
+    color: colors.ink,
+    ...typography.bodySm,
+  },
+  emptyRoomsInviteHint: {
+    color: colors.body,
+    textAlign: "center",
+    ...typography.caption,
+  },
+  emptyRoomsCreateButton: {
+    minHeight: 48,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: spacing.xs,
+    alignSelf: "stretch",
+    borderRadius: radius.pill,
+    paddingHorizontal: spacing.base,
+  },
+  emptyRoomsCreateButtonText: {
+    color: "#fff",
+    fontSize: 14,
+    fontWeight: "800",
   },
   addItemCard: {
     gap: spacing.base,
@@ -3133,6 +3202,14 @@ const styles = StyleSheet.create({
   cardTitleSmall: {
     color: colors.ink,
     ...typography.titleSm,
+  },
+  sectionHeadingBlock: {
+    minWidth: 0,
+    gap: 2,
+  },
+  sectionHeadingContext: {
+    color: colors.body,
+    ...typography.bodySm,
   },
   selector: {
     minHeight: 64,
@@ -3273,7 +3350,7 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
   },
   summaryBox: {
-    width: "48%",
+    width: "47.8%",
     minHeight: 82,
     justifyContent: "space-between",
     borderWidth: 1,
@@ -3504,9 +3581,23 @@ const styles = StyleSheet.create({
     minWidth: 0,
     gap: spacing.xs,
   },
-  netSettlementNote: {
-    color: colors.body,
-    ...typography.bodySm,
+  netSettlementTitleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: spacing.sm,
+  },
+  netSettlementTitleText: {
+    flex: 1,
+    minWidth: 0,
+  },
+  netSettlementInfoButton: {
+    width: 36,
+    height: 36,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: radius.pill,
+    flexShrink: 0,
   },
   netSettlementSummary: {
     flexDirection: "row",
@@ -3514,7 +3605,7 @@ const styles = StyleSheet.create({
   },
   netSettlementMetric: {
     flex: 1,
-    minHeight: 118,
+    minHeight: 70,
     justifyContent: "space-between",
     borderWidth: 1,
     borderRadius: radius.xl,
@@ -3660,7 +3751,6 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.hairlineSoft,
     borderRadius: radius.xl,
-    backgroundColor: colors.surfaceSoft,
     padding: spacing.base,
   },
 

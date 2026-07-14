@@ -7,7 +7,16 @@ import {
 } from "./errors";
 
 const API_URL = process.env.EXPO_PUBLIC_API_URL;
-const REQUEST_TIMEOUT_MS = 15000;
+const DEFAULT_REQUEST_TIMEOUT_MS = 20000;
+const STARTUP_REQUEST_TIMEOUT_MS = 75000;
+
+function getRequestTimeoutMs(path: string) {
+  if (path === "/api/auth/sync-user" || path === "/api/auth/me") {
+    return STARTUP_REQUEST_TIMEOUT_MS;
+  }
+
+  return DEFAULT_REQUEST_TIMEOUT_MS;
+}
 
 if (!API_URL) {
   console.warn("EXPO_PUBLIC_API_URL is missing in mobile/.env");
@@ -82,7 +91,8 @@ async function getAuthToken() {
   } catch (error) {
     throw normalizeAppError(error, {
       title: "Could not verify your session",
-      fallbackMessage: "SplitVerse could not verify your sign-in session. Sign in again and retry.",
+      fallbackMessage:
+        "SplitVerse could not verify your sign-in session. Sign in again and retry.",
     });
   }
 }
@@ -97,11 +107,12 @@ async function requestJson<T>(
   token?: string,
 ): Promise<T> {
   const controller = new AbortController();
+  const requestTimeoutMs = getRequestTimeoutMs(path);
   let timedOut = false;
   const timeout = setTimeout(() => {
     timedOut = true;
     controller.abort();
-  }, REQUEST_TIMEOUT_MS);
+  }, requestTimeoutMs);
 
   const externalSignal = options.signal;
   const abortFromExternalSignal = () => controller.abort();
@@ -807,10 +818,7 @@ export type EmailLoginOtpSession = {
   expiresAt: string;
 };
 
-export async function requestEmailLoginOtp(
-  email: string,
-  password: string,
-) {
+export async function requestEmailLoginOtp(email: string, password: string) {
   return publicApiFetch<EmailLoginOtpSession>(
     "/api/auth/email-login-otp/request",
     {
@@ -877,14 +885,20 @@ export type UpdateProfileSettingsPayload = {
   appLanguage?: string;
 };
 
-export async function updateProfileSettings(payload: UpdateProfileSettingsPayload) {
+export async function updateProfileSettings(
+  payload: UpdateProfileSettingsPayload,
+) {
   return apiFetch<{ message: string; user: DbUser }>("/api/auth/profile", {
     method: "PATCH",
     body: JSON.stringify(payload),
   });
 }
 
-export async function uploadProfilePhoto(photo: { uri: string; name: string; type: string }) {
+export async function uploadProfilePhoto(photo: {
+  uri: string;
+  name: string;
+  type: string;
+}) {
   const token = await getAuthToken();
   const formData = new FormData();
   formData.append("photo", photo as unknown as Blob);
@@ -926,7 +940,9 @@ export type ResetWalletPinWithOtpPayload = {
   pin: string;
 };
 
-export async function resetWalletPinWithOtp(payload: ResetWalletPinWithOtpPayload) {
+export async function resetWalletPinWithOtp(
+  payload: ResetWalletPinWithOtpPayload,
+) {
   return apiFetch<{ message: string; user: DbUser }>(
     "/api/auth/wallet-pin/reset",
     {
