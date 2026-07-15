@@ -1,10 +1,11 @@
 import { LinearGradient } from "expo-linear-gradient";
-import { Ionicons } from "@expo/vector-icons";
-import { router, useFocusEffect } from "expo-router";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import Ionicons from "@expo/vector-icons/Ionicons";
+import { router } from "expo-router";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  AppState,
   ImageBackground,
   Keyboard,
   KeyboardAvoidingView,
@@ -52,7 +53,10 @@ import {
 } from "../../src/lib/transactionDisplay";
 import { fontFamilies } from "../../src/theme/fonts";
 import { showErrorAlert } from "../../src/lib/errors";
+import { useRefreshOnReturn } from "../../src/hooks/useRefreshOnReturn";
+import { useScreenFocusRef } from "../../src/hooks/useScreenFocusRef";
 import { colors, radius, spacing, typography } from "../../src/theme/tokens";
+import { HERO_BLUR_RADIUS } from "../../src/theme/performance";
 
 const MONTH_LABELS = [
   "Jan",
@@ -165,6 +169,9 @@ function buildYearlySpend(summary: DashboardSummary | null): SpendGraphPoint[] {
 export default function Dashboard() {
   const { user, dbUser } = useAuth();
   const { avatarId, formatCurrency, theme } = useAppSettings();
+  const screenFocusedRef = useScreenFocusRef();
+  const appStateRef = useRef(AppState.currentState);
+
   const [summary, setSummary] = useState<DashboardSummary | null>(
     dashboardCache?.summary ?? null,
   );
@@ -320,7 +327,7 @@ export default function Dashboard() {
       setHasUnreadNotifications(
         Boolean(
           notificationSignature &&
-          notificationSignature !== seenNotificationSignature,
+            notificationSignature !== seenNotificationSignature,
         ),
       );
     } catch (error) {
@@ -340,19 +347,36 @@ export default function Dashboard() {
     void loadDashboardData(Boolean(dashboardCache));
   }, [loadDashboardData]);
 
-  useFocusEffect(
-    useCallback(() => {
-      void loadDashboardData(true);
-    }, [loadDashboardData]),
-  );
+  useRefreshOnReturn(() => {
+    void loadDashboardData(true);
+  }, [loadDashboardData]);
 
   useEffect(() => {
+    const appStateSubscription = AppState.addEventListener(
+      "change",
+      (nextState) => {
+        const returningToForeground =
+          appStateRef.current !== "active" && nextState === "active";
+
+        appStateRef.current = nextState;
+
+        if (returningToForeground && screenFocusedRef.current) {
+          void loadDashboardData(true);
+        }
+      },
+    );
+
     const timer = setInterval(() => {
-      void loadDashboardData(true);
+      if (appStateRef.current === "active" && screenFocusedRef.current) {
+        void loadDashboardData(true);
+      }
     }, 9000);
 
-    return () => clearInterval(timer);
-  }, [loadDashboardData]);
+    return () => {
+      appStateSubscription.remove();
+      clearInterval(timer);
+    };
+  }, [loadDashboardData, screenFocusedRef]);
 
   if (loading && !dashboardCache) {
     return (
@@ -475,7 +499,7 @@ export default function Dashboard() {
           {photoUrl ? (
             <ImageBackground
               source={{ uri: photoUrl }}
-              blurRadius={28}
+              blurRadius={HERO_BLUR_RADIUS}
               style={styles.heroImage}
               imageStyle={styles.heroImageInner}
             >

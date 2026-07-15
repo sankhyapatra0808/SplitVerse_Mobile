@@ -1,3 +1,4 @@
+import { memo } from "react";
 import { StyleSheet, type TextProps } from "react-native";
 import Text from "./LocalizedText";
 import { useAppSettings, type CurrencyCode } from "../context/useAppSettings";
@@ -10,7 +11,7 @@ type AmountTextProps = TextProps & {
   tone?: "default" | "success" | "danger" | "primary";
 };
 
-export default function AmountText({
+function AmountText({
   amount = 0,
   currency,
   sourceCurrency = "INR",
@@ -19,9 +20,17 @@ export default function AmountText({
   style,
   ...props
 }: AmountTextProps) {
-  const { appCurrency, convertCurrency, formatCurrencyValue, theme } = useAppSettings();
-  const targetCurrency = currency && currency.length === 3 ? (currency as CurrencyCode) : appCurrency;
-  const convertedAmount = convertCurrency(Number(amount || 0), sourceCurrency, targetCurrency);
+  const { appCurrency, convertCurrency, formatCurrencyValue, theme } =
+    useAppSettings();
+  const targetCurrency =
+    currency && currency.length === 3
+      ? (currency as CurrencyCode)
+      : appCurrency;
+  const convertedAmount = convertCurrency(
+    Number(amount || 0),
+    sourceCurrency,
+    targetCurrency,
+  );
   const value = formatCurrencyValue(convertedAmount, targetCurrency);
   const toneColor =
     tone === "success"
@@ -48,6 +57,8 @@ export default function AmountText({
     </Text>
   );
 }
+
+export default memo(AmountText);
 
 const styles = StyleSheet.create({
   base: {

@@ -1,6 +1,5 @@
 import { LinearGradient } from "expo-linear-gradient";
-import { Ionicons } from "@expo/vector-icons";
-import { useFocusEffect } from "expo-router";
+import Ionicons from "@expo/vector-icons/Ionicons";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Alert,
@@ -50,7 +49,9 @@ import {
   type SplitRoomMember,
 } from "../../src/lib/api";
 import { showErrorAlert } from "../../src/lib/errors";
+import { useRefreshOnReturn } from "../../src/hooks/useRefreshOnReturn";
 import { colors, radius, spacing, typography } from "../../src/theme/tokens";
+import { HERO_BLUR_RADIUS } from "../../src/theme/performance";
 
 const INITIAL_VISIBLE_ROOMS = 3;
 const ROOM_LOAD_BATCH = 2;
@@ -541,9 +542,9 @@ export default function SplitRooms() {
 
   const selectedRoomClosed = Boolean(
     selectedRoom?.isArchived ||
-    selectedRoom?.isFinalized ||
-    selectedRoom?.status === "archived" ||
-    selectedRoom?.status === "finalized",
+      selectedRoom?.isFinalized ||
+      selectedRoom?.status === "archived" ||
+      selectedRoom?.status === "finalized",
   );
 
   const selectedAssignedMember = useMemo(
@@ -647,11 +648,9 @@ export default function SplitRooms() {
     void loadSplitRoomData();
   }, [loadSplitRoomData]);
 
-  useFocusEffect(
-    useCallback(() => {
-      void loadSplitRoomData(undefined, true);
-    }, [loadSplitRoomData]),
-  );
+  useRefreshOnReturn(() => {
+    void loadSplitRoomData(undefined, true);
+  }, [loadSplitRoomData]);
 
   useEffect(() => {
     if (!roomPaidByEmail && selfEmail) {
@@ -1055,10 +1054,10 @@ export default function SplitRooms() {
 
     return Boolean(
       selectedRoom.isOwner &&
-      !selectedRoomClosed &&
-      !member.isMe &&
-      !member.isOwner &&
-      assignedItemCount === 0,
+        !selectedRoomClosed &&
+        !member.isMe &&
+        !member.isOwner &&
+        assignedItemCount === 0,
     );
   }
 
@@ -1433,7 +1432,7 @@ export default function SplitRooms() {
         {photoUrl ? (
           <ImageBackground
             source={{ uri: photoUrl }}
-            blurRadius={28}
+            blurRadius={HERO_BLUR_RADIUS}
             style={StyleSheet.absoluteFillObject}
             imageStyle={styles.heroImageInner}
           />
@@ -2566,9 +2565,9 @@ export default function SplitRooms() {
               const itemCount = getBalanceItemCount(balance);
               const canCollect = Boolean(
                 selectedRoom?.isOwner &&
-                !selectedRoomClosed &&
-                !balance.isMe &&
-                pendingAmount > 0,
+                  !selectedRoomClosed &&
+                  !balance.isMe &&
+                  pendingAmount > 0,
               );
 
               return (
@@ -2951,7 +2950,13 @@ export default function SplitRooms() {
       >
         {netSettlementTarget ? (
           <View
-            style={[styles.pinSummaryCard, { backgroundColor: theme.mode === "dark" ? theme.background : theme.surface }]}
+            style={[
+              styles.pinSummaryCard,
+              {
+                backgroundColor:
+                  theme.mode === "dark" ? theme.background : theme.surface,
+              },
+            ]}
           >
             <Text style={styles.cardEyebrow}>You are paying</Text>
             <Text style={styles.cardTitleSmall}>

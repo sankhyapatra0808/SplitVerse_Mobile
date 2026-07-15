@@ -1,3 +1,4 @@
+import { memo, useCallback, useMemo } from "react";
 import {
   Pressable,
   StyleSheet,
@@ -71,7 +72,7 @@ function getMonthLabel(label: string) {
   return cleanLabel;
 }
 
-export default function SpendBarChart({
+function SpendBarChart({
   title,
   totalLabel,
   mode,
@@ -84,20 +85,26 @@ export default function SpendBarChart({
 }: SpendBarChartProps) {
   const { formatCurrency, theme } = useAppSettings();
 
-  const formatAmount = (amount: number) =>
-    formatCurrency(amount, { compact: true });
+  const formatAmount = useCallback(
+    (amount: number) => formatCurrency(amount, { compact: true }),
+    [formatCurrency],
+  );
 
-  const normalizedData =
-    mode === "yearly"
-      ? data.map((item) => ({
-          ...item,
-          label: getMonthLabel(item.label),
-        }))
-      : data;
+  const normalizedData = useMemo(
+    () =>
+      mode === "yearly"
+        ? data.map((item) => ({
+            ...item,
+            label: getMonthLabel(item.label),
+          }))
+        : data,
+    [data, mode],
+  );
 
-  const maxAmount = Math.max(
-    ...normalizedData.map((item) => Number(item.amount || 0)),
-    0,
+  const maxAmount = useMemo(
+    () =>
+      Math.max(...normalizedData.map((item) => Number(item.amount || 0)), 0),
+    [normalizedData],
   );
 
   const halfAmount = maxAmount / 2;
@@ -146,6 +153,9 @@ export default function SpendBarChart({
           style={[styles.switcher, { backgroundColor: theme.surfaceStrong }]}
         >
           <Pressable
+            accessibilityRole="button"
+            accessibilityState={{ selected: mode === "weekly" }}
+            accessibilityLabel="Show weekly spending"
             style={[
               styles.switchButton,
               mode === "weekly" && { backgroundColor: theme.canvas },
@@ -163,6 +173,9 @@ export default function SpendBarChart({
           </Pressable>
 
           <Pressable
+            accessibilityRole="button"
+            accessibilityState={{ selected: mode === "yearly" }}
+            accessibilityLabel="Show yearly spending"
             style={[
               styles.switchButton,
               mode === "yearly" && { backgroundColor: theme.canvas },
@@ -208,6 +221,9 @@ export default function SpendBarChart({
 
             return (
               <Pressable
+                accessibilityRole="button"
+                accessibilityState={{ selected }}
+                accessibilityLabel={`${item.label}: ${formatAmount(amount)}`}
                 style={[
                   styles.barColumn,
                   {
@@ -253,6 +269,8 @@ export default function SpendBarChart({
     </View>
   );
 }
+
+export default memo(SpendBarChart);
 
 const styles = StyleSheet.create({
   card: {

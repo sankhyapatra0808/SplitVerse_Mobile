@@ -6,7 +6,9 @@ import {
   normalizeAppError,
 } from "./errors";
 
-const API_URL = process.env.EXPO_PUBLIC_API_URL;
+const API_URL = process.env.EXPO_PUBLIC_API_URL?.trim().replace(/\/+$/, "");
+let pendingAuthTokenRequest: Promise<string> | null = null;
+let pendingAuthTokenUserId = "";
 const DEFAULT_REQUEST_TIMEOUT_MS = 20000;
 const STARTUP_REQUEST_TIMEOUT_MS = 75000;
 
@@ -18,7 +20,7 @@ function getRequestTimeoutMs(path: string) {
   return DEFAULT_REQUEST_TIMEOUT_MS;
 }
 
-if (!API_URL) {
+if (__DEV__ && !API_URL) {
   console.warn("EXPO_PUBLIC_API_URL is missing in mobile/.env");
 }
 
@@ -86,14 +88,27 @@ async function getAuthToken() {
     });
   }
 
+  if (pendingAuthTokenRequest && pendingAuthTokenUserId === currentUser.uid) {
+    return pendingAuthTokenRequest;
+  }
+
+  const tokenRequest = currentUser.getIdToken();
+  pendingAuthTokenRequest = tokenRequest;
+  pendingAuthTokenUserId = currentUser.uid;
+
   try {
-    return await currentUser.getIdToken();
+    return await tokenRequest;
   } catch (error) {
     throw normalizeAppError(error, {
       title: "Could not verify your session",
       fallbackMessage:
         "SplitVerse could not verify your sign-in session. Sign in again and retry.",
     });
+  } finally {
+    if (pendingAuthTokenRequest === tokenRequest) {
+      pendingAuthTokenRequest = null;
+      pendingAuthTokenUserId = "";
+    }
   }
 }
 

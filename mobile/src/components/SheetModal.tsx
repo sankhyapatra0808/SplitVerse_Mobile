@@ -72,6 +72,9 @@ export default function SheetModal({
       visible={visible}
       transparent
       animationType="slide"
+      hardwareAccelerated={Platform.OS === "android"}
+      statusBarTranslucent
+      navigationBarTranslucent
       onRequestClose={onClose}
     >
       <Pressable
@@ -84,6 +87,8 @@ export default function SheetModal({
           style={styles.keyboardView}
         >
           <Pressable
+            accessibilityViewIsModal
+            accessibilityLabel={title}
             style={[
               styles.sheet,
               sheetSizeStyle,
@@ -113,10 +118,11 @@ export default function SheetModal({
               contentContainerStyle={styles.contentContainer}
               showsVerticalScrollIndicator={false}
               keyboardShouldPersistTaps="handled"
-              keyboardDismissMode="interactive"
-              automaticallyAdjustKeyboardInsets
+              keyboardDismissMode={
+                Platform.OS === "ios" ? "interactive" : "on-drag"
+              }
+              automaticallyAdjustKeyboardInsets={Platform.OS === "ios"}
               nestedScrollEnabled
-              scrollEventThrottle={16}
               overScrollMode="never"
               scrollEnabled={scroll}
             >

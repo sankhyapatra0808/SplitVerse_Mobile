@@ -31,9 +31,7 @@ export async function signInWithGoogleAndGetIdToken() {
     const result = await GoogleSignin.signIn();
 
     const idToken =
-      (result as any).idToken ||
-      (result as any).data?.idToken ||
-      "";
+      (result as any).idToken || (result as any).data?.idToken || "";
 
     if (!idToken) {
       throw new Error(
@@ -45,7 +43,8 @@ export async function signInWithGoogleAndGetIdToken() {
   } catch (error) {
     throw normalizeAppError(error, {
       title: "Google sign-in failed",
-      fallbackMessage: "Google sign-in could not be completed. Please try again.",
+      fallbackMessage:
+        "Google sign-in could not be completed. Please try again.",
     });
   }
 }

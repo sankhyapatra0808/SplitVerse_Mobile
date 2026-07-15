@@ -1,5 +1,4 @@
 import { LinearGradient } from "expo-linear-gradient";
-import { useFocusEffect } from "expo-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Alert,
@@ -28,48 +27,12 @@ import {
   type WalletTransactionItem,
 } from "../../src/lib/api";
 import { showErrorAlert } from "../../src/lib/errors";
+import { useRefreshOnReturn } from "../../src/hooks/useRefreshOnReturn";
 import { colors, radius, spacing, typography } from "../../src/theme/tokens";
+import { HERO_BLUR_RADIUS } from "../../src/theme/performance";
 import RazorpayCheckout from "react-native-razorpay";
 import { useAppSettings } from "../../src/context/useAppSettings";
 import { useAuth } from "../../src/context/AuthContext";
-
-function formatMoney(value?: number | null) {
-  return `₹${Number(value || 0).toLocaleString("en-IN", {
-    maximumFractionDigits: 2,
-  })}`;
-}
-
-function formatSignedMoney(value?: number | null) {
-  const amount = Number(value || 0);
-  const sign = amount > 0 ? "+" : amount < 0 ? "-" : "";
-  return `${sign}₹${Math.abs(amount).toLocaleString("en-IN", {
-    maximumFractionDigits: 2,
-  })}`;
-}
-
-function formatDate(dateValue?: string | null) {
-  if (!dateValue) return "Unknown";
-
-  const rawValue = String(dateValue);
-
-  if (/^\d{4}-\d{2}-\d{2}$/.test(rawValue)) {
-    const [year, month, day] = rawValue.split("-");
-    return `${day}-${month}-${year}`;
-  }
-
-  const normalizedValue = rawValue.replace(" ", "T");
-  const hasTimezone = /z$|[+-]\d{2}:?\d{2}$/i.test(normalizedValue);
-  const date = new Date(hasTimezone ? normalizedValue : `${normalizedValue}Z`);
-
-  if (Number.isNaN(date.getTime())) return "Unknown";
-
-  return new Intl.DateTimeFormat("en-GB", {
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-    timeZone: "Asia/Kolkata",
-  }).format(date);
-}
 
 function getTransactionTitle(transaction: WalletTransactionItem) {
   if (transaction.description) return transaction.description;
@@ -216,11 +179,9 @@ export default function Wallet() {
     void loadWallet(Boolean(walletCache));
   }, [loadWallet]);
 
-  useFocusEffect(
-    useCallback(() => {
-      void loadWallet(true);
-    }, [loadWallet]),
-  );
+  useRefreshOnReturn(() => {
+    void loadWallet(true);
+  }, [loadWallet]);
 
   function handleTopUpPress() {
     setTopUpAmount("");
@@ -316,7 +277,7 @@ export default function Wallet() {
         {photoUrl ? (
           <ImageBackground
             source={{ uri: photoUrl }}
-            blurRadius={28}
+            blurRadius={HERO_BLUR_RADIUS}
             style={styles.heroImage}
             imageStyle={styles.heroImageInner}
           >

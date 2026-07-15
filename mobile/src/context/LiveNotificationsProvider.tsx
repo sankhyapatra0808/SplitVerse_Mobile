@@ -2,11 +2,11 @@ import { router } from "expo-router";
 import {
   useCallback,
   useEffect,
-  useMemo,
   useRef,
   useState,
   type ReactNode,
 } from "react";
+import { AppState } from "react-native";
 import AppToast, { type AppToastPayload } from "../components/AppToast";
 import { normalizeAppError } from "../lib/errors";
 import { useAuth } from "./AuthContext";
@@ -49,37 +49,29 @@ export default function LiveNotificationsProvider({
   children: ReactNode;
 }) {
   const { user, dbUser, initializing } = useAuth();
-
   const [toast, setToast] = useState<AppToastPayload | null>(null);
+  const [appIsActive, setAppIsActive] = useState(
+    AppState.currentState === null || AppState.currentState === "active",
+  );
 
   const knownSignatureRef = useRef("");
   const firstLoadDoneRef = useRef(false);
-  const latestItemsRef = useRef<LiveNotificationItem[]>([]);
   const refreshInProgressRef = useRef(false);
   const lastErrorMessageRef = useRef("");
 
   const resetNotificationState = useCallback(() => {
     firstLoadDoneRef.current = false;
     knownSignatureRef.current = "";
-    latestItemsRef.current = [];
     refreshInProgressRef.current = false;
     lastErrorMessageRef.current = "";
     setToast(null);
   }, []);
 
   const loadNotificationItems = useCallback(async () => {
-    /*
-     * Do not request notification data while Firebase is restoring the
-     * session or while the database user is still being synchronized.
-     */
-    if (initializing || !user || !dbUser) {
+    if (!appIsActive || initializing || !user || !dbUser) {
       return;
     }
 
-    /*
-     * The timer, focus refresh, or another event may request a refresh at
-     * nearly the same time. Ignore it while one refresh is already running.
-     */
     if (refreshInProgressRef.current) {
       return;
     }
@@ -99,14 +91,10 @@ export default function LiveNotificationsProvider({
         ...buildWalletNotifications(walletData as WalletSummaryResponse),
       ];
 
-      latestItemsRef.current = items;
-
       const signature = getNotificationSignature(items);
 
-      /*
-       * Do not display old notifications as new notifications when the app
-       * starts. The first successful load only creates the initial baseline.
-       */
+      // The first successful load establishes a baseline and must not replay
+      // existing activity as new notifications when the app starts.
       if (!firstLoadDoneRef.current) {
         knownSignatureRef.current = signature;
         firstLoadDoneRef.current = true;
@@ -136,19 +124,23 @@ export default function LiveNotificationsProvider({
     } finally {
       refreshInProgressRef.current = false;
     }
-  }, [dbUser, initializing, user]);
+  }, [appIsActive, dbUser, initializing, user]);
 
   useEffect(() => {
-    /*
-     * Clear notification state after logout. During normal startup, wait for
-     * AuthContext to finish synchronizing the database user.
-     */
+    const subscription = AppState.addEventListener("change", (nextState) => {
+      setAppIsActive(nextState === "active");
+    });
+
+    return () => subscription.remove();
+  }, []);
+
+  useEffect(() => {
     if (!user) {
       resetNotificationState();
       return;
     }
 
-    if (initializing || !dbUser) {
+    if (!appIsActive || initializing || !dbUser) {
       return;
     }
 
@@ -159,20 +151,14 @@ export default function LiveNotificationsProvider({
           "Live notifications could not be refreshed in the background.",
       });
 
-      /*
-       * Avoid repeatedly printing the exact same warning every nine seconds
-       * while the backend is temporarily waking up.
-       */
       if (lastErrorMessageRef.current !== appError.message) {
-        console.warn("Live notification refresh delayed:", appError.message);
+        if (__DEV__) {
+          console.warn("Live notification refresh delayed:", appError.message);
+        }
         lastErrorMessageRef.current = appError.message;
       }
     };
 
-    /*
-     * Give AuthContext a brief moment to complete the initial account sync
-     * before starting the three notification requests.
-     */
     const initialRefreshTimer = setTimeout(() => {
       void loadNotificationItems().catch(handleBackgroundError);
     }, INITIAL_REFRESH_DELAY_MS);
@@ -186,6 +172,7 @@ export default function LiveNotificationsProvider({
       clearInterval(pollingTimer);
     };
   }, [
+    appIsActive,
     dbUser,
     initializing,
     loadNotificationItems,
@@ -193,11 +180,9 @@ export default function LiveNotificationsProvider({
     user,
   ]);
 
-  const value = useMemo(() => children, [children]);
-
   return (
     <>
-      {value}
+      {children}
       <AppToast toast={toast} onHide={() => setToast(null)} />
     </>
   );

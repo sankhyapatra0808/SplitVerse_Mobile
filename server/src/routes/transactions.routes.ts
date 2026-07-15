@@ -71,9 +71,12 @@ router.get("/", verifyFirebaseToken, async (req: AuthRequest, res) => {
     const currentYear = new Date().getFullYear();
     const requestedYear = Number(req.query.year);
     const requestedMonth = Number(req.query.month);
-    const selectedMonth = Number.isInteger(requestedMonth) && requestedMonth >= 1 && requestedMonth <= 12
-      ? requestedMonth
-      : null;
+    const selectedMonth =
+      Number.isInteger(requestedMonth) &&
+      requestedMonth >= 1 &&
+      requestedMonth <= 12
+        ? requestedMonth
+        : null;
     const selectedYear = isYearExport
       ? Math.min(
           Math.max(

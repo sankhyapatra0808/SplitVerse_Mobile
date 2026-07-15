@@ -9,15 +9,28 @@ type MiniBarChartProps = {
   data: number[];
 };
 
-export default function MiniBarChart({ title, valueLabel, data }: MiniBarChartProps) {
+export default function MiniBarChart({
+  title,
+  valueLabel,
+  data,
+}: MiniBarChartProps) {
   const { theme } = useAppSettings();
   const max = Math.max(...data, 1);
 
   return (
-    <View style={[styles.card, { borderColor: theme.border, backgroundColor: theme.card }]}> 
+    <View
+      style={[
+        styles.card,
+        { borderColor: theme.border, backgroundColor: theme.card },
+      ]}
+    >
       <View style={styles.head}>
         <Text style={[styles.title, { color: theme.text }]}>{title}</Text>
-        {valueLabel ? <Text style={[styles.value, { color: theme.body }]}>{valueLabel}</Text> : null}
+        {valueLabel ? (
+          <Text style={[styles.value, { color: theme.body }]}>
+            {valueLabel}
+          </Text>
+        ) : null}
       </View>
 
       <View style={styles.chart}>
@@ -25,8 +38,16 @@ export default function MiniBarChart({ title, valueLabel, data }: MiniBarChartPr
           const height = Math.max(10, (item / max) * 96);
 
           return (
-            <View style={[styles.barTrack, { backgroundColor: theme.surfaceStrong }]} key={`${item}-${index}`}>
-              <View style={[styles.bar, { height, backgroundColor: theme.primary }]} />
+            <View
+              style={[
+                styles.barTrack,
+                { backgroundColor: theme.surfaceStrong },
+              ]}
+              key={`${item}-${index}`}
+            >
+              <View
+                style={[styles.bar, { height, backgroundColor: theme.primary }]}
+              />
             </View>
           );
         })}

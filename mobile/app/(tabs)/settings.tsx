@@ -1,7 +1,7 @@
 import * as ImagePicker from "expo-image-picker";
 import { File, Paths } from "expo-file-system";
 import * as Sharing from "expo-sharing";
-import { Ionicons } from "@expo/vector-icons";
+import Ionicons from "@expo/vector-icons/Ionicons";
 import { router, useFocusEffect } from "expo-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
@@ -211,7 +211,8 @@ export default function Settings() {
         if (active) {
           showErrorAlert(error, {
             title: "Could not load friends",
-            fallbackMessage: "Your friend list could not be loaded for account settings. Try again later.",
+            fallbackMessage:
+              "Your friend list could not be loaded for account settings. Try again later.",
           });
         }
       } finally {
@@ -253,7 +254,8 @@ export default function Settings() {
     } catch (error) {
       showErrorAlert(error, {
         title: "Could not update profile",
-        fallbackMessage: "Your profile display preference could not be saved. Please try again.",
+        fallbackMessage:
+          "Your profile display preference could not be saved. Please try again.",
       });
     } finally {
       setProfileSaving(false);
@@ -306,7 +308,8 @@ export default function Settings() {
     } catch (error) {
       showErrorAlert(error, {
         title: "Profile photo upload failed",
-        fallbackMessage: "The selected photo could not be uploaded. Check the file and your connection, then try again.",
+        fallbackMessage:
+          "The selected photo could not be uploaded. Check the file and your connection, then try again.",
       });
     } finally {
       setProfileSaving(false);
@@ -320,7 +323,8 @@ export default function Settings() {
     } catch (error) {
       showErrorAlert(error, {
         title: "Currency saved on this device only",
-        fallbackMessage: "The currency changed locally, but it could not be synced to your account. It will remain available on this device.",
+        fallbackMessage:
+          "The currency changed locally, but it could not be synced to your account. It will remain available on this device.",
       });
     }
   }
@@ -332,7 +336,8 @@ export default function Settings() {
     } catch (error) {
       showErrorAlert(error, {
         title: "Language saved on this device only",
-        fallbackMessage: "The language changed locally, but it could not be synced to your account. It will remain available on this device.",
+        fallbackMessage:
+          "The language changed locally, but it could not be synced to your account. It will remain available on this device.",
       });
     }
   }
@@ -376,7 +381,8 @@ export default function Settings() {
     } catch (error) {
       showErrorAlert(error, {
         title: "Could not save wallet PIN",
-        fallbackMessage: "Your wallet PIN was not changed. Verify the current PIN and try again.",
+        fallbackMessage:
+          "Your wallet PIN was not changed. Verify the current PIN and try again.",
       });
     } finally {
       setSavingWalletPin(false);
@@ -394,7 +400,8 @@ export default function Settings() {
     } catch (error) {
       showErrorAlert(error, {
         title: "Could not send reset code",
-        fallbackMessage: "The wallet PIN reset code could not be sent to your email. Please try again.",
+        fallbackMessage:
+          "The wallet PIN reset code could not be sent to your email. Please try again.",
       });
     } finally {
       setRequestingWalletPinReset(false);
@@ -436,7 +443,8 @@ export default function Settings() {
     } catch (error) {
       showErrorAlert(error, {
         title: "Wallet PIN reset failed",
-        fallbackMessage: "The wallet PIN could not be reset. Check the verification code and new PIN, then try again.",
+        fallbackMessage:
+          "The wallet PIN could not be reset. Check the verification code and new PIN, then try again.",
       });
     } finally {
       setResettingWalletPin(false);
@@ -452,7 +460,8 @@ export default function Settings() {
     } catch (error) {
       showErrorAlert(error, {
         title: "Could not remove friend",
-        fallbackMessage: "This friend could not be removed from your account. Refresh the list and try again.",
+        fallbackMessage:
+          "This friend could not be removed from your account. Refresh the list and try again.",
       });
     } finally {
       setDeletingFriendId("");
@@ -473,10 +482,7 @@ export default function Settings() {
 
       const timestamp = exportedAt.toISOString().replace(/[:.]/g, "-");
 
-      exportFile = new File(
-        Paths.cache,
-        `splitverse-data-${timestamp}.json`,
-      );
+      exportFile = new File(Paths.cache, `splitverse-data-${timestamp}.json`);
 
       exportFile.create();
       exportFile.write(JSON.stringify(data, null, 2));
@@ -495,7 +501,8 @@ export default function Settings() {
     } catch (error) {
       showErrorAlert(error, {
         title: "Data export failed",
-        fallbackMessage: "Your SplitVerse data file could not be created or shared. Check device storage and try again.",
+        fallbackMessage:
+          "Your SplitVerse data file could not be created or shared. Check device storage and try again.",
       });
     } finally {
       try {
@@ -518,7 +525,8 @@ export default function Settings() {
     } catch (error) {
       showErrorAlert(error, {
         title: "Could not clear local settings",
-        fallbackMessage: "The settings stored on this device could not be cleared. Please try again.",
+        fallbackMessage:
+          "The settings stored on this device could not be cleared. Please try again.",
       });
     }
   }
@@ -530,7 +538,8 @@ export default function Settings() {
     } catch (error) {
       showErrorAlert(error, {
         title: "Logout failed",
-        fallbackMessage: "SplitVerse could not sign you out completely. Please try again.",
+        fallbackMessage:
+          "SplitVerse could not sign you out completely. Please try again.",
       });
     }
   }
@@ -553,7 +562,8 @@ export default function Settings() {
     } catch (error) {
       showErrorAlert(error, {
         title: "Account deletion failed",
-        fallbackMessage: "Your account was not deleted. Clear any pending dues and try again.",
+        fallbackMessage:
+          "Your account was not deleted. Clear any pending dues and try again.",
       });
     } finally {
       setDeletingAccount(false);

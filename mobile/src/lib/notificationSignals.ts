@@ -14,7 +14,9 @@ export type LiveNotificationItem = {
   route: "/(tabs)/profile" | "/(tabs)/wallet" | "/(tabs)/split-rooms";
 };
 
-export function buildFriendNotifications(requests: FriendRequest[] = []): LiveNotificationItem[] {
+export function buildFriendNotifications(
+  requests: FriendRequest[] = [],
+): LiveNotificationItem[] {
   return requests
     .filter((request) => request.status === "pending")
     .map((request) => ({
@@ -26,7 +28,9 @@ export function buildFriendNotifications(requests: FriendRequest[] = []): LiveNo
     }));
 }
 
-export function buildRoomNotifications(rooms: SplitRoom[] = []): LiveNotificationItem[] {
+export function buildRoomNotifications(
+  rooms: SplitRoom[] = [],
+): LiveNotificationItem[] {
   return rooms
     .filter((room) => Number(room.outstandingAmount || 0) > 0)
     .slice(0, 6)
@@ -40,7 +44,9 @@ export function buildRoomNotifications(rooms: SplitRoom[] = []): LiveNotificatio
     }));
 }
 
-export function buildWalletNotifications(walletData?: WalletSummaryResponse | null): LiveNotificationItem[] {
+export function buildWalletNotifications(
+  walletData?: WalletSummaryResponse | null,
+): LiveNotificationItem[] {
   if (!walletData?.summary) return [];
   const items: LiveNotificationItem[] = [];
 
@@ -84,7 +90,9 @@ export async function markNotificationSignatureSeen(signature: string) {
   await SecureStore.setItemAsync(SEEN_NOTIFICATIONS_KEY, signature);
 }
 
-export async function hasUnseenNotifications(items: LiveNotificationItem[] = []) {
+export async function hasUnseenNotifications(
+  items: LiveNotificationItem[] = [],
+) {
   const signature = getNotificationSignature(items);
   if (!signature) return false;
   const seenSignature = await getSeenNotificationSignature();

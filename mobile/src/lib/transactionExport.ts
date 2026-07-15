@@ -9,13 +9,20 @@ export type TransactionExportFormat = "csv" | "pdf";
 type ExportTransactionOptions = {
   transactions: TransactionItem[];
   format: TransactionExportFormat;
-  formatCurrency: (value: number, options?: { signed?: boolean; compact?: boolean }) => string;
+  formatCurrency: (
+    value: number,
+    options?: { signed?: boolean; compact?: boolean },
+  ) => string;
   formatDate: (value?: string | null) => string;
   title?: string;
 };
 
 function safeFilePart(value: string) {
-  return value.replace(/[^a-z0-9-_]+/gi, "-").replace(/-+/g, "-").replace(/^-|-$/g, "").toLowerCase();
+  return value
+    .replace(/[^a-z0-9-_]+/gi, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "")
+    .toLowerCase();
 }
 
 function csvCell(value: unknown) {
@@ -50,7 +57,15 @@ function getDateValue(transaction: TransactionItem) {
 }
 
 function buildCsv(options: ExportTransactionOptions) {
-  const headers = ["Date", "Title", "Type", "Status", "Amount", "Room", "Counterparty"];
+  const headers = [
+    "Date",
+    "Title",
+    "Type",
+    "Status",
+    "Amount",
+    "Room",
+    "Counterparty",
+  ];
   const rows = options.transactions.map((transaction) => {
     const amount = getTransactionDisplayAmount(transaction);
     return [

@@ -107,12 +107,29 @@ export type AppSettingsValue = {
   setConverterAmount: (amount: number) => void;
   setDefaultTopUpMethod: (method: WalletTopUpMethod) => void;
   setConfirmBeforeWalletPayment: (enabled: boolean) => void;
-  setNotificationPreference: (key: keyof NotificationPreferences, enabled: boolean) => void;
+  setNotificationPreference: (
+    key: keyof NotificationPreferences,
+    enabled: boolean,
+  ) => void;
   clearLocalAppSettings: () => Promise<void>;
-  convertCurrency: (amount: number, fromCurrency: CurrencyCode, toCurrency: CurrencyCode) => number;
-  formatCurrency: (amountInInr: number, options?: CurrencyFormatOptions) => string;
-  formatCurrencyValue: (amount: number, currency: CurrencyCode, options?: CurrencyFormatOptions) => string;
-  formatDate: (dateValue?: string | null, options?: Intl.DateTimeFormatOptions) => string;
+  convertCurrency: (
+    amount: number,
+    fromCurrency: CurrencyCode,
+    toCurrency: CurrencyCode,
+  ) => number;
+  formatCurrency: (
+    amountInInr: number,
+    options?: CurrencyFormatOptions,
+  ) => string;
+  formatCurrencyValue: (
+    amount: number,
+    currency: CurrencyCode,
+    options?: CurrencyFormatOptions,
+  ) => string;
+  formatDate: (
+    dateValue?: string | null,
+    options?: Intl.DateTimeFormatOptions,
+  ) => string;
   t: (value: string) => string;
 };
 

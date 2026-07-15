@@ -38,7 +38,9 @@ function parseDate(value?: string | null) {
 }
 
 function getTransactionTime(transaction: TransactionItem) {
-  return parseDate(transaction.createdAt || transaction.displayDate)?.getTime() ?? 0;
+  return (
+    parseDate(transaction.createdAt || transaction.displayDate)?.getTime() ?? 0
+  );
 }
 
 function getDateBucket(transaction: TransactionItem) {
@@ -90,22 +92,30 @@ function duplicateSpendKey(transaction: TransactionItem) {
   return `${Math.abs(Number(transaction.amount || 0)).toFixed(2)}-${getDateBucket(transaction)}`;
 }
 
-function combineExpenseWithWalletDebit(expense: TransactionItem, walletDebit: TransactionItem): DisplayTransactionItem {
+function combineExpenseWithWalletDebit(
+  expense: TransactionItem,
+  walletDebit: TransactionItem,
+): DisplayTransactionItem {
   const expenseTitle = expense.title || expense.description || "Expense";
   const walletTitle = walletDebit.title || walletDebit.description;
   return {
     ...expense,
     title: expenseTitle,
-    description: walletTitle && !normalizeText(expenseTitle).includes("wallet")
-      ? `${expenseTitle} · paid from wallet`
-      : expense.description || expenseTitle,
+    description:
+      walletTitle && !normalizeText(expenseTitle).includes("wallet")
+        ? `${expenseTitle} · paid from wallet`
+        : expense.description || expenseTitle,
     displayAmount: -Math.abs(Number(expense.amount || walletDebit.amount || 0)),
     groupedIds: [expense.id, walletDebit.id],
   };
 }
 
-export function normalizeTransactionsForDisplay(transactions: TransactionItem[] = []): DisplayTransactionItem[] {
-  const sorted = [...transactions].sort((left, right) => getTransactionTime(right) - getTransactionTime(left));
+export function normalizeTransactionsForDisplay(
+  transactions: TransactionItem[] = [],
+): DisplayTransactionItem[] {
+  const sorted = [...transactions].sort(
+    (left, right) => getTransactionTime(right) - getTransactionTime(left),
+  );
   const expensesByKey = new Map<string, TransactionItem[]>();
 
   sorted.forEach((transaction) => {
@@ -122,19 +132,32 @@ export function normalizeTransactionsForDisplay(transactions: TransactionItem[] 
   sorted.forEach((transaction) => {
     if (!isWalletDebitTransaction(transaction)) return;
     const key = duplicateSpendKey(transaction);
-    const expense = expensesByKey.get(key)?.find((item) => !combinedExpenseById.has(item.id));
+    const expense = expensesByKey
+      .get(key)
+      ?.find((item) => !combinedExpenseById.has(item.id));
     if (!expense) return;
     skippedWalletIds.add(transaction.id);
-    combinedExpenseById.set(expense.id, combineExpenseWithWalletDebit(expense, transaction));
+    combinedExpenseById.set(
+      expense.id,
+      combineExpenseWithWalletDebit(expense, transaction),
+    );
   });
 
   return sorted
     .filter((transaction) => !skippedWalletIds.has(transaction.id))
-    .map((transaction) => combinedExpenseById.get(transaction.id) ?? transaction);
+    .map(
+      (transaction) => combinedExpenseById.get(transaction.id) ?? transaction,
+    );
 }
 
-export function getTransactionDisplayAmount(transaction: DisplayTransactionItem | TransactionItem) {
-  return Number((transaction as DisplayTransactionItem).displayAmount ?? transaction.amount ?? 0);
+export function getTransactionDisplayAmount(
+  transaction: DisplayTransactionItem | TransactionItem,
+) {
+  return Number(
+    (transaction as DisplayTransactionItem).displayAmount ??
+      transaction.amount ??
+      0,
+  );
 }
 
 export function getSpendTransactions(transactions: TransactionItem[] = []) {

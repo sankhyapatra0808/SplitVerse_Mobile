@@ -1,10 +1,6 @@
 import * as AsyncStoragePackage from "@react-native-async-storage/async-storage";
 import { getApp, getApps, initializeApp } from "firebase/app";
-import {
-  getAuth,
-  initializeAuth,
-  type Auth,
-} from "firebase/auth";
+import { getAuth, initializeAuth, type Auth } from "firebase/auth";
 import * as FirebaseAuth from "firebase/auth";
 
 const firebaseConfig = {
@@ -27,7 +23,7 @@ const createAsyncStorage = (AsyncStoragePackage as any).createAsyncStorage;
 const asyncStorage =
   typeof createAsyncStorage === "function"
     ? createAsyncStorage("splitverse-auth")
-    : (AsyncStoragePackage as any).default ?? AsyncStoragePackage;
+    : ((AsyncStoragePackage as any).default ?? AsyncStoragePackage);
 
 let authInstance: Auth;
 

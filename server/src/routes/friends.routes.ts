@@ -7,11 +7,11 @@ import {
   verifyFirebaseToken,
 } from "../middleware/verifyFirebaseToken.js";
 import { sendLiveUpdate } from "../liveEvents.js";
+import { isEmailConfigured, sendTransactionalEmail } from "../utils/email.js";
 import {
-  isEmailConfigured,
-  sendTransactionalEmail,
-} from "../utils/email.js";
-import { parseRequestBody, sendValidationError } from "../middleware/validateRequest.js";
+  parseRequestBody,
+  sendValidationError,
+} from "../middleware/validateRequest.js";
 
 const router = express.Router();
 const acceptPageCacheTtlMs = Number(
@@ -135,13 +135,14 @@ async function getCurrentUser(firebaseUid: string) {
 }
 
 function normalizeEmail(email: unknown) {
-  return String(email ?? "").trim().toLowerCase();
+  return String(email ?? "")
+    .trim()
+    .toLowerCase();
 }
 
 function getServerUrl(req: express.Request) {
   return (
-    process.env.SERVER_URL ||
-    `${req.protocol}://${req.get("host")}`
+    process.env.SERVER_URL || `${req.protocol}://${req.get("host")}`
   ).replace(/\/$/, "");
 }
 
@@ -296,7 +297,10 @@ async function sendFriendRequestEmail({
   });
 
   if (!emailResult.ok) {
-    console.error("Friend request email failed through Brevo SMTP:", emailResult);
+    console.error(
+      "Friend request email failed through Brevo SMTP:",
+      emailResult,
+    );
     return emailResult.reason;
   }
 
@@ -445,7 +449,9 @@ router.post("/requests", verifyFirebaseToken, async (req: AuthRequest, res) => {
     const recipientEmail = normalizeEmail(email);
 
     if (recipientEmail === dbUser.email.toLowerCase()) {
-      return res.status(400).json({ message: "You cannot send a friend request to yourself" });
+      return res
+        .status(400)
+        .json({ message: "You cannot send a friend request to yourself" });
     }
 
     const recipientResult = await db.query<DbUserRow>(
@@ -459,7 +465,10 @@ router.post("/requests", verifyFirebaseToken, async (req: AuthRequest, res) => {
     const recipientUser = recipientResult.rows[0];
 
     if (recipientUser) {
-      const [userOneId, userTwoId] = sortFriendPair(dbUser.id, recipientUser.id);
+      const [userOneId, userTwoId] = sortFriendPair(
+        dbUser.id,
+        recipientUser.id,
+      );
       const existingFriendResult = await db.query(
         `
         SELECT id
@@ -537,46 +546,48 @@ router.post("/requests", verifyFirebaseToken, async (req: AuthRequest, res) => {
   }
 });
 
+router.get(
+  "/:friendId/activity",
+  verifyFirebaseToken,
+  async (req: AuthRequest, res) => {
+    try {
+      await ensureFriendTables();
 
-router.get("/:friendId/activity", verifyFirebaseToken, async (req: AuthRequest, res) => {
-  try {
-    await ensureFriendTables();
+      const firebaseUser = req.user;
 
-    const firebaseUser = req.user;
+      if (!firebaseUser) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
 
-    if (!firebaseUser) {
-      return res.status(401).json({ message: "Unauthorized" });
-    }
+      const dbUser = await getCurrentUser(firebaseUser.uid);
 
-    const dbUser = await getCurrentUser(firebaseUser.uid);
+      if (!dbUser) {
+        return res.status(404).json({ message: "User not found in database" });
+      }
 
-    if (!dbUser) {
-      return res.status(404).json({ message: "User not found in database" });
-    }
+      const friendId = String(req.params.friendId ?? "");
 
-    const friendId = String(req.params.friendId ?? "");
+      if (!friendId) {
+        return res.status(400).json({ message: "Friend id is required" });
+      }
 
-    if (!friendId) {
-      return res.status(400).json({ message: "Friend id is required" });
-    }
-
-    const [userOneId, userTwoId] = sortFriendPair(dbUser.id, friendId);
-    const friendshipResult = await db.query(
-      `
+      const [userOneId, userTwoId] = sortFriendPair(dbUser.id, friendId);
+      const friendshipResult = await db.query(
+        `
       SELECT id
       FROM friendships
       WHERE user_one_id = $1
       AND user_two_id = $2;
       `,
-      [userOneId, userTwoId],
-    );
+        [userOneId, userTwoId],
+      );
 
-    if (friendshipResult.rows.length === 0) {
-      return res.status(404).json({ message: "Friendship not found" });
-    }
+      if (friendshipResult.rows.length === 0) {
+        return res.status(404).json({ message: "Friendship not found" });
+      }
 
-    const friendResult = await db.query<FriendRow>(
-      `
+      const friendResult = await db.query<FriendRow>(
+        `
       SELECT
         users.id,
         users.name,
@@ -598,24 +609,24 @@ router.get("/:friendId/activity", verifyFirebaseToken, async (req: AuthRequest, 
         )
       WHERE users.id = $2;
       `,
-      [dbUser.id, friendId],
-    );
+        [dbUser.id, friendId],
+      );
 
-    const friend = friendResult.rows[0];
+      const friend = friendResult.rows[0];
 
-    if (!friend) {
-      return res.status(404).json({ message: "Friend not found" });
-    }
+      if (!friend) {
+        return res.status(404).json({ message: "Friend not found" });
+      }
 
-    const activityResult = await db.query<{
-      id: string;
-      title: string;
-      amount: number;
-      direction: "incoming" | "outgoing" | "neutral";
-      source: string;
-      created_at: string;
-    }>(
-      `
+      const activityResult = await db.query<{
+        id: string;
+        title: string;
+        amount: number;
+        direction: "incoming" | "outgoing" | "neutral";
+        source: string;
+        created_at: string;
+      }>(
+        `
       WITH shared_rooms AS (
         SELECT DISTINCT room.id
         FROM split_rooms room
@@ -672,15 +683,15 @@ router.get("/:friendId/activity", verifyFirebaseToken, async (req: AuthRequest, 
       ORDER BY created_at DESC
       LIMIT 8;
       `,
-      [dbUser.id, friendId, dbUser.email, friend.email],
-    );
+        [dbUser.id, friendId, dbUser.email, friend.email],
+      );
 
-    const summaryResult = await db.query<{
-      rooms_together: number;
-      total_settled: number;
-      net_position: number;
-    }>(
-      `
+      const summaryResult = await db.query<{
+        rooms_together: number;
+        total_settled: number;
+        net_position: number;
+      }>(
+        `
       WITH shared_rooms AS (
         SELECT DISTINCT room.id
         FROM split_rooms room
@@ -713,88 +724,93 @@ router.get("/:friendId/activity", verifyFirebaseToken, async (req: AuthRequest, 
         COALESCE(friend_wallet.incoming - friend_wallet.outgoing, 0)::float AS net_position
       FROM friend_wallet;
       `,
-      [dbUser.id, friendId, dbUser.email, friend.email],
-    );
+        [dbUser.id, friendId, dbUser.email, friend.email],
+      );
 
-    return res.json({
-      friend,
-      summary: {
-        roomsTogether: Number(summaryResult.rows[0]?.rooms_together ?? 0),
-        totalSettled: Number(summaryResult.rows[0]?.total_settled ?? 0),
-        pendingWithFriend: 0,
-        netPosition: Number(summaryResult.rows[0]?.net_position ?? 0),
-      },
-      recentActivity: activityResult.rows.map((row) => ({
-        id: row.id,
-        title: row.title,
-        amount: Number(row.amount),
-        direction: row.direction,
-        source: row.source,
-        createdAt: row.created_at,
-      })),
-    });
-  } catch (error) {
-    console.error("Load friend activity failed:", error);
+      return res.json({
+        friend,
+        summary: {
+          roomsTogether: Number(summaryResult.rows[0]?.rooms_together ?? 0),
+          totalSettled: Number(summaryResult.rows[0]?.total_settled ?? 0),
+          pendingWithFriend: 0,
+          netPosition: Number(summaryResult.rows[0]?.net_position ?? 0),
+        },
+        recentActivity: activityResult.rows.map((row) => ({
+          id: row.id,
+          title: row.title,
+          amount: Number(row.amount),
+          direction: row.direction,
+          source: row.source,
+          createdAt: row.created_at,
+        })),
+      });
+    } catch (error) {
+      console.error("Load friend activity failed:", error);
 
-    return res.status(500).json({
-      message: "Failed to load friend activity",
-    });
-  }
-});
-
-router.delete("/:friendId", verifyFirebaseToken, async (req: AuthRequest, res) => {
-  try {
-    await ensureFriendTables();
-
-    const firebaseUser = req.user;
-
-    if (!firebaseUser) {
-      return res.status(401).json({ message: "Unauthorized" });
+      return res.status(500).json({
+        message: "Failed to load friend activity",
+      });
     }
+  },
+);
 
-    const dbUser = await getCurrentUser(firebaseUser.uid);
+router.delete(
+  "/:friendId",
+  verifyFirebaseToken,
+  async (req: AuthRequest, res) => {
+    try {
+      await ensureFriendTables();
 
-    if (!dbUser) {
-      return res.status(404).json({ message: "User not found in database" });
-    }
+      const firebaseUser = req.user;
 
-    const friendId = String(req.params.friendId ?? "");
+      if (!firebaseUser) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
 
-    if (!friendId) {
-      return res.status(400).json({ message: "Friend id is required" });
-    }
+      const dbUser = await getCurrentUser(firebaseUser.uid);
 
-    const [userOneId, userTwoId] = sortFriendPair(dbUser.id, friendId);
-    const deleteResult = await db.query<{ id: string }>(
-      `
+      if (!dbUser) {
+        return res.status(404).json({ message: "User not found in database" });
+      }
+
+      const friendId = String(req.params.friendId ?? "");
+
+      if (!friendId) {
+        return res.status(400).json({ message: "Friend id is required" });
+      }
+
+      const [userOneId, userTwoId] = sortFriendPair(dbUser.id, friendId);
+      const deleteResult = await db.query<{ id: string }>(
+        `
       DELETE FROM friendships
       WHERE user_one_id = $1
       AND user_two_id = $2
       RETURNING id;
       `,
-      [userOneId, userTwoId],
-    );
+        [userOneId, userTwoId],
+      );
 
-    if (deleteResult.rows.length === 0) {
-      return res.status(404).json({ message: "Friendship not found" });
+      if (deleteResult.rows.length === 0) {
+        return res.status(404).json({ message: "Friendship not found" });
+      }
+
+      sendLiveUpdate([dbUser.id, friendId], {
+        type: "friends",
+        reason: "friend-deleted",
+      });
+
+      return res.json({
+        message: "Friend deleted",
+      });
+    } catch (error) {
+      console.error("Delete friend failed:", error);
+
+      return res.status(500).json({
+        message: "Failed to delete friend",
+      });
     }
-
-    sendLiveUpdate([dbUser.id, friendId], {
-      type: "friends",
-      reason: "friend-deleted",
-    });
-
-    return res.json({
-      message: "Friend deleted",
-    });
-  } catch (error) {
-    console.error("Delete friend failed:", error);
-
-    return res.status(500).json({
-      message: "Failed to delete friend",
-    });
-  }
-});
+  },
+);
 
 router.post(
   "/requests/:requestId/accept",

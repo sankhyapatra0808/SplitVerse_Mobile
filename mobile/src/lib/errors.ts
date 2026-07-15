@@ -137,7 +137,8 @@ function isAbortError(error: unknown) {
 
 function getContextMessage(context?: AppErrorContext) {
   if (context?.fallbackMessage) return context.fallbackMessage;
-  if (context?.action) return `SplitVerse could not finish ${context.action}. Please try again.`;
+  if (context?.action)
+    return `SplitVerse could not finish ${context.action}. Please try again.`;
   return "Something went wrong. Please try again.";
 }
 
@@ -259,34 +260,63 @@ function getSpecificServerTitle(message: string, code: string) {
   const value = `${code} ${message}`.toLowerCase();
 
   if (value.includes("otp") && value.includes("expired")) return "Code expired";
-  if (value.includes("otp") && (value.includes("invalid") || value.includes("incorrect"))) {
+  if (
+    value.includes("otp") &&
+    (value.includes("invalid") || value.includes("incorrect"))
+  ) {
     return "Incorrect verification code";
   }
-  if (value.includes("wallet pin") && (value.includes("invalid") || value.includes("incorrect"))) {
+  if (
+    value.includes("wallet pin") &&
+    (value.includes("invalid") || value.includes("incorrect"))
+  ) {
     return "Incorrect wallet PIN";
   }
-  if (value.includes("insufficient") && (value.includes("balance") || value.includes("fund"))) {
+  if (
+    value.includes("insufficient") &&
+    (value.includes("balance") || value.includes("fund"))
+  ) {
     return "Insufficient wallet balance";
   }
-  if (value.includes("already friend") || value.includes("already connected")) return "Already friends";
-  if (value.includes("friend request") && value.includes("already")) return "Request already sent";
-  if (value.includes("yourself") || value.includes("own email")) return "Cannot add yourself";
-  if (value.includes("email") && value.includes("already") && value.includes("use")) {
+  if (value.includes("already friend") || value.includes("already connected"))
+    return "Already friends";
+  if (value.includes("friend request") && value.includes("already"))
+    return "Request already sent";
+  if (value.includes("yourself") || value.includes("own email"))
+    return "Cannot add yourself";
+  if (
+    value.includes("email") &&
+    value.includes("already") &&
+    value.includes("use")
+  ) {
     return "Email already registered";
   }
-  if (value.includes("room") && (value.includes("finalized") || value.includes("closed"))) {
+  if (
+    value.includes("room") &&
+    (value.includes("finalized") || value.includes("closed"))
+  ) {
     return "Room is closed";
   }
-  if (value.includes("owner") || value.includes("host")) return "Host access required";
-  if (value.includes("outstanding") || value.includes("pending dues")) return "Pending dues remain";
-  if (value.includes("not enough") && value.includes("member")) return "More members required";
-  if (value.includes("file") && value.includes("large")) return "File too large";
-  if (value.includes("unsupported") && (value.includes("file") || value.includes("image"))) {
+  if (value.includes("owner") || value.includes("host"))
+    return "Host access required";
+  if (value.includes("outstanding") || value.includes("pending dues"))
+    return "Pending dues remain";
+  if (value.includes("not enough") && value.includes("member"))
+    return "More members required";
+  if (value.includes("file") && value.includes("large"))
+    return "File too large";
+  if (
+    value.includes("unsupported") &&
+    (value.includes("file") || value.includes("image"))
+  ) {
     return "Unsupported file type";
   }
-  if (value.includes("payment") && value.includes("cancel")) return "Payment cancelled";
-  if (value.includes("payment") && value.includes("failed")) return "Payment failed";
-  if (value.includes("session") && value.includes("expired")) return "Session expired";
+  if (value.includes("payment") && value.includes("cancel"))
+    return "Payment cancelled";
+  if (value.includes("payment") && value.includes("failed"))
+    return "Payment failed";
+  if (value.includes("session") && value.includes("expired"))
+    return "Session expired";
 
   return "";
 }
@@ -318,7 +348,8 @@ export function createHttpError(
     return createContextError(
       "VALIDATION_ERROR",
       specificTitle || "Check your details",
-      serverMessage || "Some information is missing or invalid. Check the entered details and try again.",
+      serverMessage ||
+        "Some information is missing or invalid. Check the entered details and try again.",
       originalError ?? data,
       false,
       status,
@@ -326,7 +357,9 @@ export function createHttpError(
   }
 
   if (status === 401) {
-    const otpRelated = `${serverCode} ${serverMessage}`.toLowerCase().includes("otp");
+    const otpRelated = `${serverCode} ${serverMessage}`
+      .toLowerCase()
+      .includes("otp");
     return createContextError(
       otpRelated ? "VALIDATION_ERROR" : "SESSION_EXPIRED",
       specificTitle || (otpRelated ? "Verification failed" : "Session expired"),
@@ -355,7 +388,8 @@ export function createHttpError(
     return createContextError(
       "NOT_FOUND",
       specificTitle || `${resource} not found`,
-      serverMessage || `${resource} could not be found. It may have been removed or changed.`,
+      serverMessage ||
+        `${resource} could not be found. It may have been removed or changed.`,
       originalError ?? data,
       false,
       status,
@@ -366,7 +400,8 @@ export function createHttpError(
     return createContextError(
       "CONFLICT",
       specificTitle || "Already updated",
-      serverMessage || "This action conflicts with the latest data. Refresh the page and try again.",
+      serverMessage ||
+        "This action conflicts with the latest data. Refresh the page and try again.",
       originalError ?? data,
       true,
       status,
@@ -377,7 +412,8 @@ export function createHttpError(
     return createContextError(
       "FILE_TOO_LARGE",
       "File too large",
-      serverMessage || "The selected file is too large to upload. Choose a smaller file and try again.",
+      serverMessage ||
+        "The selected file is too large to upload. Choose a smaller file and try again.",
       originalError ?? data,
       false,
       status,
@@ -388,7 +424,8 @@ export function createHttpError(
     return createContextError(
       "TOO_MANY_ATTEMPTS",
       "Too many attempts",
-      serverMessage || "Too many requests were made in a short time. Wait a minute, then try again.",
+      serverMessage ||
+        "Too many requests were made in a short time. Wait a minute, then try again.",
       originalError ?? data,
       true,
       status,
@@ -561,7 +598,10 @@ export function normalizeAppError(
     );
   }
 
-  if (code === "auth/too-many-requests" || combined.includes("too many requests")) {
+  if (
+    code === "auth/too-many-requests" ||
+    combined.includes("too many requests")
+  ) {
     return createContextError(
       "TOO_MANY_ATTEMPTS",
       "Too many attempts",
@@ -644,7 +684,10 @@ export function normalizeAppError(
     );
   }
 
-  if (code.includes("play_services_not_available") || combined.includes("play services")) {
+  if (
+    code.includes("play_services_not_available") ||
+    combined.includes("play services")
+  ) {
     return createContextError(
       "GOOGLE_PLAY_SERVICES",
       "Google Play services unavailable",
@@ -662,7 +705,11 @@ export function normalizeAppError(
     );
   }
 
-  if (code.includes("developer_error") || combined.includes("web client id") || combined.includes("sha-1")) {
+  if (
+    code.includes("developer_error") ||
+    combined.includes("web client id") ||
+    combined.includes("sha-1")
+  ) {
     return createContextError(
       "CONFIGURATION_ERROR",
       "Google sign-in configuration error",
@@ -673,7 +720,9 @@ export function normalizeAppError(
 
   if (
     combined.includes("payment") &&
-    (combined.includes("cancel") || code === "0" || code.includes("payment_cancel"))
+    (combined.includes("cancel") ||
+      code === "0" ||
+      code.includes("payment_cancel"))
   ) {
     return createContextError(
       "PAYMENT_CANCELLED",
@@ -687,13 +736,17 @@ export function normalizeAppError(
     return createContextError(
       "PAYMENT_FAILED",
       "Payment failed",
-      rawMessage || "The payment could not be completed. Check your payment method and try again.",
+      rawMessage ||
+        "The payment could not be completed. Check your payment method and try again.",
       error,
       true,
     );
   }
 
-  if (combined.includes("permission") && (combined.includes("photo") || combined.includes("media"))) {
+  if (
+    combined.includes("permission") &&
+    (combined.includes("photo") || combined.includes("media"))
+  ) {
     return createContextError(
       "PHOTO_PERMISSION",
       "Photo access required",
@@ -702,7 +755,10 @@ export function normalizeAppError(
     );
   }
 
-  if (combined.includes("sharing is not available") || combined.includes("share is not available")) {
+  if (
+    combined.includes("sharing is not available") ||
+    combined.includes("share is not available")
+  ) {
     return createContextError(
       "SHARING_UNAVAILABLE",
       "Sharing unavailable",
@@ -711,7 +767,11 @@ export function normalizeAppError(
     );
   }
 
-  if (combined.includes("enospc") || combined.includes("no space left") || combined.includes("storage full")) {
+  if (
+    combined.includes("enospc") ||
+    combined.includes("no space left") ||
+    combined.includes("storage full")
+  ) {
     return createContextError(
       "STORAGE_FULL",
       "Device storage is full",
@@ -809,10 +869,7 @@ export function getErrorMessage(
   return getErrorPresentation(error, { fallbackMessage }).message;
 }
 
-export function showErrorAlert(
-  error: unknown,
-  context?: AppErrorContext,
-) {
+export function showErrorAlert(error: unknown, context?: AppErrorContext) {
   const presentation = getErrorPresentation(error, context);
   Alert.alert(presentation.title, presentation.message);
   return presentation;

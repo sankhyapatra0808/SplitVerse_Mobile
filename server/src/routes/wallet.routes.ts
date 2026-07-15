@@ -15,7 +15,9 @@ import {
 const router = express.Router();
 const topUpMethodValues = ["UPI", "Card", "Net banking"] as const;
 const topUpDescriptionPrefix = "Wallet top-up via ";
-const maxTopUpPerTransaction = Number(process.env.MAX_TOP_UP_PER_TRANSACTION || 10000);
+const maxTopUpPerTransaction = Number(
+  process.env.MAX_TOP_UP_PER_TRANSACTION || 10000,
+);
 const maxTopUpPerDay = Number(process.env.MAX_TOP_UP_PER_DAY || 100000);
 const devWalletTopUpEnabled =
   process.env.NODE_ENV !== "production" &&
@@ -477,20 +479,22 @@ router.get("/summary", verifyFirebaseToken, async (req: AuthRequest, res) => {
         displayDate: row.display_date,
       })),
 
-      pendingSettlements: adjustedSettlementResult.rows.slice(0, 8).map((row) => ({
-        id: row.id,
-        amount: Number(row.amount),
-        status: "pending",
-        direction: row.direction,
-        title: row.title,
-        roomName: row.room_name,
-        fromName: row.from_name,
-        fromEmail: row.from_email,
-        toName: row.to_name,
-        toEmail: row.to_email,
-        createdAt: toIsoString(row.created_at),
-        displayDate: row.display_date,
-      })),
+      pendingSettlements: adjustedSettlementResult.rows
+        .slice(0, 8)
+        .map((row) => ({
+          id: row.id,
+          amount: Number(row.amount),
+          status: "pending",
+          direction: row.direction,
+          title: row.title,
+          roomName: row.room_name,
+          fromName: row.from_name,
+          fromEmail: row.from_email,
+          toName: row.to_name,
+          toEmail: row.to_email,
+          createdAt: toIsoString(row.created_at),
+          displayDate: row.display_date,
+        })),
     });
   } catch (error) {
     console.error("Wallet summary failed:", error);

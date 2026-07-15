@@ -1,3 +1,4 @@
+import { memo, useMemo } from "react";
 import {
   ActivityIndicator,
   Pressable,
@@ -17,23 +18,43 @@ type AppButtonProps = Omit<PressableProps, "style"> & {
   style?: StyleProp<ViewStyle>;
 };
 
-export default function AppButton({
+function AppButton({
   title,
   loading = false,
   variant = "primary",
   disabled,
   style,
+  accessibilityLabel,
+  accessibilityRole,
+  accessibilityState,
+  android_ripple: androidRipple,
   ...props
 }: AppButtonProps) {
   const { theme } = useAppSettings();
-  const isDisabled = disabled || loading;
+  const isDisabled = Boolean(disabled || loading);
   const primary = variant === "primary";
+
+  const resolvedRipple = useMemo(
+    () =>
+      androidRipple ?? {
+        color: primary ? theme.primaryActive : theme.borderSoft,
+        borderless: false,
+      },
+    [androidRipple, primary, theme.borderSoft, theme.primaryActive],
+  );
 
   return (
     <Pressable
       {...props}
+      accessibilityRole={accessibilityRole ?? "button"}
+      accessibilityLabel={accessibilityLabel ?? title}
+      accessibilityState={{
+        ...accessibilityState,
+        disabled: isDisabled,
+        busy: loading,
+      }}
       disabled={isDisabled}
-      android_ripple={{ color: primary ? theme.primaryActive : theme.borderSoft, borderless: false }}
+      android_ripple={resolvedRipple}
       style={({ pressed }) => [
         styles.button,
         {
@@ -50,9 +71,17 @@ export default function AppButton({
       ]}
     >
       {loading ? (
-        <ActivityIndicator color={primary ? theme.onPrimary : theme.text} />
+        <ActivityIndicator
+          accessibilityLabel={`${title} in progress`}
+          color={primary ? theme.onPrimary : theme.text}
+        />
       ) : (
-        <Text style={[styles.text, { color: primary ? theme.onPrimary : theme.primary }]}>
+        <Text
+          style={[
+            styles.text,
+            { color: primary ? theme.onPrimary : theme.primary },
+          ]}
+        >
           {title}
         </Text>
       )}
@@ -60,16 +89,24 @@ export default function AppButton({
   );
 }
 
+export default memo(AppButton);
+
 const styles = StyleSheet.create({
   button: {
     minHeight: 46,
     borderWidth: 1,
     borderRadius: radius.pill,
     paddingHorizontal: spacing.md,
+    flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
+    overflow: "hidden",
   },
   text: {
     ...typography.button,
+    width: "100%",
+    textAlign: "center",
+    textAlignVertical: "center",
+    includeFontPadding: false,
   },
 });

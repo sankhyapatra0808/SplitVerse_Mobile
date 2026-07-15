@@ -1,4 +1,4 @@
-import { Ionicons } from "@expo/vector-icons";
+import Ionicons from "@expo/vector-icons/Ionicons";
 import { router } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import {
@@ -18,63 +18,51 @@ import { useAppSettings } from "../../src/context/useAppSettings";
 const sections = [
   {
     title: "1. Acceptance and eligibility",
-    body:
-      "By using SplitVerse, you agree to these Terms. You must be legally capable of entering into a binding agreement and, where required by law, be at least 18 years old. You are responsible for ensuring that your use of the app is lawful in your location.",
+    body: "By using SplitVerse, you agree to these Terms. You must be legally capable of entering into a binding agreement and, where required by law, be at least 18 years old. You are responsible for ensuring that your use of the app is lawful in your location.",
   },
   {
     title: "2. What SplitVerse provides",
-    body:
-      "SplitVerse helps users record expenses, create split rooms, assign item-wise shares, track dues, and initiate supported payment or wallet actions. SplitVerse is not a bank, lender, escrow service, investment platform, or financial adviser. Any payment, wallet, or settlement feature is subject to applicable law and the terms of the authorised payment provider used for that transaction.",
+    body: "SplitVerse helps users record expenses, create split rooms, assign item-wise shares, track dues, and initiate supported payment or wallet actions. SplitVerse is not a bank, lender, escrow service, investment platform, or financial adviser. Any payment, wallet, or settlement feature is subject to applicable law and the terms of the authorised payment provider used for that transaction.",
   },
   {
     title: "3. Accounts and security",
-    body:
-      "You must provide accurate information, protect your password, OTPs, wallet PIN, and device, and notify SplitVerse promptly if you suspect unauthorised access. You are responsible for activity performed through your account unless applicable law provides otherwise.",
+    body: "You must provide accurate information, protect your password, OTPs, wallet PIN, and device, and notify SplitVerse promptly if you suspect unauthorised access. You are responsible for activity performed through your account unless applicable law provides otherwise.",
   },
   {
     title: "4. Payments, wallet balances, and third parties",
-    body:
-      "Payments may be processed by third-party providers such as Razorpay, banks, card networks, UPI participants, or other regulated entities. Their terms, privacy practices, verification requirements, fees, processing times, and failure rules may also apply. SplitVerse does not guarantee that every payment attempt will succeed or settle instantly.",
+    body: "Payments may be processed by third-party providers such as Razorpay, banks, card networks, UPI participants, or other regulated entities. Their terms, privacy practices, verification requirements, fees, processing times, and failure rules may also apply. SplitVerse does not guarantee that every payment attempt will succeed or settle instantly.",
   },
   {
     title: "5. Expense records and user disputes",
-    body:
-      "Users are responsible for entering correct amounts, assigning expenses to the correct people, and checking settlement details before paying. SplitVerse may calculate balances from the information supplied by users, but it does not independently verify restaurant bills, purchases, loans, personal arrangements, or offline payments. Disputes between users should first be resolved between the users involved.",
+    body: "Users are responsible for entering correct amounts, assigning expenses to the correct people, and checking settlement details before paying. SplitVerse may calculate balances from the information supplied by users, but it does not independently verify restaurant bills, purchases, loans, personal arrangements, or offline payments. Disputes between users should first be resolved between the users involved.",
   },
   {
     title: "6. Failed, reversed, and refunded transactions",
-    body:
-      "A failed, pending, reversed, duplicated, or refunded transaction may take time to appear correctly because banks and payment providers process updates on their own timelines. Refund eligibility depends on the underlying transaction, the payment provider, the recipient, and applicable law. SplitVerse may request supporting information before investigating a payment issue.",
+    body: "A failed, pending, reversed, duplicated, or refunded transaction may take time to appear correctly because banks and payment providers process updates on their own timelines. Refund eligibility depends on the underlying transaction, the payment provider, the recipient, and applicable law. SplitVerse may request supporting information before investigating a payment issue.",
   },
   {
     title: "7. Prohibited use",
-    body:
-      "You must not use SplitVerse for fraud, money laundering, unauthorised money transmission, illegal goods or services, gambling where prohibited, sanctions evasion, harassment, impersonation, account abuse, security attacks, or any activity that violates law or another person's rights. SplitVerse may restrict, suspend, or close accounts where misuse or legal risk is suspected.",
+    body: "You must not use SplitVerse for fraud, money laundering, unauthorised money transmission, illegal goods or services, gambling where prohibited, sanctions evasion, harassment, impersonation, account abuse, security attacks, or any activity that violates law or another person's rights. SplitVerse may restrict, suspend, or close accounts where misuse or legal risk is suspected.",
   },
   {
     title: "8. Privacy and data",
-    body:
-      "SplitVerse processes account, expense, room, friend, device, and transaction-related information to operate and secure the service. Payment providers may process additional information under their own policies. You should not upload sensitive information that is unnecessary for using the app.",
+    body: "SplitVerse processes account, expense, room, friend, device, and transaction-related information to operate and secure the service. Payment providers may process additional information under their own policies. You should not upload sensitive information that is unnecessary for using the app.",
   },
   {
     title: "9. Service availability",
-    body:
-      "The service may occasionally be unavailable because of maintenance, internet failures, banking downtime, payment-provider issues, security incidents, or events outside reasonable control. SplitVerse will try to restore service promptly but does not promise uninterrupted availability.",
+    body: "The service may occasionally be unavailable because of maintenance, internet failures, banking downtime, payment-provider issues, security incidents, or events outside reasonable control. SplitVerse will try to restore service promptly but does not promise uninterrupted availability.",
   },
   {
     title: "10. Limitation of responsibility",
-    body:
-      "To the maximum extent permitted by law, SplitVerse is not responsible for indirect or consequential loss, disputes caused by incorrect user-entered information, losses caused by sharing credentials or OTPs, or failures originating from banks, networks, devices, or third-party providers. Nothing in these Terms excludes rights or liability that cannot legally be excluded.",
+    body: "To the maximum extent permitted by law, SplitVerse is not responsible for indirect or consequential loss, disputes caused by incorrect user-entered information, losses caused by sharing credentials or OTPs, or failures originating from banks, networks, devices, or third-party providers. Nothing in these Terms excludes rights or liability that cannot legally be excluded.",
   },
   {
     title: "11. Changes and termination",
-    body:
-      "SplitVerse may update features or these Terms when needed for security, legal, operational, or product reasons. Material changes should be communicated through the app or another reasonable channel. You may stop using the service, and account deletion remains subject to completion of pending obligations and legally required record retention.",
+    body: "SplitVerse may update features or these Terms when needed for security, legal, operational, or product reasons. Material changes should be communicated through the app or another reasonable channel. You may stop using the service, and account deletion remains subject to completion of pending obligations and legally required record retention.",
   },
   {
     title: "12. Governing law and complaints",
-    body:
-      "These Terms are governed by the laws of India. Before starting formal proceedings, users should contact SplitVerse through the support channel available in the app and allow a reasonable opportunity to investigate. Any mandatory consumer, payment, or data-protection rights continue to apply.",
+    body: "These Terms are governed by the laws of India. Before starting formal proceedings, users should contact SplitVerse through the support channel available in the app and allow a reasonable opportunity to investigate. Any mandatory consumer, payment, or data-protection rights continue to apply.",
   },
 ];
 
@@ -125,11 +113,7 @@ export default function TermsAndConditions() {
                 },
               ]}
             >
-              <Ionicons
-                name="chevron-back"
-                size={21}
-                color={palette.text}
-              />
+              <Ionicons name="chevron-back" size={21} color={palette.text} />
             </Pressable>
 
             <View style={styles.brandRow}>
@@ -227,10 +211,7 @@ export default function TermsAndConditions() {
               },
             ]}
           >
-            <NativeText
-              allowFontScaling={false}
-              style={styles.closeButtonText}
-            >
+            <NativeText allowFontScaling={false} style={styles.closeButtonText}>
               Back to login
             </NativeText>
           </Pressable>

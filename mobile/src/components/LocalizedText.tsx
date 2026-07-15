@@ -1,9 +1,5 @@
-import { Fragment, type ReactNode } from "react";
-import {
-  StyleSheet,
-  Text as NativeText,
-  type TextProps,
-} from "react-native";
+import { memo, type ReactNode } from "react";
+import { StyleSheet, Text as NativeText, type TextProps } from "react-native";
 import { useAppSettings } from "../context/useAppSettings";
 import { resolveTextFontFamily } from "../theme/fonts";
 import { colors } from "../theme/tokens";
@@ -19,21 +15,13 @@ function translateChildren(
   if (typeof children === "number") return children;
 
   if (Array.isArray(children)) {
-    return children.map((child, index) => (
-      <Fragment key={index}>
-        {translateChildren(child, translate)}
-      </Fragment>
-    ));
+    return children.map((child) => translateChildren(child, translate));
   }
 
   return children;
 }
 
-export default function Text({
-  children,
-  style,
-  ...props
-}: TextProps) {
+function Text({ children, style, ...props }: TextProps) {
   const { t, theme } = useAppSettings();
 
   const flatStyle = StyleSheet.flatten(style) ?? {};
@@ -85,9 +73,7 @@ export default function Text({
           fontWeight: "normal",
           fontStyle: "normal",
           fontSize: reducedFontSize,
-          ...(reducedLineHeight
-            ? { lineHeight: reducedLineHeight }
-            : {}),
+          ...(reducedLineHeight ? { lineHeight: reducedLineHeight } : {}),
         },
       ]}
     >
@@ -95,3 +81,5 @@ export default function Text({
     </NativeText>
   );
 }
+
+export default memo(Text);

@@ -179,7 +179,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           fallbackMessage:
             "SplitVerse could not sync your account details. Check your connection and try again.",
         });
-        console.error("Failed to sync mobile user:", appError.message);
+        if (__DEV__) {
+          console.warn("Initial mobile user sync delayed:", appError.message);
+        }
         setDbUser(null);
       } finally {
         setInitializing(false);
@@ -190,19 +192,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
-    const subscription = AppState.addEventListener("change", async (state) => {
+    const subscription = AppState.addEventListener("change", (state) => {
       if (state !== "active" || !auth.currentUser) {
         return;
       }
 
-      const expired = await isSessionExpired();
+      void (async () => {
+        try {
+          const expired = await isSessionExpired();
 
-      if (expired) {
-        await logout();
-        return;
-      }
+          if (expired) {
+            await logout();
+            return;
+          }
 
-      await touchSessionActivity();
+          await touchSessionActivity();
+        } catch (error) {
+          if (__DEV__) {
+            console.warn("Session activity refresh was delayed:", error);
+          }
+        }
+      })();
     });
 
     return () => {
@@ -292,11 +302,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
       },
 
-      completeEmailLoginWithOtp: async (
-        sessionId,
-        otp,
-        remember = true,
-      ) => {
+      completeEmailLoginWithOtp: async (sessionId, otp, remember = true) => {
         try {
           const response = await verifyEmailLoginOtp(sessionId, otp);
           await setRememberSession(remember);

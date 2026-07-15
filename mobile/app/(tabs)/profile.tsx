@@ -1,6 +1,6 @@
 import { LinearGradient } from "expo-linear-gradient";
-import { Ionicons } from "@expo/vector-icons";
-import { router, useFocusEffect } from "expo-router";
+import Ionicons from "@expo/vector-icons/Ionicons";
+import { router } from "expo-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Alert,
@@ -50,8 +50,10 @@ import {
   type TransactionExportFormat,
 } from "../../src/lib/transactionExport";
 import { showErrorAlert } from "../../src/lib/errors";
+import { useRefreshOnReturn } from "../../src/hooks/useRefreshOnReturn";
 import { isValidEmailAddress } from "../../src/lib/validation";
 import { colors, radius, spacing, typography } from "../../src/theme/tokens";
+import { HERO_BLUR_RADIUS } from "../../src/theme/performance";
 
 const emptySummary: FriendsSummary = {
   friends: [],
@@ -249,11 +251,9 @@ export default function Profile() {
     void loadProfileData(Boolean(profileCache));
   }, [loadProfileData]);
 
-  useFocusEffect(
-    useCallback(() => {
-      void loadProfileData(true);
-    }, [loadProfileData]),
-  );
+  useRefreshOnReturn(() => {
+    void loadProfileData(true);
+  }, [loadProfileData]);
 
   async function handleSendRequest() {
     const targetEmail = friendEmail.trim().toLowerCase();
@@ -388,7 +388,7 @@ export default function Profile() {
         {photoUrl ? (
           <ImageBackground
             source={{ uri: photoUrl }}
-            blurRadius={28}
+            blurRadius={HERO_BLUR_RADIUS}
             style={styles.heroImage}
             imageStyle={styles.heroImageInner}
           >

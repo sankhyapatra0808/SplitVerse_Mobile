@@ -2,7 +2,7 @@ import { router, useFocusEffect } from "expo-router";
 import { LinearGradient } from "expo-linear-gradient";
 import { useCallback, useState } from "react";
 import { ImageBackground, Pressable, StyleSheet, View } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
+import Ionicons from "@expo/vector-icons/Ionicons";
 import AmountText from "../../src/components/AmountText";
 import AppCard from "../../src/components/AppCard";
 import Avatar from "../../src/components/Avatar";
@@ -27,6 +27,7 @@ import {
 } from "../../src/lib/notificationSignals";
 import { showErrorAlert } from "../../src/lib/errors";
 import { radius, spacing, typography } from "../../src/theme/tokens";
+import { HERO_BLUR_RADIUS } from "../../src/theme/performance";
 
 let notificationCache: LiveNotificationItem[] | null = null;
 let walletCache: WalletSummaryResponse | null = null;
@@ -116,7 +117,7 @@ export default function Notifications() {
         {photoUrl ? (
           <ImageBackground
             source={{ uri: photoUrl }}
-            blurRadius={28}
+            blurRadius={HERO_BLUR_RADIUS}
             style={StyleSheet.absoluteFillObject}
             imageStyle={styles.heroImageInner}
           />

@@ -1,4 +1,4 @@
-import { Ionicons } from "@expo/vector-icons";
+import Ionicons from "@expo/vector-icons/Ionicons";
 import { StatusBar } from "expo-status-bar";
 import {
   Animated,
@@ -95,9 +95,7 @@ export function AuthFullscreenScaffold({
     google: dark ? "transparent" : "#F5F7F9",
     googleBorder: dark ? "#384158" : "#EDF0F4",
     brandText: dark ? "#FFFFFF" : "#071226",
-    brandMuted: dark
-      ? "rgba(255,255,255,0.74)"
-      : "rgba(7,18,38,0.72)",
+    brandMuted: dark ? "rgba(255,255,255,0.74)" : "rgba(7,18,38,0.72)",
   };
 
   useEffect(() => {
@@ -181,10 +179,7 @@ export function AuthFullscreenScaffold({
                   </NativeText>
                   <NativeText
                     allowFontScaling={false}
-                    style={[
-                      styles.brandTagline,
-                      { color: palette.brandMuted },
-                    ]}
+                    style={[styles.brandTagline, { color: palette.brandMuted }]}
                   >
                     Split fairly. Settle clearly.
                   </NativeText>
@@ -192,7 +187,9 @@ export function AuthFullscreenScaffold({
               </View>
             </View>
 
-            <View style={[styles.formPanel, { backgroundColor: palette.panel }]}>
+            <View
+              style={[styles.formPanel, { backgroundColor: palette.panel }]}
+            >
               <View
                 pointerEvents="none"
                 style={[
@@ -285,11 +282,15 @@ export const FloatingAuthField = forwardRef<TextInput, FloatingAuthFieldProps>(
     const raised = focused || String(value ?? "").length > 0;
 
     useEffect(() => {
+      progress.stopAnimation();
       Animated.timing(progress, {
         toValue: raised ? 1 : 0,
         duration: 160,
         useNativeDriver: false,
+        isInteraction: false,
       }).start();
+
+      return () => progress.stopAnimation();
     }, [progress, raised]);
 
     const labelTop = progress.interpolate({
@@ -302,9 +303,7 @@ export const FloatingAuthField = forwardRef<TextInput, FloatingAuthFieldProps>(
       outputRange: [compact ? 12 : 14, compact ? 9 : 10],
     });
 
-    const hasRightAction = Boolean(
-      rightActionLabel && onRightActionPress,
-    );
+    const hasRightAction = Boolean(rightActionLabel && onRightActionPress);
     const hasRightIcon = Boolean(rightIconName && onRightIconPress);
 
     const inputRightPadding =
@@ -379,10 +378,7 @@ export const FloatingAuthField = forwardRef<TextInput, FloatingAuthFieldProps>(
               >
                 <NativeText
                   allowFontScaling={false}
-                  style={[
-                    styles.rightActionText,
-                    { color: palette.text },
-                  ]}
+                  style={[styles.rightActionText, { color: palette.text }]}
                 >
                   {rightActionLabel}
                 </NativeText>

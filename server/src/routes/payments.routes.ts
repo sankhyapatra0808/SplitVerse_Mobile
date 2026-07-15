@@ -23,7 +23,9 @@ import {
 } from "../utils/razorpay.js";
 
 const router = express.Router();
-const walletOrderMaxAmount = Number(process.env.RAZORPAY_WALLET_TOP_UP_MAX || 100000);
+const walletOrderMaxAmount = Number(
+  process.env.RAZORPAY_WALLET_TOP_UP_MAX || 100000,
+);
 const supportedCurrencies = new Set(["INR"]);
 
 const createWalletOrderSchema = z
@@ -149,7 +151,10 @@ async function creditWalletForPaidOrder({
 }: {
   client: Queryable;
   order: PaymentOrderRow;
-  payment: Pick<RazorpayPayment, "id" | "amount" | "currency" | "status" | "method">;
+  payment: Pick<
+    RazorpayPayment,
+    "id" | "amount" | "currency" | "status" | "method"
+  >;
   idempotencyKey: string;
   source: "checkout" | "webhook" | "dev";
 }) {
@@ -169,9 +174,12 @@ async function creditWalletForPaidOrder({
   }
 
   if (payment.currency !== order.currency) {
-    throw Object.assign(new Error("Payment currency does not match the order"), {
-      statusCode: 400,
-    });
+    throw Object.assign(
+      new Error("Payment currency does not match the order"),
+      {
+        statusCode: 400,
+      },
+    );
   }
 
   if (paidPaise !== expectedPaise) {
@@ -213,7 +221,11 @@ async function creditWalletForPaidOrder({
       idempotencyKey,
       order.provider_order_id,
       payment.id,
-      JSON.stringify({ source, razorpayStatus: payment.status, method: payment.method || null }),
+      JSON.stringify({
+        source,
+        razorpayStatus: payment.status,
+        method: payment.method || null,
+      }),
     ],
   );
 
@@ -254,7 +266,9 @@ router.post(
       const body = parseRequestBody(createWalletOrderSchema, req.body);
 
       if (!supportedCurrencies.has(body.currency)) {
-        return res.status(400).json({ message: "Unsupported payment currency" });
+        return res
+          .status(400)
+          .json({ message: "Unsupported payment currency" });
       }
 
       const dbUser = await getCurrentDbUser(firebaseUser.uid);
@@ -294,7 +308,11 @@ router.post(
           order.id,
           body.amount,
           body.currency,
-          JSON.stringify({ receipt, method: body.method || null, razorpayOrderStatus: order.status }),
+          JSON.stringify({
+            receipt,
+            method: body.method || null,
+            razorpayOrderStatus: order.status,
+          }),
         ],
       );
 
@@ -353,7 +371,9 @@ router.post(
       });
 
       if (!validSignature) {
-        return res.status(400).json({ message: "Invalid Razorpay payment signature" });
+        return res
+          .status(400)
+          .json({ message: "Invalid Razorpay payment signature" });
       }
 
       const dbUser = await getCurrentDbUser(firebaseUser.uid);
@@ -365,12 +385,15 @@ router.post(
       const payment = await fetchRazorpayPayment(body.razorpayPaymentId);
 
       if (payment.order_id !== body.razorpayOrderId) {
-        return res.status(400).json({ message: "Payment does not belong to this order" });
+        return res
+          .status(400)
+          .json({ message: "Payment does not belong to this order" });
       }
 
       if (payment.status !== "captured") {
         return res.status(409).json({
-          message: "Payment is not captured yet. Wallet will update after Razorpay confirms it.",
+          message:
+            "Payment is not captured yet. Wallet will update after Razorpay confirms it.",
         });
       }
 
@@ -405,7 +428,9 @@ router.post(
 
       if (order.user_id !== dbUser.id) {
         await client.query("ROLLBACK");
-        return res.status(403).json({ message: "This payment order is not yours" });
+        return res
+          .status(403)
+          .json({ message: "This payment order is not yours" });
       }
 
       const creditResult = await creditWalletForPaidOrder({
@@ -478,7 +503,9 @@ router.post(
         crypto.timingSafeEqual(secretBuffer, suppliedBuffer);
 
       if (!secretMatches) {
-        return res.status(403).json({ message: "Developer payment approval is protected" });
+        return res
+          .status(403)
+          .json({ message: "Developer payment approval is protected" });
       }
 
       const firebaseUser = req.user;
@@ -525,7 +552,9 @@ router.post(
 
       if (order.user_id !== dbUser.id) {
         await client.query("ROLLBACK");
-        return res.status(403).json({ message: "This payment order is not yours" });
+        return res
+          .status(403)
+          .json({ message: "This payment order is not yours" });
       }
 
       const fakePaymentId = `dev_${body.razorpayOrderId}`;
@@ -593,12 +622,16 @@ export async function razorpayWebhookHandler(req: Request, res: Response) {
     });
 
     if (!validSignature) {
-      return res.status(400).json({ message: "Invalid Razorpay webhook signature" });
+      return res
+        .status(400)
+        .json({ message: "Invalid Razorpay webhook signature" });
     }
 
     const eventPayload = JSON.parse(rawBody.toString("utf8"));
     const eventType = String(eventPayload.event || "");
-    const payment = eventPayload.payload?.payment?.entity as RazorpayPayment | undefined;
+    const payment = eventPayload.payload?.payment?.entity as
+      | RazorpayPayment
+      | undefined;
 
     await client.query("BEGIN");
 
@@ -622,7 +655,11 @@ export async function razorpayWebhookHandler(req: Request, res: Response) {
       return res.json({ received: true, duplicate: true });
     }
 
-    if (eventType !== "payment.captured" || !payment?.order_id || !payment?.id) {
+    if (
+      eventType !== "payment.captured" ||
+      !payment?.order_id ||
+      !payment?.id
+    ) {
       await client.query(
         `
         UPDATE payment_idempotency_keys

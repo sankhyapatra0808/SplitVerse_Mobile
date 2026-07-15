@@ -1,4 +1,4 @@
-import { Ionicons } from "@expo/vector-icons";
+import Ionicons from "@expo/vector-icons/Ionicons";
 import type { BottomTabBarProps } from "@react-navigation/bottom-tabs";
 import { useEffect, useMemo, useRef } from "react";
 import {
@@ -59,11 +59,13 @@ export default function AnimatedTabBar({
     visibleRoutes.forEach((route) => {
       const isFocused = state.routes[state.index]?.key === route.key;
 
+      animations[route.key].stopAnimation();
       Animated.timing(animations[route.key], {
         toValue: isFocused ? 1 : 0,
         duration: 220,
         easing: Easing.out(Easing.cubic),
         useNativeDriver: false,
+        isInteraction: false,
       }).start();
     });
   }, [animations, state.index, state.routes, visibleRoutes]);
@@ -146,7 +148,9 @@ export default function AnimatedTabBar({
               <Pressable
                 accessibilityRole="button"
                 accessibilityState={isFocused ? { selected: true } : {}}
-                accessibilityLabel={options.tabBarAccessibilityLabel}
+                accessibilityLabel={
+                  options.tabBarAccessibilityLabel || icon.label
+                }
                 android_ripple={{
                   color: isDark
                     ? "rgba(255,255,255,0.10)"

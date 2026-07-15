@@ -1,4 +1,4 @@
-import { Ionicons } from "@expo/vector-icons";
+import Ionicons from "@expo/vector-icons/Ionicons";
 import { router } from "expo-router";
 import { useEffect, useRef, useState } from "react";
 import {
@@ -471,7 +471,7 @@ export default function Signup() {
                 allowFontScaling={false}
                 style={[styles.footerText, { color: palette.muted }]}
               >
-                {t("Already have an account?")} {" "}
+                {t("Already have an account?")}{" "}
               </NativeText>
               <Pressable
                 onPress={() => {
@@ -568,6 +568,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     borderRadius: 4,
+    overflow: "hidden",
   },
   primaryButtonCompact: {
     minHeight: 38,
@@ -576,7 +577,11 @@ const styles = StyleSheet.create({
     fontSize: 12,
     lineHeight: 17,
     fontWeight: "600",
-    includeFontPadding: true,
+    includeFontPadding: false,
+
+    textAlign: "center",
+    textAlignVertical: "center",
+    width: "100%",
   },
   dividerRow: {
     flexDirection: "row",

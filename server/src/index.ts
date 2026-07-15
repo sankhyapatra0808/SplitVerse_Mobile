@@ -1,6 +1,10 @@
 import crypto from "node:crypto";
 import authRoutes from "./routes/auth.routes.js";
-import express, { type NextFunction, type Request, type Response } from "express";
+import express, {
+  type NextFunction,
+  type Request,
+  type Response,
+} from "express";
 import path from "node:path";
 import cors from "cors";
 import helmet from "helmet";
@@ -20,7 +24,9 @@ import friendRoutes, {
 } from "./routes/friends.routes.js";
 import transactionRoutes from "./routes/transactions.routes.js";
 import walletRoutes from "./routes/wallet.routes.js";
-import paymentRoutes, { razorpayWebhookHandler } from "./routes/payments.routes.js";
+import paymentRoutes, {
+  razorpayWebhookHandler,
+} from "./routes/payments.routes.js";
 import { registerLiveClient } from "./liveEvents.js";
 import { compressResponses } from "./middleware/compressResponses.js";
 import {
@@ -34,7 +40,8 @@ const app = express();
 const PORT = Number(process.env.PORT) || 5000;
 const isProduction = process.env.NODE_ENV === "production";
 const configuredClientUrl = process.env.CLIENT_URL?.trim() || "";
-const CLIENT_URL = configuredClientUrl || (isProduction ? "" : "http://localhost:5173");
+const CLIENT_URL =
+  configuredClientUrl || (isProduction ? "" : "http://localhost:5173");
 
 function parseOriginList(value: string | undefined) {
   return (value || "")
@@ -45,10 +52,7 @@ function parseOriginList(value: string | undefined) {
 
 const developmentOrigins = isProduction
   ? []
-  : [
-      "http://localhost:5173",
-      "http://127.0.0.1:5173",
-    ];
+  : ["http://localhost:5173", "http://127.0.0.1:5173"];
 
 const CLIENT_URLS = Array.from(
   new Set([
@@ -112,7 +116,8 @@ app.use((req, res, next) => {
 
     const durationMs = Number(process.hrtime.bigint() - startedAt) / 1_000_000;
     const statusCode = res.statusCode;
-    const level = statusCode >= 500 ? "error" : statusCode >= 400 ? "warn" : "info";
+    const level =
+      statusCode >= 500 ? "error" : statusCode >= 400 ? "warn" : "info";
     const logEntry = {
       time: new Date().toISOString(),
       level,
@@ -186,7 +191,9 @@ const authLimiter = rateLimit({
 });
 
 const sensitiveAuthLimiter = rateLimit({
-  windowMs: Number(process.env.SENSITIVE_AUTH_RATE_LIMIT_WINDOW_MS || 15 * 60 * 1000),
+  windowMs: Number(
+    process.env.SENSITIVE_AUTH_RATE_LIMIT_WINDOW_MS || 15 * 60 * 1000,
+  ),
   limit: Number(process.env.SENSITIVE_AUTH_RATE_LIMIT_MAX || 10),
   standardHeaders: "draft-8",
   legacyHeaders: false,
@@ -194,7 +201,9 @@ const sensitiveAuthLimiter = rateLimit({
 });
 
 const publicFormLimiter = rateLimit({
-  windowMs: Number(process.env.PUBLIC_FORM_RATE_LIMIT_WINDOW_MS || 15 * 60 * 1000),
+  windowMs: Number(
+    process.env.PUBLIC_FORM_RATE_LIMIT_WINDOW_MS || 15 * 60 * 1000,
+  ),
   limit: Number(process.env.PUBLIC_FORM_RATE_LIMIT_MAX || 8),
   standardHeaders: "draft-8",
   legacyHeaders: false,
@@ -210,7 +219,9 @@ const paymentLimiter = rateLimit({
 });
 
 const razorpayWebhookLimiter = rateLimit({
-  windowMs: Number(process.env.RAZORPAY_WEBHOOK_RATE_LIMIT_WINDOW_MS || 60 * 1000),
+  windowMs: Number(
+    process.env.RAZORPAY_WEBHOOK_RATE_LIMIT_WINDOW_MS || 60 * 1000,
+  ),
   limit: Number(process.env.RAZORPAY_WEBHOOK_RATE_LIMIT_MAX || 120),
   standardHeaders: "draft-8",
   legacyHeaders: false,
@@ -257,10 +268,7 @@ app.use(
   sensitiveAuthLimiter,
 );
 app.use(
-  [
-    "/api/public-pages/contact/messages",
-    "/api/public-pages/support/tickets",
-  ],
+  ["/api/public-pages/contact/messages", "/api/public-pages/support/tickets"],
   publicFormLimiter,
 );
 app.use(
@@ -290,7 +298,10 @@ app.use(
 
 app.post(
   "/api/payments/razorpay/webhook",
-  express.raw({ type: "application/json", limit: process.env.RAZORPAY_WEBHOOK_BODY_LIMIT || "1mb" }),
+  express.raw({
+    type: "application/json",
+    limit: process.env.RAZORPAY_WEBHOOK_BODY_LIMIT || "1mb",
+  }),
   razorpayWebhookHandler,
 );
 
@@ -339,40 +350,44 @@ app.get("/api/db-test", protectSetupRoutes, async (_req, res) => {
   }
 });
 
-app.get("/api/live/events", verifyFirebaseToken, async (req: AuthRequest, res) => {
-  try {
-    const firebaseUser = req.user;
+app.get(
+  "/api/live/events",
+  verifyFirebaseToken,
+  async (req: AuthRequest, res) => {
+    try {
+      const firebaseUser = req.user;
 
-    if (!firebaseUser) {
-      return res.status(401).json({ message: "Unauthorized" });
-    }
+      if (!firebaseUser) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
 
-    const userResult = await db.query(
-      `
+      const userResult = await db.query(
+        `
       SELECT id
       FROM users
       WHERE firebase_uid = $1;
       `,
-      [firebaseUser.uid],
-    );
+        [firebaseUser.uid],
+      );
 
-    if (userResult.rows.length === 0) {
-      return res.status(404).json({ message: "User not found in database" });
+      if (userResult.rows.length === 0) {
+        return res.status(404).json({ message: "User not found in database" });
+      }
+
+      registerLiveClient(userResult.rows[0].id, res);
+    } catch (error) {
+      console.error("Live update stream failed:", error);
+
+      if (!res.headersSent) {
+        return res.status(500).json({
+          message: "Failed to open live update stream",
+        });
+      }
+
+      res.end();
     }
-
-    registerLiveClient(userResult.rows[0].id, res);
-  } catch (error) {
-    console.error("Live update stream failed:", error);
-
-    if (!res.headersSent) {
-      return res.status(500).json({
-        message: "Failed to open live update stream",
-      });
-    }
-
-    res.end();
-  }
-});
+  },
+);
 
 app.post("/api/setup/users-table", protectSetupRoutes, async (_req, res) => {
   try {
@@ -531,23 +546,27 @@ app.post("/api/setup/app-tables", protectSetupRoutes, async (_req, res) => {
   }
 });
 
-app.post("/api/setup/performance-indexes", protectSetupRoutes, async (_req, res) => {
-  try {
-    await ensurePerformanceIndexes();
+app.post(
+  "/api/setup/performance-indexes",
+  protectSetupRoutes,
+  async (_req, res) => {
+    try {
+      await ensurePerformanceIndexes();
 
-    res.json({
-      status: "success",
-      message: "Performance indexes are ready",
-    });
-  } catch (error) {
-    console.error("Performance index setup failed:", error);
+      res.json({
+        status: "success",
+        message: "Performance indexes are ready",
+      });
+    } catch (error) {
+      console.error("Performance index setup failed:", error);
 
-    res.status(500).json({
-      status: "error",
-      message: "Performance index setup failed",
-    });
-  }
-});
+      res.status(500).json({
+        status: "error",
+        message: "Performance index setup failed",
+      });
+    }
+  },
+);
 
 ensurePerformanceIndexesInBackground();
 
@@ -583,11 +602,15 @@ app.use((error: unknown, req: Request, res: Response, next: NextFunction) => {
       : typeof error === "object" &&
           error !== null &&
           "statusCode" in error &&
-          Number.isInteger(Number((error as { statusCode?: unknown }).statusCode))
+          Number.isInteger(
+            Number((error as { statusCode?: unknown }).statusCode),
+          )
         ? Number((error as { statusCode?: unknown }).statusCode)
         : 500;
-  const safeStatusCode = statusCode >= 400 && statusCode < 600 ? statusCode : 500;
-  const errorMessage = error instanceof Error ? error.message : "Unknown server error";
+  const safeStatusCode =
+    statusCode >= 400 && statusCode < 600 ? statusCode : 500;
+  const errorMessage =
+    error instanceof Error ? error.message : "Unknown server error";
 
   console.error(
     JSON.stringify({
@@ -598,7 +621,11 @@ app.use((error: unknown, req: Request, res: Response, next: NextFunction) => {
       path: req.path,
       statusCode: safeStatusCode,
       message: errorMessage,
-      stack: isProduction ? undefined : error instanceof Error ? error.stack : undefined,
+      stack: isProduction
+        ? undefined
+        : error instanceof Error
+          ? error.stack
+          : undefined,
     }),
   );
 
@@ -612,6 +639,81 @@ app.use((error: unknown, req: Request, res: Response, next: NextFunction) => {
 
 void warmDatabaseConnection();
 
-app.listen(PORT, () => {
+const server = app.listen(PORT, () => {
   console.log(`SplitVerse backend running on http://localhost:${PORT}`);
+});
+
+server.keepAliveTimeout = Number(
+  process.env.HTTP_KEEP_ALIVE_TIMEOUT_MS || 65_000,
+);
+server.headersTimeout = Number(process.env.HTTP_HEADERS_TIMEOUT_MS || 66_000);
+server.requestTimeout = Number(process.env.HTTP_REQUEST_TIMEOUT_MS || 120_000);
+
+let shutdownStarted = false;
+
+async function shutdownServer(signal: string, exitCode = 0, cause?: unknown) {
+  if (shutdownStarted) {
+    return;
+  }
+
+  shutdownStarted = true;
+
+  const shutdownLog = {
+    time: new Date().toISOString(),
+    level: cause ? "error" : "info",
+    event: "server_shutdown",
+    signal,
+    message: cause instanceof Error ? cause.message : undefined,
+  };
+
+  if (cause) {
+    console.error(JSON.stringify(shutdownLog));
+  } else {
+    console.log(JSON.stringify(shutdownLog));
+  }
+
+  const forceShutdownTimer = setTimeout(
+    () => {
+      console.error(
+        JSON.stringify({
+          time: new Date().toISOString(),
+          level: "error",
+          event: "server_shutdown_timeout",
+          signal,
+        }),
+      );
+      process.exit(1);
+    },
+    Number(process.env.SHUTDOWN_TIMEOUT_MS || 10_000),
+  );
+
+  forceShutdownTimer.unref();
+
+  server.close(async (closeError) => {
+    try {
+      await db.end();
+    } catch (databaseCloseError) {
+      console.error("Database pool shutdown failed:", databaseCloseError);
+      exitCode = 1;
+    } finally {
+      clearTimeout(forceShutdownTimer);
+      process.exit(closeError ? 1 : exitCode);
+    }
+  });
+}
+
+process.once("SIGTERM", () => {
+  void shutdownServer("SIGTERM");
+});
+
+process.once("SIGINT", () => {
+  void shutdownServer("SIGINT");
+});
+
+process.once("uncaughtException", (error) => {
+  void shutdownServer("uncaughtException", 1, error);
+});
+
+process.once("unhandledRejection", (reason) => {
+  void shutdownServer("unhandledRejection", 1, reason);
 });

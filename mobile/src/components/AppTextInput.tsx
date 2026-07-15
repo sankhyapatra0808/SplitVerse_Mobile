@@ -1,9 +1,4 @@
-import {
-  StyleSheet,
-  TextInput,
-  type TextInputProps,
-  View,
-} from "react-native";
+import { StyleSheet, TextInput, type TextInputProps, View } from "react-native";
 import Text from "./LocalizedText";
 import { useAppSettings } from "../context/useAppSettings";
 import { fontFamilies } from "../theme/fonts";

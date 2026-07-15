@@ -8,7 +8,11 @@ type SkeletonLineProps = {
   style?: StyleProp<ViewStyle>;
 };
 
-export function SkeletonLine({ width = "100%", height = 14, style }: SkeletonLineProps) {
+export function SkeletonLine({
+  width = "100%",
+  height = 14,
+  style,
+}: SkeletonLineProps) {
   const { theme } = useAppSettings();
   return (
     <View
@@ -17,7 +21,10 @@ export function SkeletonLine({ width = "100%", height = 14, style }: SkeletonLin
         {
           width,
           height,
-          backgroundColor: theme.mode === "dark" ? "rgba(255,255,255,0.10)" : theme.surfaceStrong,
+          backgroundColor:
+            theme.mode === "dark"
+              ? "rgba(255,255,255,0.10)"
+              : theme.surfaceStrong,
         },
         style,
       ]}

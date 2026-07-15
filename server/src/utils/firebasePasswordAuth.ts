@@ -56,7 +56,9 @@ export async function verifyFirebaseEmailPassword(
       },
     );
 
-    const data = (await response.json().catch(() => ({}))) as IdentityToolkitResponse;
+    const data = (await response
+      .json()
+      .catch(() => ({}))) as IdentityToolkitResponse;
 
     if (!response.ok) {
       const providerCode = String(data.error?.message || "").toUpperCase();
@@ -91,7 +93,9 @@ export async function verifyFirebaseEmailPassword(
     }
 
     const uid = String(data.localId || "").trim();
-    const verifiedEmail = String(data.email || email).trim().toLowerCase();
+    const verifiedEmail = String(data.email || email)
+      .trim()
+      .toLowerCase();
 
     if (!uid || !verifiedEmail) {
       throw makeHttpError(
@@ -103,11 +107,7 @@ export async function verifyFirebaseEmailPassword(
 
     return { uid, email: verifiedEmail };
   } catch (error) {
-    if (
-      typeof error === "object" &&
-      error !== null &&
-      "statusCode" in error
-    ) {
+    if (typeof error === "object" && error !== null && "statusCode" in error) {
       throw error;
     }
 

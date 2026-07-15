@@ -1,6 +1,7 @@
-import { Ionicons } from "@expo/vector-icons";
-import { useEffect, useRef } from "react";
-import { Animated, Image, Pressable, StyleSheet, View } from "react-native";
+import Ionicons from "@expo/vector-icons/Ionicons";
+import { Image } from "expo-image";
+import { memo, useEffect, useRef } from "react";
+import { Animated, Pressable, StyleSheet, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAppSettings } from "../context/useAppSettings";
 import { radius, spacing, typography } from "../theme/tokens";
@@ -20,7 +21,7 @@ type AppToastProps = {
   onHide: () => void;
 };
 
-export default function AppToast({ toast, onHide }: AppToastProps) {
+function AppToast({ toast, onHide }: AppToastProps) {
   const { theme } = useAppSettings();
   const insets = useSafeAreaInsets();
   const anim = useRef(new Animated.Value(0)).current;
@@ -28,6 +29,7 @@ export default function AppToast({ toast, onHide }: AppToastProps) {
   useEffect(() => {
     if (!toast) return;
 
+    anim.stopAnimation();
     anim.setValue(0);
     Animated.spring(anim, {
       toValue: 1,
@@ -35,6 +37,7 @@ export default function AppToast({ toast, onHide }: AppToastProps) {
       damping: 18,
       stiffness: 210,
       mass: 0.72,
+      isInteraction: false,
     }).start();
 
     const timer = setTimeout(() => {
@@ -42,10 +45,14 @@ export default function AppToast({ toast, onHide }: AppToastProps) {
         toValue: 0,
         duration: 135,
         useNativeDriver: true,
+        isInteraction: false,
       }).start(onHide);
     }, 2050);
 
-    return () => clearTimeout(timer);
+    return () => {
+      clearTimeout(timer);
+      anim.stopAnimation();
+    };
   }, [anim, onHide, toast]);
 
   if (!toast) return null;
@@ -73,36 +80,70 @@ export default function AppToast({ toast, onHide }: AppToastProps) {
       ]}
     >
       <Pressable
+        accessibilityRole={toast.onPress ? "button" : "alert"}
+        accessibilityLabel={`${toast.title}. ${toast.message}`}
         style={({ pressed }) => [
           styles.card,
           {
             backgroundColor: "rgba(28,30,36,0.96)",
             borderColor: "rgba(255,255,255,0.07)",
-            transform: [{ scale: pressed ? 0.985 : 1 }],
+            transform: [{ scale: pressed && toast.onPress ? 0.985 : 1 }],
           },
         ]}
         onPress={toast.onPress}
+        disabled={!toast.onPress}
       >
         {toast.imageUrl ? (
-          <Image source={{ uri: toast.imageUrl }} style={styles.avatar} />
+          <Image
+            source={toast.imageUrl}
+            cachePolicy="memory-disk"
+            contentFit="cover"
+            recyclingKey={toast.imageUrl}
+            style={styles.avatar}
+          />
         ) : (
-          <View style={[styles.avatar, styles.iconAvatar, { backgroundColor: "#061338" }]}> 
+          <View
+            style={[
+              styles.avatar,
+              styles.iconAvatar,
+              { backgroundColor: "#061338" },
+            ]}
+          >
             {toast.icon ? (
-              <Ionicons name={toast.icon} size={28} color={theme.mode === "dark" ? theme.primary : "#54a9ff"} />
+              <Ionicons
+                name={toast.icon}
+                size={28}
+                color={theme.mode === "dark" ? theme.primary : "#54a9ff"}
+              />
             ) : (
-              <Text style={[styles.fallbackLetter, { color: theme.mode === "dark" ? theme.primary : "#54a9ff" }]}>S</Text>
+              <Text
+                style={[
+                  styles.fallbackLetter,
+                  {
+                    color: theme.mode === "dark" ? theme.primary : "#54a9ff",
+                  },
+                ]}
+              >
+                S
+              </Text>
             )}
           </View>
         )}
 
         <View style={styles.copy}>
-          <Text style={styles.title} numberOfLines={1}>{toast.title}</Text>
-          <Text style={styles.message} numberOfLines={1}>{toast.message}</Text>
+          <Text style={styles.title} numberOfLines={1}>
+            {toast.title}
+          </Text>
+          <Text style={styles.message} numberOfLines={1}>
+            {toast.message}
+          </Text>
         </View>
       </Pressable>
     </Animated.View>
   );
 }
+
+export default memo(AppToast);
 
 const styles = StyleSheet.create({
   wrap: {
@@ -131,6 +172,7 @@ const styles = StyleSheet.create({
     width: 58,
     height: 58,
     borderRadius: radius.full,
+    overflow: "hidden",
   },
   iconAvatar: {
     alignItems: "center",

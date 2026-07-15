@@ -14,7 +14,10 @@ import {
   verifyFirebaseCredentialToken,
   verifyFirebaseToken,
 } from "../middleware/verifyFirebaseToken.js";
-import { parseRequestBody, sendValidationError } from "../middleware/validateRequest.js";
+import {
+  parseRequestBody,
+  sendValidationError,
+} from "../middleware/validateRequest.js";
 import {
   sendWalletPinError,
   verifyWalletPinForUser,
@@ -63,8 +66,12 @@ const supportedAppLanguages = new Set([
   "pt",
 ]);
 const walletPinLengthMessage = "Wallet PIN must be 4 to 6 digits";
-const walletPinMaxFailedAttempts = Number(process.env.WALLET_PIN_MAX_FAILED_ATTEMPTS || 5);
-const walletPinLockMs = Number(process.env.WALLET_PIN_LOCK_MS || 15 * 60 * 1000);
+const walletPinMaxFailedAttempts = Number(
+  process.env.WALLET_PIN_MAX_FAILED_ATTEMPTS || 5,
+);
+const walletPinLockMs = Number(
+  process.env.WALLET_PIN_LOCK_MS || 15 * 60 * 1000,
+);
 const walletPinResetOtpLength = 6;
 const walletPinResetOtpExpiryMs = Number(
   process.env.WALLET_PIN_RESET_OTP_EXPIRY_MS || 10 * 60 * 1000,
@@ -121,7 +128,6 @@ if (isCloudinaryConfigured) {
   });
 }
 
-
 const walletPinValueSchema = z
   .string()
   .trim()
@@ -150,7 +156,10 @@ const walletPinSchema = z
 
 const verifyWalletPinSchema = z
   .object({
-    pin: z.string().trim().regex(/^\d{4,6}$/, walletPinLengthMessage),
+    pin: z
+      .string()
+      .trim()
+      .regex(/^\d{4,6}$/, walletPinLengthMessage),
   })
   .strict();
 
@@ -209,15 +218,20 @@ const allowedProfilePhotoMimeTypes = new Set([
 ]);
 
 function detectProfilePhotoMimeType(buffer: Buffer) {
-  if (buffer.length >= 3 && buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff) {
+  if (
+    buffer.length >= 3 &&
+    buffer[0] === 0xff &&
+    buffer[1] === 0xd8 &&
+    buffer[2] === 0xff
+  ) {
     return "image/jpeg";
   }
 
   if (
     buffer.length >= 8 &&
-    buffer.subarray(0, 8).equals(
-      Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
-    )
+    buffer
+      .subarray(0, 8)
+      .equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))
   ) {
     return "image/png";
   }
@@ -343,15 +357,18 @@ function assertOtpPepperConfigured(secret: string, feature: string) {
 
   if (sufficientlyStrong || process.env.NODE_ENV !== "production") return;
 
-  throw Object.assign(
-    new Error(`${feature} is temporarily unavailable.`),
-    { statusCode: 503, code: "OTP_SECURITY_NOT_CONFIGURED" },
-  );
+  throw Object.assign(new Error(`${feature} is temporarily unavailable.`), {
+    statusCode: 503,
+    code: "OTP_SECURITY_NOT_CONFIGURED",
+  });
 }
 
 function createWalletPinResetOtp() {
   return crypto
-    .randomInt(10 ** (walletPinResetOtpLength - 1), 10 ** walletPinResetOtpLength)
+    .randomInt(
+      10 ** (walletPinResetOtpLength - 1),
+      10 ** walletPinResetOtpLength,
+    )
     .toString();
 }
 
@@ -494,13 +511,15 @@ async function sendPasswordResetOtpEmail({
   });
 
   if (!emailResult.ok) {
-    console.error("Password reset OTP email failed through Brevo SMTP:", emailResult);
+    console.error(
+      "Password reset OTP email failed through Brevo SMTP:",
+      emailResult,
+    );
     return emailResult.reason;
   }
 
   return "sent";
 }
-
 
 function assertLoginOtpConfigured() {
   if (loginOtpPepper.length >= 32 || process.env.NODE_ENV !== "production") {
@@ -508,10 +527,10 @@ function assertLoginOtpConfigured() {
   }
 
   if (process.env.NODE_ENV === "production") {
-    throw Object.assign(
-      new Error("Email login is temporarily unavailable."),
-      { statusCode: 503, code: "LOGIN_OTP_NOT_CONFIGURED" },
-    );
+    throw Object.assign(new Error("Email login is temporarily unavailable."), {
+      statusCode: 503,
+      code: "LOGIN_OTP_NOT_CONFIGURED",
+    });
   }
 }
 
@@ -521,11 +540,7 @@ function createLoginOtp() {
     .toString();
 }
 
-function hashLoginOtp(
-  otp: string,
-  sessionId: string,
-  firebaseUid: string,
-) {
+function hashLoginOtp(otp: string, sessionId: string, firebaseUid: string) {
   const pepper = loginOtpPepper || "splitverse-development-login-otp-pepper";
 
   return crypto
@@ -685,7 +700,10 @@ async function sendLoginOtpEmail({
 router.post("/email-login-otp/request", async (req, res) => {
   try {
     assertLoginOtpConfigured();
-    const { email, password } = parseRequestBody(loginOtpRequestSchema, req.body);
+    const { email, password } = parseRequestBody(
+      loginOtpRequestSchema,
+      req.body,
+    );
     const credential = await verifyFirebaseEmailPassword(email, password);
 
     const requestCountResult = await db.query<{ request_count: number }>(
@@ -785,7 +803,9 @@ router.post("/email-login-otp/request", async (req, res) => {
         : 500;
     const code =
       typeof error === "object" && error !== null && "code" in error
-        ? String((error as { code?: unknown }).code || "LOGIN_OTP_REQUEST_FAILED")
+        ? String(
+            (error as { code?: unknown }).code || "LOGIN_OTP_REQUEST_FAILED",
+          )
         : "LOGIN_OTP_REQUEST_FAILED";
 
     if (statusCode >= 500) {
@@ -1003,11 +1023,7 @@ router.post("/email-login-otp/verify", async (req, res) => {
       });
     }
 
-    const submittedHash = hashLoginOtp(
-      otp,
-      session.id,
-      session.firebase_uid,
-    );
+    const submittedHash = hashLoginOtp(otp, session.id, session.firebase_uid);
     const matches = timingSafeEqualHex(submittedHash, session.otp_hash);
 
     if (!matches) {
@@ -1026,9 +1042,7 @@ router.post("/email-login-otp/verify", async (req, res) => {
       await client.query("COMMIT");
 
       return res.status(consume ? 423 : 401).json({
-        code: consume
-          ? "LOGIN_OTP_ATTEMPTS_EXCEEDED"
-          : "LOGIN_OTP_INCORRECT",
+        code: consume ? "LOGIN_OTP_ATTEMPTS_EXCEEDED" : "LOGIN_OTP_INCORRECT",
         message: consume
           ? "Too many incorrect codes. Please start sign-in again."
           : "Incorrect login code.",
@@ -1154,7 +1168,8 @@ router.post("/password-reset/request", async (req, res) => {
     );
 
     return res.status(201).json({
-      message: "Password reset code sent. Check your email inbox or spam folder.",
+      message:
+        "Password reset code sent. Check your email inbox or spam folder.",
       expiresInSeconds: Math.floor(passwordResetOtpExpiryMs / 1000),
     });
   } catch (error) {
@@ -1207,7 +1222,8 @@ router.post("/password-reset/confirm", async (req, res) => {
       await client.query("ROLLBACK");
 
       return res.status(404).json({
-        message: "Password reset code expired or not found. Request a new code.",
+        message:
+          "Password reset code expired or not found. Request a new code.",
       });
     }
 
@@ -1263,7 +1279,9 @@ router.post("/password-reset/confirm", async (req, res) => {
     }
 
     await adminAuth.updateUser(otpRow.firebase_uid, { password });
-    await adminAuth.revokeRefreshTokens(otpRow.firebase_uid).catch(() => undefined);
+    await adminAuth
+      .revokeRefreshTokens(otpRow.firebase_uid)
+      .catch(() => undefined);
 
     await client.query(
       `
@@ -1466,14 +1484,21 @@ router.post(
 
       const detectedMimeType = detectProfilePhotoMimeType(file.buffer);
 
-      if (!detectedMimeType || !allowedProfilePhotoMimeTypes.has(detectedMimeType)) {
+      if (
+        !detectedMimeType ||
+        !allowedProfilePhotoMimeTypes.has(detectedMimeType)
+      ) {
         return res.status(400).json({
-          message: "The selected file is not a valid JPG, PNG, WEBP, or GIF image",
+          message:
+            "The selected file is not a valid JPG, PNG, WEBP, or GIF image",
         });
       }
 
       file.mimetype = detectedMimeType;
-      const profilePhotoUrl = await uploadProfilePhotoToCloudinary(file, firebaseUser.uid);
+      const profilePhotoUrl = await uploadProfilePhotoToCloudinary(
+        file,
+        firebaseUser.uid,
+      );
       const result = await db.query(
         `
         UPDATE users
@@ -1664,75 +1689,80 @@ router.patch("/profile", verifyFirebaseToken, async (req: AuthRequest, res) => {
   }
 });
 
-router.post("/wallet-pin", verifyFirebaseToken, async (req: AuthRequest, res) => {
-  const client = await db.connect();
+router.post(
+  "/wallet-pin",
+  verifyFirebaseToken,
+  async (req: AuthRequest, res) => {
+    const client = await db.connect();
 
-  try {
-    const firebaseUser = req.user;
+    try {
+      const firebaseUser = req.user;
 
-    if (!firebaseUser) {
-      return res.status(401).json({ message: "Unauthorized" });
-    }
+      if (!firebaseUser) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
 
-    const { pin, currentPin } = parseRequestBody(walletPinSchema, req.body);
+      const { pin, currentPin } = parseRequestBody(walletPinSchema, req.body);
 
-    await client.query("BEGIN");
+      await client.query("BEGIN");
 
-    const userResult = await client.query<{
-      id: string;
-      wallet_pin_hash: string | null;
-    }>(
-      `
+      const userResult = await client.query<{
+        id: string;
+        wallet_pin_hash: string | null;
+      }>(
+        `
       SELECT id, wallet_pin_hash
       FROM users
       WHERE firebase_uid = $1
       FOR UPDATE;
       `,
-      [firebaseUser.uid],
-    );
+        [firebaseUser.uid],
+      );
 
-    const user = userResult.rows[0];
+      const user = userResult.rows[0];
 
-    if (!user) {
-      await client.query("ROLLBACK");
-
-      return res.status(404).json({ message: "User not found in database" });
-    }
-
-    if (user.wallet_pin_hash) {
-      if (!currentPin) {
+      if (!user) {
         await client.query("ROLLBACK");
 
-        return res.status(400).json({ message: "Old wallet PIN is required" });
+        return res.status(404).json({ message: "User not found in database" });
       }
 
-      try {
-        await verifyWalletPinForUser(client, user.id, currentPin);
-      } catch (pinError) {
-        await client.query("COMMIT");
+      if (user.wallet_pin_hash) {
+        if (!currentPin) {
+          await client.query("ROLLBACK");
 
-        if (sendWalletPinError(res, pinError)) {
-          return;
+          return res
+            .status(400)
+            .json({ message: "Old wallet PIN is required" });
         }
 
-        throw pinError;
+        try {
+          await verifyWalletPinForUser(client, user.id, currentPin);
+        } catch (pinError) {
+          await client.query("COMMIT");
+
+          if (sendWalletPinError(res, pinError)) {
+            return;
+          }
+
+          throw pinError;
+        }
+
+        const sameAsOldPin = await argon2.verify(user.wallet_pin_hash, pin);
+
+        if (sameAsOldPin) {
+          await client.query("ROLLBACK");
+
+          return res.status(400).json({
+            message: "New wallet PIN cannot be the same as the old PIN",
+          });
+        }
       }
 
-      const sameAsOldPin = await argon2.verify(user.wallet_pin_hash, pin);
+      const nextHash = await argon2.hash(pin);
 
-      if (sameAsOldPin) {
-        await client.query("ROLLBACK");
-
-        return res.status(400).json({
-          message: "New wallet PIN cannot be the same as the old PIN",
-        });
-      }
-    }
-
-    const nextHash = await argon2.hash(pin);
-
-    await client.query(
-      `
+      await client.query(
+        `
       UPDATE users
       SET
         wallet_pin_hash = $2,
@@ -1742,55 +1772,59 @@ router.post("/wallet-pin", verifyFirebaseToken, async (req: AuthRequest, res) =>
         updated_at = NOW()
       WHERE id = $1;
       `,
-      [user.id, nextHash],
-    );
+        [user.id, nextHash],
+      );
 
-    const updatedUser = await getAuthUserProfile(client, user.id);
+      const updatedUser = await getAuthUserProfile(client, user.id);
 
-    await client.query("COMMIT");
+      await client.query("COMMIT");
 
-    return res.json({
-      message: user.wallet_pin_hash
-        ? "Wallet PIN changed successfully"
-        : "Wallet PIN saved",
-      user: updatedUser,
-    });
-  } catch (error) {
-    await client.query("ROLLBACK").catch(() => undefined);
+      return res.json({
+        message: user.wallet_pin_hash
+          ? "Wallet PIN changed successfully"
+          : "Wallet PIN saved",
+        user: updatedUser,
+      });
+    } catch (error) {
+      await client.query("ROLLBACK").catch(() => undefined);
 
-    if (sendValidationError(res, error) || sendWalletPinError(res, error)) {
-      return;
+      if (sendValidationError(res, error) || sendWalletPinError(res, error)) {
+        return;
+      }
+
+      console.error("Save wallet PIN failed:", error);
+
+      return res.status(500).json({ message: "Failed to save wallet PIN" });
+    } finally {
+      client.release();
     }
+  },
+);
 
-    console.error("Save wallet PIN failed:", error);
+router.post(
+  "/wallet-pin/verify",
+  verifyFirebaseToken,
+  async (req: AuthRequest, res) => {
+    const client = await db.connect();
 
-    return res.status(500).json({ message: "Failed to save wallet PIN" });
-  } finally {
-    client.release();
-  }
-});
+    try {
+      const firebaseUser = req.user;
 
-router.post("/wallet-pin/verify", verifyFirebaseToken, async (req: AuthRequest, res) => {
-  const client = await db.connect();
+      if (!firebaseUser) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
 
-  try {
-    const firebaseUser = req.user;
+      const { pin } = parseRequestBody(verifyWalletPinSchema, req.body);
 
-    if (!firebaseUser) {
-      return res.status(401).json({ message: "Unauthorized" });
-    }
+      await client.query("BEGIN");
 
-    const { pin } = parseRequestBody(verifyWalletPinSchema, req.body);
-
-    await client.query("BEGIN");
-
-    const userResult = await client.query<{
-      id: string;
-      wallet_pin_hash: string | null;
-      wallet_pin_failed_attempts: number;
-      wallet_pin_locked_until: Date | string | null;
-    }>(
-      `
+      const userResult = await client.query<{
+        id: string;
+        wallet_pin_hash: string | null;
+        wallet_pin_failed_attempts: number;
+        wallet_pin_locked_until: Date | string | null;
+      }>(
+        `
       SELECT
         id,
         wallet_pin_hash,
@@ -1800,47 +1834,47 @@ router.post("/wallet-pin/verify", verifyFirebaseToken, async (req: AuthRequest, 
       WHERE firebase_uid = $1
       FOR UPDATE;
       `,
-      [firebaseUser.uid],
-    );
+        [firebaseUser.uid],
+      );
 
-    const user = userResult.rows[0];
+      const user = userResult.rows[0];
 
-    if (!user) {
-      await client.query("ROLLBACK");
+      if (!user) {
+        await client.query("ROLLBACK");
 
-      return res.status(404).json({ message: "User not found in database" });
-    }
+        return res.status(404).json({ message: "User not found in database" });
+      }
 
-    if (!user.wallet_pin_hash) {
-      await client.query("ROLLBACK");
+      if (!user.wallet_pin_hash) {
+        await client.query("ROLLBACK");
 
-      return res.status(400).json({ message: "Set a wallet PIN first" });
-    }
+        return res.status(400).json({ message: "Set a wallet PIN first" });
+      }
 
-    const lockedUntil = user.wallet_pin_locked_until
-      ? new Date(user.wallet_pin_locked_until).getTime()
-      : 0;
+      const lockedUntil = user.wallet_pin_locked_until
+        ? new Date(user.wallet_pin_locked_until).getTime()
+        : 0;
 
-    if (lockedUntil > Date.now()) {
-      await client.query("ROLLBACK");
+      if (lockedUntil > Date.now()) {
+        await client.query("ROLLBACK");
 
-      return res.status(423).json({
-        message: "Wallet PIN is temporarily locked. Try again later.",
-        lockedUntil: new Date(lockedUntil).toISOString(),
-      });
-    }
+        return res.status(423).json({
+          message: "Wallet PIN is temporarily locked. Try again later.",
+          lockedUntil: new Date(lockedUntil).toISOString(),
+        });
+      }
 
-    const pinMatches = await argon2.verify(user.wallet_pin_hash, pin);
+      const pinMatches = await argon2.verify(user.wallet_pin_hash, pin);
 
-    if (!pinMatches) {
-      const nextAttempts = Number(user.wallet_pin_failed_attempts || 0) + 1;
-      const shouldLock = nextAttempts >= walletPinMaxFailedAttempts;
-      const lockedUntilValue = shouldLock
-        ? new Date(Date.now() + walletPinLockMs)
-        : null;
+      if (!pinMatches) {
+        const nextAttempts = Number(user.wallet_pin_failed_attempts || 0) + 1;
+        const shouldLock = nextAttempts >= walletPinMaxFailedAttempts;
+        const lockedUntilValue = shouldLock
+          ? new Date(Date.now() + walletPinLockMs)
+          : null;
 
-      await client.query(
-        `
+        await client.query(
+          `
         UPDATE users
         SET
           wallet_pin_failed_attempts = $2,
@@ -1848,22 +1882,25 @@ router.post("/wallet-pin/verify", verifyFirebaseToken, async (req: AuthRequest, 
           updated_at = NOW()
         WHERE id = $1;
         `,
-        [user.id, nextAttempts, lockedUntilValue],
-      );
+          [user.id, nextAttempts, lockedUntilValue],
+        );
 
-      await client.query("COMMIT");
+        await client.query("COMMIT");
 
-      return res.status(401).json({
-        message: shouldLock
-          ? "Too many wrong wallet PIN attempts. Wallet PIN is temporarily locked."
-          : "Incorrect wallet PIN",
-        attemptsRemaining: Math.max(walletPinMaxFailedAttempts - nextAttempts, 0),
-        lockedUntil: lockedUntilValue?.toISOString(),
-      });
-    }
+        return res.status(401).json({
+          message: shouldLock
+            ? "Too many wrong wallet PIN attempts. Wallet PIN is temporarily locked."
+            : "Incorrect wallet PIN",
+          attemptsRemaining: Math.max(
+            walletPinMaxFailedAttempts - nextAttempts,
+            0,
+          ),
+          lockedUntil: lockedUntilValue?.toISOString(),
+        });
+      }
 
-    await client.query(
-      `
+      await client.query(
+        `
       UPDATE users
       SET
         wallet_pin_failed_attempts = 0,
@@ -1871,27 +1908,27 @@ router.post("/wallet-pin/verify", verifyFirebaseToken, async (req: AuthRequest, 
         updated_at = NOW()
       WHERE id = $1;
       `,
-      [user.id],
-    );
+        [user.id],
+      );
 
-    await client.query("COMMIT");
+      await client.query("COMMIT");
 
-    return res.json({ verified: true });
-  } catch (error) {
-    await client.query("ROLLBACK").catch(() => undefined);
+      return res.json({ verified: true });
+    } catch (error) {
+      await client.query("ROLLBACK").catch(() => undefined);
 
-    if (sendValidationError(res, error)) {
-      return;
+      if (sendValidationError(res, error)) {
+        return;
+      }
+
+      console.error("Verify wallet PIN failed:", error);
+
+      return res.status(500).json({ message: "Failed to verify wallet PIN" });
+    } finally {
+      client.release();
     }
-
-    console.error("Verify wallet PIN failed:", error);
-
-    return res.status(500).json({ message: "Failed to verify wallet PIN" });
-  } finally {
-    client.release();
-  }
-});
-
+  },
+);
 
 router.post(
   "/wallet-pin/reset-otp/request",
@@ -1956,7 +1993,10 @@ router.post(
         [user.id, walletPinResetOtpWindowMinutes],
       );
 
-      if (Number(requestCountResult.rows[0].request_count) >= walletPinResetOtpMaxRequests) {
+      if (
+        Number(requestCountResult.rows[0].request_count) >=
+        walletPinResetOtpMaxRequests
+      ) {
         return res.status(429).json({
           message: "Too many reset OTP requests. Please try again later.",
         });
@@ -1999,7 +2039,11 @@ router.post(
         )
         VALUES ($1, $2, NOW() + ($3::int * INTERVAL '1 millisecond'));
         `,
-        [user.id, hashWalletPinResetOtp(otp, user.id), walletPinResetOtpExpiryMs],
+        [
+          user.id,
+          hashWalletPinResetOtp(otp, user.id),
+          walletPinResetOtpExpiryMs,
+        ],
       );
 
       await client.query("COMMIT");
@@ -2134,16 +2178,18 @@ router.post(
         );
         await client.query("COMMIT");
 
-        return res.status(nextAttempts >= walletPinResetOtpMaxAttempts ? 423 : 401).json({
-          message:
-            nextAttempts >= walletPinResetOtpMaxAttempts
-              ? "Too many wrong OTP attempts. Please request a new OTP."
-              : "Incorrect OTP",
-          attemptsRemaining: Math.max(
-            walletPinResetOtpMaxAttempts - nextAttempts,
-            0,
-          ),
-        });
+        return res
+          .status(nextAttempts >= walletPinResetOtpMaxAttempts ? 423 : 401)
+          .json({
+            message:
+              nextAttempts >= walletPinResetOtpMaxAttempts
+                ? "Too many wrong OTP attempts. Please request a new OTP."
+                : "Incorrect OTP",
+            attemptsRemaining: Math.max(
+              walletPinResetOtpMaxAttempts - nextAttempts,
+              0,
+            ),
+          });
       }
 
       if (user.wallet_pin_hash) {

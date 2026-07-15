@@ -4,7 +4,13 @@ import { useAppSettings } from "../context/useAppSettings";
 import { radius, spacing } from "../theme/tokens";
 import { SkeletonLine } from "./Skeleton";
 
-function SkeletonBlock({ children, compact = false }: { children: ReactNode; compact?: boolean }) {
+function SkeletonBlock({
+  children,
+  compact = false,
+}: {
+  children: ReactNode;
+  compact?: boolean;
+}) {
   const { theme } = useAppSettings();
   return (
     <View

@@ -1,4 +1,4 @@
-import { Ionicons } from "@expo/vector-icons";
+import Ionicons from "@expo/vector-icons/Ionicons";
 import { router, useFocusEffect } from "expo-router";
 import { useCallback, useMemo, useState } from "react";
 import {
@@ -74,7 +74,8 @@ export default function FriendsPage() {
       if (!silent) {
         showErrorAlert(error, {
           title: "Could not load friends",
-          fallbackMessage: "Your friend list could not be loaded. Pull down to try again.",
+          fallbackMessage:
+            "Your friend list could not be loaded. Pull down to try again.",
         });
       }
     } finally {

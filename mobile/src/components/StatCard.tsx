@@ -12,13 +12,36 @@ type StatCardProps = ViewProps & {
   tone?: "default" | "success" | "danger" | "primary";
 };
 
-export default function StatCard({ label, value, amount, helper, tone = "default", style, ...props }: StatCardProps) {
+export default function StatCard({
+  label,
+  value,
+  amount,
+  helper,
+  tone = "default",
+  style,
+  ...props
+}: StatCardProps) {
   const { theme } = useAppSettings();
   return (
-    <View {...props} style={[styles.card, { borderColor: theme.borderSoft, backgroundColor: theme.card }, style]}>
+    <View
+      {...props}
+      style={[
+        styles.card,
+        { borderColor: theme.borderSoft, backgroundColor: theme.card },
+        style,
+      ]}
+    >
       <Text style={[styles.label, { color: theme.body }]}>{label}</Text>
-      {typeof amount === "number" ? <AmountText amount={amount} size="md" tone={tone} /> : <Text style={[styles.value, { color: theme.text }]}>{value ?? "—"}</Text>}
-      {helper ? <Text style={[styles.helper, { color: theme.muted }]}>{helper}</Text> : null}
+      {typeof amount === "number" ? (
+        <AmountText amount={amount} size="md" tone={tone} />
+      ) : (
+        <Text style={[styles.value, { color: theme.text }]}>
+          {value ?? "—"}
+        </Text>
+      )}
+      {helper ? (
+        <Text style={[styles.helper, { color: theme.muted }]}>{helper}</Text>
+      ) : null}
     </View>
   );
 }

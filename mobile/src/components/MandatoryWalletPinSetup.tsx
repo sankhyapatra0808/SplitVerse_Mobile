@@ -18,7 +18,10 @@ export default function MandatoryWalletPinSetup() {
 
   const visible = Boolean(user && dbUser && dbUser.has_wallet_pin === false);
 
-  const canSave = useMemo(() => /^\d{4,6}$/.test(pin) && pin === confirmPin, [confirmPin, pin]);
+  const canSave = useMemo(
+    () => /^\d{4,6}$/.test(pin) && pin === confirmPin,
+    [confirmPin, pin],
+  );
 
   async function handleSavePin() {
     if (!/^\d{4,6}$/.test(pin)) {
@@ -40,7 +43,8 @@ export default function MandatoryWalletPinSetup() {
     } catch (error) {
       showErrorAlert(error, {
         title: "Could not save wallet PIN",
-        fallbackMessage: "Your wallet PIN was not saved. Check your connection and try again.",
+        fallbackMessage:
+          "Your wallet PIN was not saved. Check your connection and try again.",
       });
     } finally {
       setSaving(false);
@@ -48,19 +52,38 @@ export default function MandatoryWalletPinSetup() {
   }
 
   return (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={() => undefined}>
-      <View style={[styles.backdrop, { backgroundColor: theme.backdrop }]}> 
-        <View style={[styles.card, { borderColor: theme.border, backgroundColor: theme.card }]}> 
+    <Modal
+      visible={visible}
+      transparent
+      animationType="fade"
+      onRequestClose={() => undefined}
+    >
+      <View style={[styles.backdrop, { backgroundColor: theme.backdrop }]}>
+        <View
+          style={[
+            styles.card,
+            { borderColor: theme.border, backgroundColor: theme.card },
+          ]}
+        >
           <View style={styles.header}>
-            <Text style={[styles.eyebrow, { color: theme.primary }]}>Wallet security</Text>
-            <Text style={[styles.title, { color: theme.text }]}>Set your wallet PIN</Text>
-            <Text style={[styles.subtitle, { color: theme.body }]}>Create a wallet PIN before using SplitVerse payments. This matches the website security flow.</Text>
+            <Text style={[styles.eyebrow, { color: theme.primary }]}>
+              Wallet security
+            </Text>
+            <Text style={[styles.title, { color: theme.text }]}>
+              Set your wallet PIN
+            </Text>
+            <Text style={[styles.subtitle, { color: theme.body }]}>
+              Create a wallet PIN before using SplitVerse payments. This matches
+              the website security flow.
+            </Text>
           </View>
 
           <AppTextInput
             label="Wallet PIN"
             value={pin}
-            onChangeText={(value) => setPin(value.replace(/\D/g, "").slice(0, 6))}
+            onChangeText={(value) =>
+              setPin(value.replace(/\D/g, "").slice(0, 6))
+            }
             keyboardType="number-pad"
             secureTextEntry
             placeholder="4 to 6 digits"
@@ -70,7 +93,9 @@ export default function MandatoryWalletPinSetup() {
           <AppTextInput
             label="Confirm PIN"
             value={confirmPin}
-            onChangeText={(value) => setConfirmPin(value.replace(/\D/g, "").slice(0, 6))}
+            onChangeText={(value) =>
+              setConfirmPin(value.replace(/\D/g, "").slice(0, 6))
+            }
             keyboardType="number-pad"
             secureTextEntry
             placeholder="Re-enter PIN"

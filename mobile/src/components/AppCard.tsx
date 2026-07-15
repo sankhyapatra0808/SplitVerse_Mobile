@@ -10,7 +10,8 @@ export default function AppCard({ children, style, ...props }: ViewProps) {
       style={[
         styles.card,
         {
-          borderColor: theme.mode === "dark" ? "rgba(255,255,255,0.08)" : theme.borderSoft,
+          borderColor:
+            theme.mode === "dark" ? "rgba(255,255,255,0.08)" : theme.borderSoft,
           backgroundColor: theme.card,
           padding: compactMode ? spacing.base : spacing.lg,
           shadowOpacity: theme.mode === "dark" ? 0 : 0.05,

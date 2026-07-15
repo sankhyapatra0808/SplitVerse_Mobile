@@ -11,7 +11,7 @@ import {
   type ViewStyle,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { colors, spacing } from "../theme/tokens";
+import { spacing } from "../theme/tokens";
 import { useAppSettings } from "../context/useAppSettings";
 
 const tabOrder = [
@@ -104,10 +104,11 @@ export default function Screen({
             contentContainerStyle={[styles.scrollContent, contentStyle]}
             showsVerticalScrollIndicator={false}
             keyboardShouldPersistTaps="handled"
-            keyboardDismissMode="interactive"
-            automaticallyAdjustKeyboardInsets
+            keyboardDismissMode={
+              Platform.OS === "ios" ? "interactive" : "on-drag"
+            }
+            automaticallyAdjustKeyboardInsets={Platform.OS === "ios"}
             nestedScrollEnabled
-            scrollEventThrottle={16}
             overScrollMode="never"
             refreshControl={
               onRefresh ? (

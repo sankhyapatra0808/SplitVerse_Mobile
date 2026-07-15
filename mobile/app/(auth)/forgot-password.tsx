@@ -73,8 +73,8 @@ export default function ForgotPassword() {
             allowFontScaling={false}
             style={[styles.instructions, { color: palette.muted }]}
           >
-            Enter your registered email. We will send a 6-digit password
-            reset code to your inbox.
+            Enter your registered email. We will send a 6-digit password reset
+            code to your inbox.
           </NativeText>
 
           <FloatingAuthField
@@ -189,6 +189,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     borderRadius: 4,
+    overflow: "hidden",
   },
   primaryButtonCompact: {
     minHeight: 40,
@@ -197,7 +198,11 @@ const styles = StyleSheet.create({
     fontSize: 14,
     lineHeight: 19,
     fontWeight: "600",
-    includeFontPadding: true,
+    includeFontPadding: false,
+
+    textAlign: "center",
+    textAlignVertical: "center",
+    width: "100%",
   },
   footerRow: {
     flexDirection: "row",

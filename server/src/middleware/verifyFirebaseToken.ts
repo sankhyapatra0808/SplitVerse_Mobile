@@ -18,7 +18,9 @@ export interface AuthRequest extends Request {
   user?: SplitVerseDecodedIdToken;
 }
 
-const firebaseAuthTimeoutMs = Number(process.env.FIREBASE_AUTH_TIMEOUT_MS || 3000);
+const firebaseAuthTimeoutMs = Number(
+  process.env.FIREBASE_AUTH_TIMEOUT_MS || 3000,
+);
 const firebaseAuthMaxConcurrent = Number(
   process.env.FIREBASE_AUTH_MAX_CONCURRENT || 50,
 );
@@ -193,7 +195,8 @@ export function requireRecentAuthentication(maxAgeMs = 10 * 60 * 1000) {
     ) {
       return res.status(401).json({
         code: "RECENT_AUTH_REQUIRED",
-        message: "Sign in again before completing this security-sensitive action.",
+        message:
+          "Sign in again before completing this security-sensitive action.",
       });
     }
 

@@ -1,5 +1,5 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { Ionicons } from "@expo/vector-icons";
+import Ionicons from "@expo/vector-icons/Ionicons";
 import { router } from "expo-router";
 import { useEffect, useRef, useState } from "react";
 import {
@@ -44,7 +44,9 @@ function isInvalidCredentialError(error: unknown): boolean {
     typeof error === "object" &&
     error !== null &&
     "code" in error &&
-    String((error as { code?: unknown }).code).includes("INVALID_LOGIN_CREDENTIALS")
+    String((error as { code?: unknown }).code).includes(
+      "INVALID_LOGIN_CREDENTIALS",
+    )
   );
 }
 
@@ -109,7 +111,9 @@ export default function Login() {
       return;
     }
 
-    if ((await getLoginAttemptCount(trimmedEmail)) >= MAX_DAILY_LOGIN_ATTEMPTS) {
+    if (
+      (await getLoginAttemptCount(trimmedEmail)) >= MAX_DAILY_LOGIN_ATTEMPTS
+    ) {
       setError("Too many login attempts today. Please try again tomorrow.");
       return;
     }
@@ -150,10 +154,7 @@ export default function Login() {
       }
 
       const attempts = await recordFailedLoginAttempt(trimmedEmail);
-      const attemptsLeft = Math.max(
-        0,
-        MAX_DAILY_LOGIN_ATTEMPTS - attempts,
-      );
+      const attemptsLeft = Math.max(0, MAX_DAILY_LOGIN_ATTEMPTS - attempts);
 
       setError(
         attemptsLeft > 0
@@ -254,23 +255,15 @@ export default function Login() {
             <Pressable
               accessibilityRole="checkbox"
               accessibilityState={{ checked: rememberFor30Days }}
-              onPress={() =>
-                void persistRememberChoice(!rememberFor30Days)
-              }
+              onPress={() => void persistRememberChoice(!rememberFor30Days)}
               disabled={loading}
               hitSlop={8}
               style={styles.rememberButton}
             >
               <Ionicons
-                name={
-                  rememberFor30Days
-                    ? "checkbox-outline"
-                    : "square-outline"
-                }
+                name={rememberFor30Days ? "checkbox-outline" : "square-outline"}
                 size={18}
-                color={
-                  rememberFor30Days ? theme.primary : palette.muted
-                }
+                color={rememberFor30Days ? theme.primary : palette.muted}
               />
               <NativeText
                 allowFontScaling={false}
@@ -337,24 +330,14 @@ export default function Login() {
           </Pressable>
 
           <View style={styles.dividerRow}>
-            <View
-              style={[
-                styles.divider,
-                { backgroundColor: palette.line },
-              ]}
-            />
+            <View style={[styles.divider, { backgroundColor: palette.line }]} />
             <NativeText
               allowFontScaling={false}
               style={[styles.dividerText, { color: palette.muted }]}
             >
               {t("Or continue with")}
             </NativeText>
-            <View
-              style={[
-                styles.divider,
-                { backgroundColor: palette.line },
-              ]}
-            />
+            <View style={[styles.divider, { backgroundColor: palette.line }]} />
           </View>
 
           <Pressable
@@ -468,6 +451,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     borderRadius: 4,
+    overflow: "hidden",
   },
   primaryButtonCompact: {
     minHeight: 40,
@@ -476,7 +460,11 @@ const styles = StyleSheet.create({
     fontSize: 14,
     lineHeight: 19,
     fontWeight: "600",
-    includeFontPadding: true,
+    includeFontPadding: false,
+
+    textAlign: "center",
+    textAlignVertical: "center",
+    width: "100%",
   },
   dividerRow: {
     flexDirection: "row",

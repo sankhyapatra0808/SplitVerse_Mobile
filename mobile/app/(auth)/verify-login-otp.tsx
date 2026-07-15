@@ -271,6 +271,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     borderRadius: 4,
+    overflow: "hidden",
     paddingHorizontal: 14,
   },
   primaryButtonCompact: {
@@ -281,7 +282,10 @@ const styles = StyleSheet.create({
     fontSize: 11,
     lineHeight: 18,
     fontWeight: "600",
-    includeFontPadding: true,
+    includeFontPadding: false,
+
+    textAlignVertical: "center",
+    width: "100%",
   },
   otpActions: {
     flexDirection: "row",

@@ -20,9 +20,16 @@ export default class AppErrorBoundary extends Component<Props, State> {
   componentDidCatch(error: unknown, info: ErrorInfo) {
     const presentation = getErrorPresentation(error, {
       title: "SplitVerse ran into a problem",
-      fallbackMessage: "An unexpected app error occurred. Try reopening this screen.",
+      fallbackMessage:
+        "An unexpected app error occurred. Try reopening this screen.",
     });
-    console.error("Unhandled SplitVerse UI error:", presentation.message, info.componentStack);
+    if (__DEV__) {
+      console.error(
+        "Unhandled SplitVerse UI error:",
+        presentation.message,
+        info.componentStack,
+      );
+    }
   }
 
   private retry = () => {
@@ -39,12 +46,17 @@ export default class AppErrorBoundary extends Component<Props, State> {
     });
 
     return (
-      <View style={styles.screen}>
+      <View accessibilityLiveRegion="assertive" style={styles.screen}>
         <View style={styles.card}>
           <Text style={styles.eyebrow}>APP ERROR</Text>
           <Text style={styles.title}>{presentation.title}</Text>
           <Text style={styles.message}>{presentation.message}</Text>
-          <Pressable style={styles.button} onPress={this.retry}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Try loading SplitVerse again"
+            style={styles.button}
+            onPress={this.retry}
+          >
             <Text style={styles.buttonText}>Try again</Text>
           </Pressable>
         </View>
@@ -92,10 +104,15 @@ const styles = StyleSheet.create({
     marginTop: 4,
     borderRadius: 999,
     backgroundColor: "#ff8a1f",
+    overflow: "hidden",
   },
   buttonText: {
+    width: "100%",
     color: "#111111",
     fontSize: 14,
     fontWeight: "700",
+    textAlign: "center",
+    textAlignVertical: "center",
+    includeFontPadding: false,
   },
 });

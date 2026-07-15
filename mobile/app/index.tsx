@@ -65,7 +65,12 @@ export default function Index() {
           <Text style={styles.title}>Splitting,{"\n"}simplified</Text>
 
           <View style={styles.illustrationWrap}>
-            <View style={[styles.yellowBlob, { backgroundColor: isDark ? "#979797" : "#aec0d4" }]} />
+            <View
+              style={[
+                styles.yellowBlob,
+                { backgroundColor: isDark ? "#979797" : "#aec0d4" },
+              ]}
+            />
             <Image
               source={require("../assets/splitverse-logo.png")}
               style={styles.logo}

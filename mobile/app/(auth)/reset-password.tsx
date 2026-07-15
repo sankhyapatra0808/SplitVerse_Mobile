@@ -28,8 +28,12 @@ export default function ResetPassword() {
   const confirmPasswordRef = useRef<TextInput>(null);
 
   const email = useMemo(() => {
-    const rawEmail = Array.isArray(params.email) ? params.email[0] : params.email;
-    return String(rawEmail || "").trim().toLowerCase();
+    const rawEmail = Array.isArray(params.email)
+      ? params.email[0]
+      : params.email;
+    return String(rawEmail || "")
+      .trim()
+      .toLowerCase();
   }, [params.email]);
 
   const [otp, setOtp] = useState("");
@@ -52,7 +56,9 @@ export default function ResetPassword() {
     const sanitizedOtp = otp.replace(/\D/g, "");
 
     if (!email) {
-      setError("Your reset email is missing. Request a new password reset code.");
+      setError(
+        "Your reset email is missing. Request a new password reset code.",
+      );
       return;
     }
 
@@ -250,6 +256,8 @@ export default function ResetPassword() {
 
           {completed ? (
             <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Go to login"
               style={({ pressed }) => [
                 styles.primaryButton,
                 {
@@ -271,6 +279,12 @@ export default function ResetPassword() {
             </Pressable>
           ) : (
             <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Update password"
+              accessibilityState={{
+                disabled: loading || !email,
+                busy: activeAction === "reset",
+              }}
               style={({ pressed }) => [
                 styles.primaryButton,
                 compact && styles.primaryButtonCompact,
@@ -371,6 +385,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     borderRadius: 4,
+    overflow: "hidden",
   },
   primaryButtonCompact: {
     minHeight: 40,
@@ -379,7 +394,11 @@ const styles = StyleSheet.create({
     fontSize: 14,
     lineHeight: 19,
     fontWeight: "600",
-    includeFontPadding: true,
+    includeFontPadding: false,
+
+    textAlign: "center",
+    textAlignVertical: "center",
+    width: "100%",
   },
   actionRow: {
     flexDirection: "row",
