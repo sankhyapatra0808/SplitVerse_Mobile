@@ -542,9 +542,9 @@ export default function SplitRooms() {
 
   const selectedRoomClosed = Boolean(
     selectedRoom?.isArchived ||
-      selectedRoom?.isFinalized ||
-      selectedRoom?.status === "archived" ||
-      selectedRoom?.status === "finalized",
+    selectedRoom?.isFinalized ||
+    selectedRoom?.status === "archived" ||
+    selectedRoom?.status === "finalized",
   );
 
   const selectedAssignedMember = useMemo(
@@ -1054,10 +1054,10 @@ export default function SplitRooms() {
 
     return Boolean(
       selectedRoom.isOwner &&
-        !selectedRoomClosed &&
-        !member.isMe &&
-        !member.isOwner &&
-        assignedItemCount === 0,
+      !selectedRoomClosed &&
+      !member.isMe &&
+      !member.isOwner &&
+      assignedItemCount === 0,
     );
   }
 
@@ -1453,7 +1453,7 @@ export default function SplitRooms() {
           colors={
             theme.mode === "dark"
               ? ["rgba(0,0,0,0.30)", "rgba(0, 0, 0, 0.86)"]
-              : ["rgba(255, 255, 255, 0.08)", "rgb(255, 255, 255)"]
+              : ["rgba(8, 8, 8, 0.18)", "rgb(255, 255, 255)"]
           }
           start={{ x: 0, y: 0 }}
           end={{ x: 0, y: 1 }}
@@ -2565,9 +2565,9 @@ export default function SplitRooms() {
               const itemCount = getBalanceItemCount(balance);
               const canCollect = Boolean(
                 selectedRoom?.isOwner &&
-                  !selectedRoomClosed &&
-                  !balance.isMe &&
-                  pendingAmount > 0,
+                !selectedRoomClosed &&
+                !balance.isMe &&
+                pendingAmount > 0,
               );
 
               return (

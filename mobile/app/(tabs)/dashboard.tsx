@@ -507,7 +507,7 @@ export default function Dashboard() {
                 colors={
                   theme.mode === "dark"
                     ? ["rgba(0,0,0,0.30)", "rgba(0, 0, 0, 0.86)"]
-                    : ["rgba(255, 255, 255, 0.08)", "rgb(255, 255, 255)"]
+                    : ["rgba(8, 8, 8, 0.18)", "rgb(255, 255, 255)"]
                 }
                 style={styles.heroOverlay}
               >
