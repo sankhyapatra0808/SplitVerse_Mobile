@@ -5,6 +5,7 @@ import {
   ImageBackground,
   Pressable,
   StyleSheet,
+  ToastAndroid,
   View,
 } from "react-native";
 import AmountText from "../../src/components/AmountText";
@@ -33,6 +34,7 @@ import { HERO_BLUR_RADIUS } from "../../src/theme/performance";
 import RazorpayCheckout from "react-native-razorpay";
 import { useAppSettings } from "../../src/context/useAppSettings";
 import { useAuth } from "../../src/context/AuthContext";
+import Ionicons from "@expo/vector-icons/build/Ionicons";
 
 function getTransactionTitle(transaction: WalletTransactionItem) {
   if (transaction.description) return transaction.description;
@@ -130,7 +132,7 @@ export default function Wallet() {
     }
 
     if (netPosition >= 0) {
-      return "Healthy position. Your incoming and balance cover outgoing dues.";
+      return "Wallet in a Healthy position.";
     }
 
     return "You have more outgoing dues than incoming balance.";
@@ -239,12 +241,8 @@ export default function Wallet() {
       await loadWallet(true);
 
       Alert.alert("Top-up successful", "Money has been added to your wallet.");
-    } catch (error) {
-      showErrorAlert(error, {
-        title: "Wallet top-up failed",
-        fallbackMessage:
-          "The wallet top-up could not be completed. Check your payment method and try again.",
-      });
+    } catch {
+      Alert.alert("Payment failed", "Adding money to wallet failed.");
     } finally {
       setCreatingTopUpOrder(false);
     }
@@ -291,11 +289,36 @@ export default function Wallet() {
               end={{ x: 0, y: 1 }}
               style={styles.heroOverlay}
             >
-              <Text style={styles.heroEyebrow}>Wallet</Text>
-              <Text style={styles.heroTitle}>SplitVerse balance</Text>
-              <Text style={styles.heroSubtitle}>
-                Track balance, dues, top-ups, and wallet activity.
-              </Text>
+              <View style={styles.heroTitle}>
+                <Text style={styles.heroTitle}>Wallet & Balance</Text>
+                <Text style={styles.heroSubtitle}>
+                  Balance, dues, top-ups, and activity.
+                </Text>
+              </View>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Wallet working info"
+                hitSlop={10}
+                style={({ pressed }) => [
+                  styles.walletBalanceInfoButton,
+                  {
+                    backgroundColor: theme.surfaceStrong,
+                    opacity: pressed ? 0.68 : 1,
+                  },
+                ]}
+                onPress={() =>
+                  Alert.alert(
+                    "How adjusted wallet works",
+                    "View your available balance, pending dues, wallet top-ups, and recent wallet transactions in one place.",
+                  )
+                }
+              >
+                <Ionicons
+                  name="information-circle-outline"
+                  size={21}
+                  color={theme.primary}
+                />
+              </Pressable>
             </LinearGradient>
           </ImageBackground>
         ) : (
@@ -309,11 +332,36 @@ export default function Wallet() {
             end={{ x: 1, y: 1 }}
             style={styles.heroOverlay}
           >
-            <Text style={styles.heroEyebrow}>Wallet</Text>
-            <Text style={styles.heroTitle}>SplitVerse balance</Text>
-            <Text style={styles.heroSubtitle}>
-              Track balance, dues, top-ups, and wallet activity.
-            </Text>
+            <View style={styles.heroTitle}>
+                <Text style={styles.heroTitle}>Wallet & Balance</Text>
+                <Text style={styles.heroSubtitle}>
+                  Balance, dues, top-ups, and activity.
+                </Text>
+              </View>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Wallet working info"
+              hitSlop={10}
+              style={({ pressed }) => [
+                styles.walletBalanceInfoButton,
+                {
+                  backgroundColor: theme.surfaceStrong,
+                  opacity: pressed ? 0.68 : 1,
+                },
+              ]}
+              onPress={() =>
+                Alert.alert(
+                  "How adjusted wallet works",
+                  "View your available balance, pending dues, wallet top-ups, and recent wallet transactions in one place.",
+                )
+              }
+            >
+              <Ionicons
+                name="information-circle-outline"
+                size={21}
+                color={theme.primary}
+              />
+            </Pressable>
           </LinearGradient>
         )}
       </View>
@@ -380,9 +428,40 @@ export default function Wallet() {
             { borderColor: theme.border, backgroundColor: theme.card },
           ]}
         >
-          <Text style={styles.metricLabel}>Pending incoming</Text>
-          <AmountText amount={pendingIncoming} size="md" tone="success" />
-          <Text style={styles.metricHelper}>Others owe you</Text>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 18 }}>
+            <Text style={styles.metricLabel}>Pending incoming</Text>
+
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Pending incoming"
+              hitSlop={10}
+              style={({ pressed }) => [
+                styles.pendingInfoButton,
+                {
+                  backgroundColor: theme.surfaceStrong,
+                  opacity: pressed ? 0.68 : 1,
+                },
+              ]}
+              onPress={() =>
+                Alert.alert(
+                  "Pending incoming: ",
+                  "This is the amount that others owe you.",
+                )
+              }
+            >
+              <Ionicons
+                name="information-circle-outline"
+                size={21}
+                color={theme.primary}
+              />
+            </Pressable>
+          </View>
+          <AmountText
+            amount={pendingIncoming}
+            style={{ letterSpacing: 1.2 }}
+            size="md"
+            tone="success"
+          />
         </View>
 
         <View
@@ -391,13 +470,40 @@ export default function Wallet() {
             { borderColor: theme.border, backgroundColor: theme.card },
           ]}
         >
-          <Text style={styles.metricLabel}>Pending outgoing</Text>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 18 }}>
+            <Text style={styles.metricLabel}>Pending outgoing</Text>
+
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Pending outgoing"
+              hitSlop={10}
+              style={({ pressed }) => [
+                styles.pendingInfoButton,
+                {
+                  backgroundColor: theme.surfaceStrong,
+                  opacity: pressed ? 0.68 : 1,
+                },
+              ]}
+              onPress={() =>
+                Alert.alert(
+                  "Pending outgoing: ",
+                  "This is the amount that you need to pay.",
+                )
+              }
+            >
+              <Ionicons
+                name="information-circle-outline"
+                size={21}
+                color={theme.primary}
+              />
+            </Pressable>
+          </View>
           <AmountText
             amount={pendingOutgoing}
+            style={{ letterSpacing: 1.2 }}
             size="md"
             tone={pendingOutgoing > 0 ? "danger" : "success"}
           />
-          <Text style={styles.metricHelper}>You need to pay</Text>
         </View>
 
         <View
@@ -407,7 +513,36 @@ export default function Wallet() {
             { borderColor: theme.border, backgroundColor: theme.card },
           ]}
         >
-          <Text style={styles.metricLabel}>Net position</Text>
+          <View
+            style={{ flexDirection: "row", alignItems: "center", gap: 230 }}
+          >
+            <Text style={styles.metricLabel}>Net position</Text>
+
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Net position"
+              hitSlop={10}
+              style={({ pressed }) => [
+                styles.pendingInfoButton,
+                {
+                  backgroundColor: theme.surfaceStrong,
+                  opacity: pressed ? 0.68 : 1,
+                },
+              ]}
+              onPress={() =>
+                Alert.alert(
+                  "Net position: ",
+                  "This is your overall financial position i.e. Balance + incoming - outgoing.",
+                )
+              }
+            >
+              <Ionicons
+                name="information-circle-outline"
+                size={21}
+                color={theme.primary}
+              />
+            </Pressable>
+          </View>
           <Text
             style={[
               styles.netPositionText,
@@ -416,7 +551,6 @@ export default function Wallet() {
           >
             {formatCurrency(netPosition, { signed: true })}
           </Text>
-          <Text style={styles.metricHelper}>Balance + incoming - outgoing</Text>
         </View>
       </View>
 
@@ -556,6 +690,10 @@ export default function Wallet() {
         </View>
 
         <AppButton
+          style={[
+            styles.proceedAmountButton,
+            { borderColor: theme.primary, backgroundColor: theme.primary },
+          ]}
           title={creatingTopUpOrder ? "Creating order" : "Continue to payment"}
           loading={creatingTopUpOrder}
           onPress={handleCreateTopUpOrder}
@@ -611,21 +749,18 @@ const styles = StyleSheet.create({
     borderBottomRightRadius: 32,
   },
   heroImage: {
-    minHeight: 180,
+    minHeight: 190,
   },
   heroImageInner: {
     opacity: 0.96,
   },
   heroOverlay: {
-    minHeight: 180,
+    minHeight: 190,
     justifyContent: "flex-end",
     paddingHorizontal: spacing.base,
-    paddingTop: spacing.xl,
+    paddingTop: spacing.xxl,
     paddingBottom: spacing.xl,
-  },
-  heroEyebrow: {
-    color: "rgba(255,255,255,0.74)",
-    ...typography.caption,
+    flexDirection: "row",
   },
   heroTitle: {
     marginTop: spacing.xs,
@@ -634,11 +769,23 @@ const styles = StyleSheet.create({
     lineHeight: 42,
     paddingBottom: 3,
     includeFontPadding: true,
+    flex: 1,
+    minWidth: 0,
   },
   heroSubtitle: {
-    marginTop: spacing.xs,
+    maxWidth: 320,
+    marginTop: spacing.sm,
     color: "rgba(255,255,255,0.82)",
     ...typography.bodySm,
+  },
+  walletBalanceInfoButton: {
+    width: 35,
+    height: 35,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: radius.pill,
+    flexShrink: 0,
+    marginTop: 1.2 * spacing.sm,
   },
   header: {
     gap: spacing.xs,
@@ -681,7 +828,7 @@ const styles = StyleSheet.create({
     color: colors.ink,
     fontSize: 38,
     fontWeight: "800",
-    letterSpacing: -1,
+    letterSpacing: 1.5,
   },
   balanceHint: {
     color: colors.body,
@@ -742,7 +889,7 @@ const styles = StyleSheet.create({
   },
   metricCard: {
     width: "48%",
-    minHeight: 124,
+    minHeight: 90,
     justifyContent: "space-between",
     borderWidth: 1,
     borderColor: colors.hairlineSoft,
@@ -752,10 +899,19 @@ const styles = StyleSheet.create({
   },
   netMetricCard: {
     width: "100%",
+    minHeight: 90,
   },
   metricLabel: {
     color: colors.body,
     ...typography.caption,
+  },
+  pendingInfoButton: {
+    width: 20,
+    height: 20,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: radius.pill,
+    flexShrink: 0,
   },
   metricHelper: {
     color: colors.body,
@@ -764,6 +920,7 @@ const styles = StyleSheet.create({
   netPositionText: {
     fontSize: 24,
     fontWeight: "800",
+    letterSpacing: 1.2,
   },
   positiveText: {
     color: colors.success,
@@ -899,7 +1056,7 @@ const styles = StyleSheet.create({
     color: colors.ink,
     fontSize: 30,
     fontWeight: "800",
-    letterSpacing: -0.5,
+    letterSpacing: 1.2,
   },
   quickAmountGrid: {
     flexDirection: "row",
@@ -920,6 +1077,15 @@ const styles = StyleSheet.create({
     color: colors.primary,
     fontSize: 13,
     fontWeight: "800",
+  },
+  proceedAmountButton: {
+    minHeight: 48,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: colors.hairlineSoft,
+    borderRadius: radius.pill,
+    backgroundColor: colors.surfaceSoft,
   },
   topUpNote: {
     color: colors.body,

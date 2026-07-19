@@ -3621,6 +3621,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     borderRadius: radius.pill,
     flexShrink: 0,
+    marginTop: -3 * spacing.xs,
   },
   netSettlementSummary: {
     flexDirection: "row",
