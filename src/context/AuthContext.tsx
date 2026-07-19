@@ -2,6 +2,7 @@ import {
   browserLocalPersistence,
   browserSessionPersistence,
   createUserWithEmailAndPassword,
+  deleteUser,
   onAuthStateChanged,
   setPersistence,
   signInWithCustomToken,
@@ -194,9 +195,9 @@ export function AuthProvider({ children }: AuthProviderProps) {
       dbUser,
       loading,
 
-      async startEmailLoginOtp(email, password) {
+      async startEmailLoginOtp(identifier, password) {
         assertFirebaseConfigured();
-        return requestEmailLoginOtp(email.trim().toLowerCase(), password);
+        return requestEmailLoginOtp(identifier.trim().toLowerCase(), password);
       },
 
       async resendEmailLoginOtp(sessionId) {
@@ -218,9 +219,10 @@ export function AuthProvider({ children }: AuthProviderProps) {
         await syncSignedInUser();
       },
 
-      async signupWithEmail(name, email, password) {
+      async signupWithEmail(name, email, password, username) {
         assertFirebaseConfigured();
         credentialBootstrapInProgress.current = true;
+        let createdUser: User | null = null;
 
         try {
           const normalizedEmail = email.trim().toLowerCase();
@@ -232,6 +234,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
             normalizedEmail,
             password,
           );
+          createdUser = credential.user;
 
           if (name.trim()) {
             await updateProfile(credential.user, {
@@ -241,9 +244,14 @@ export function AuthProvider({ children }: AuthProviderProps) {
           }
 
           clearCachedAuthToken();
-          await syncCurrentUser();
+          await syncCurrentUser({ username });
 
           return await requestEmailLoginOtp(normalizedEmail, password);
+        } catch (error) {
+          if (createdUser) {
+            await deleteUser(createdUser).catch(() => undefined);
+          }
+          throw error;
         } finally {
           clearRememberedSession();
           clearCachedAuthToken();
@@ -254,18 +262,43 @@ export function AuthProvider({ children }: AuthProviderProps) {
         }
       },
 
-      async loginWithProvider(provider, remember = true) {
+      async loginWithProvider(provider, remember = true, signupUsername) {
         assertFirebaseConfigured();
+        credentialBootstrapInProgress.current = true;
 
-        await setPersistence(
-          auth,
-          remember ? browserLocalPersistence : browserSessionPersistence,
-        );
+        try {
+          await setPersistence(
+            auth,
+            remember ? browserLocalPersistence : browserSessionPersistence,
+          );
 
-        clearCachedAuthToken();
-        await signInWithPopup(auth, socialProviders[provider]);
-        setRememberedSession(remember);
-        await syncSignedInUser();
+          clearCachedAuthToken();
+          const credential = await signInWithPopup(
+            auth,
+            socialProviders[provider],
+          );
+          const response = await syncCurrentUser(
+            signupUsername
+              ? { username: signupUsername, requireUsername: true }
+              : {
+                  requireUsername: false,
+                  deferUsernameSetup: true,
+                },
+          );
+
+          setUser(credential.user);
+          setDbUser(response.user);
+          setRememberedSession(remember);
+        } catch (error) {
+          clearRememberedSession();
+          clearCachedAuthToken();
+          setUser(null);
+          setDbUser(null);
+          await signOut(auth).catch(() => undefined);
+          throw error;
+        } finally {
+          credentialBootstrapInProgress.current = false;
+        }
       },
 
       refreshDbUser,

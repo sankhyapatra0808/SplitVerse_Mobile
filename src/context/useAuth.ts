@@ -26,10 +26,12 @@ export type AuthContextValue = {
     name: string,
     email: string,
     password: string,
+    username: string,
   ) => Promise<EmailLoginOtpSession>;
   loginWithProvider: (
     provider: SocialProvider,
     remember?: boolean,
+    signupUsername?: string,
   ) => Promise<void>;
   refreshDbUser: () => Promise<DbUser | null>;
   logout: () => Promise<void>;

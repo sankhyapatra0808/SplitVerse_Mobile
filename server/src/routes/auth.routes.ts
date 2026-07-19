@@ -40,6 +40,11 @@ const loginOtpResendCooldownMs = Number(
   process.env.LOGIN_OTP_RESEND_COOLDOWN_MS || 30 * 1000,
 );
 const loginOtpPepper = process.env.LOGIN_OTP_PEPPER?.trim() || "";
+const profileIdentityOtpLength = 6;
+const profileIdentityOtpExpiryMs = 10 * 60 * 1000;
+const profileIdentityOtpMaxAttempts = 5;
+const profileIdentityOtpMaxRequests = 3;
+const profileIdentityOtpRequestWindowMinutes = 15;
 const supportedAppCurrencies = new Set([
   "INR",
   "USD",
@@ -150,6 +155,15 @@ const walletPinSchema = z
       .string()
       .trim()
       .regex(/^\d{4,6}$/, walletPinLengthMessage)
+      .optional(),
+    username: z
+      .string()
+      .trim()
+      .transform((value) => normalizeUsername(value))
+      .refine(
+        (value) => /^[a-z0-9_]{3,30}$/.test(value),
+        "Username must be 3 to 30 characters using lowercase letters, numbers, or underscores",
+      )
       .optional(),
   })
   .strict();
@@ -268,20 +282,57 @@ const profilePhotoUpload = multer({
   },
 });
 
+const usernameValueSchema = z
+  .string({ message: "Username is required" })
+  .trim()
+  .transform((value) => normalizeUsername(value))
+  .refine(
+    (value) => /^[a-z0-9_]{3,30}$/.test(value),
+    "Username must be 3 to 30 characters using lowercase letters, numbers, or underscores",
+  );
+
+const usernameAvailabilitySchema = z
+  .object({
+    username: usernameValueSchema,
+  })
+  .strict();
+
+const syncUserSchema = z
+  .object({
+    username: usernameValueSchema.optional(),
+    requireUsername: z.boolean().optional().default(false),
+    deferUsernameSetup: z.boolean().optional().default(false),
+  })
+  .strict();
+
 const loginOtpRequestSchema = z
   .object({
-    email: z
-      .string({ message: "Email address is required" })
+    identifier: z
+      .string({ message: "Username or email is required" })
       .trim()
-      .email("Enter a valid email address")
+      .min(1, "Username or email is required")
+      .max(254, "Username or email is too long")
+      .optional(),
+    email: z
+      .string()
+      .trim()
+      .min(1, "Email address is required")
       .max(254, "Email address is too long")
-      .transform((value) => value.toLowerCase()),
+      .optional(),
     password: z
       .string({ message: "Password is required" })
       .min(1, "Password is required")
       .max(128, "Password is too long"),
   })
-  .strict();
+  .strict()
+  .refine((value) => Boolean(value.identifier || value.email), {
+    message: "Username or email is required",
+    path: ["identifier"],
+  })
+  .transform((value) => ({
+    identifier: String(value.identifier || value.email || "").trim(),
+    password: value.password,
+  }));
 
 const loginOtpVerifySchema = z
   .object({
@@ -296,6 +347,23 @@ const loginOtpVerifySchema = z
 const loginOtpResendSchema = z
   .object({
     sessionId: z.string().trim().uuid("Login session is invalid"),
+  })
+  .strict();
+
+const profileIdentityChangeRequestSchema = z
+  .object({
+    field: z.enum(["name", "email"]),
+    value: z.string().trim().min(1, "New value is required").max(254),
+  })
+  .strict();
+
+const profileIdentityChangeConfirmSchema = z
+  .object({
+    requestId: z.string().trim().uuid("Verification request is invalid"),
+    otp: z
+      .string()
+      .trim()
+      .regex(/^\d{6}$/, "Enter the 6-digit verification code"),
   })
   .strict();
 
@@ -559,8 +627,170 @@ function timingSafeEqualHex(left: string, right: string) {
   );
 }
 
+async function resolveLoginEmail(identifier: string) {
+  const normalizedIdentifier = identifier.trim().toLowerCase();
+  const looksLikeUsername =
+    normalizedIdentifier.startsWith("@") ||
+    !normalizedIdentifier.includes("@");
+
+  if (!looksLikeUsername) {
+    const parsedEmail = z.string().email().safeParse(normalizedIdentifier);
+
+    if (parsedEmail.success) {
+      return parsedEmail.data;
+    }
+  } else {
+    const username = normalizeUsername(normalizedIdentifier);
+
+    if (/^[a-z0-9_]{3,30}$/.test(username)) {
+      const result = await db.query<{ email: string }>(
+        `
+        SELECT email
+        FROM users
+        WHERE LOWER(username) = LOWER($1)
+        LIMIT 1;
+        `,
+        [username],
+      );
+
+      if (result.rows[0]?.email) {
+        return result.rows[0].email.toLowerCase();
+      }
+    }
+  }
+
+  throw Object.assign(new Error("Incorrect username, email, or password."), {
+    statusCode: 401,
+    code: "INVALID_LOGIN_CREDENTIALS",
+  });
+}
+
+function createProfileIdentityOtp() {
+  return crypto
+    .randomInt(
+      10 ** (profileIdentityOtpLength - 1),
+      10 ** profileIdentityOtpLength,
+    )
+    .toString();
+}
+
+function hashProfileIdentityOtp(
+  otp: string,
+  requestId: string,
+  userId: string,
+  changeType: "name" | "email",
+) {
+  const pepper = loginOtpPepper || "splitverse-development-login-otp-pepper";
+
+  return crypto
+    .createHmac("sha256", pepper)
+    .update(`${requestId}:${userId}:${changeType}:${otp}`)
+    .digest("hex");
+}
+
+async function sendProfileIdentityOtpEmail({
+  currentEmail,
+  otp,
+  changeType,
+}: {
+  currentEmail: string;
+  otp: string;
+  changeType: "name" | "email";
+}) {
+  if (!isEmailConfigured()) {
+    return "not_configured" as const;
+  }
+
+  const label = changeType === "name" ? "account name" : "registered email";
+  const emailResult = await sendTransactionalEmail({
+    to: currentEmail,
+    subject: `Confirm your SplitVerse ${label} change`,
+    text: `Your SplitVerse verification code is ${otp}. It expires in 10 minutes. Use it only to confirm the requested ${label} change.`,
+    html: `
+      <div style="font-family:Inter,Arial,sans-serif;max-width:560px;margin:0 auto;padding:24px;color:#0a0b0d;">
+        <h1 style="font-size:24px;margin:0 0 12px;">Confirm your ${label} change</h1>
+        <p style="font-size:15px;line-height:1.5;margin:0 0 18px;">
+          Enter this one-time code in SplitVerse to confirm the change. It expires in 10 minutes.
+        </p>
+        <div style="font-size:30px;font-weight:800;letter-spacing:0.18em;padding:16px 18px;border-radius:14px;background:#f3f6ff;color:#0052ff;text-align:center;">
+          ${otp}
+        </div>
+        <p style="font-size:13px;line-height:1.5;margin:18px 0 0;color:#667085;">
+          If you did not request this change, do not share this code and review your account security.
+        </p>
+      </div>
+    `,
+  });
+
+  if (!emailResult.ok) {
+    console.error("Profile identity OTP email failed:", emailResult);
+    return emailResult.reason;
+  }
+
+  return "sent" as const;
+}
+
+function maskEmailAddress(email: string) {
+  const [localPart, domain = ""] = email.split("@");
+  const visibleLocal = localPart.slice(0, Math.min(2, localPart.length));
+  const hiddenLength = Math.max(2, localPart.length - visibleLocal.length);
+
+  return `${visibleLocal}${"*".repeat(hiddenLength)}@${domain}`;
+}
+
 function normalizeAvatarMode(value: unknown) {
   return value === "initials" ? "initials" : "photo";
+}
+
+function normalizeUsername(value: unknown) {
+  return String(value ?? "")
+    .trim()
+    .toLowerCase()
+    .replace(/^@+/, "");
+}
+
+function buildUsernameBase(name: string, email: string) {
+  const source = name.trim() || email.split("@")[0] || "user";
+  const normalized = source
+    .toLowerCase()
+    .replace(/[^a-z0-9_]+/g, "_")
+    .replace(/^_+|_+$/g, "")
+    .slice(0, 24);
+
+  if (normalized.length >= 3) {
+    return normalized;
+  }
+
+  return `user_${normalized || "sv"}`.slice(0, 24);
+}
+
+async function generateAvailableUsername(
+  preferredBase: string,
+  excludeUserId: string | null = null,
+) {
+  const base = buildUsernameBase(preferredBase, preferredBase);
+
+  for (let suffix = 0; suffix < 100; suffix += 1) {
+    const suffixText = suffix === 0 ? "" : `_${suffix}`;
+    const candidate = `${base.slice(0, 30 - suffixText.length)}${suffixText}`;
+    const existing = await db.query(
+      `
+      SELECT 1
+      FROM users
+      WHERE LOWER(username) = LOWER($1)
+      AND ($2::uuid IS NULL OR id <> $2::uuid)
+      LIMIT 1;
+      `,
+      [candidate, excludeUserId],
+    );
+
+    if (existing.rows.length === 0) {
+      return candidate;
+    }
+  }
+
+  const randomSuffix = crypto.randomBytes(4).toString("hex");
+  return `${base.slice(0, 21)}_${randomSuffix}`;
 }
 
 function normalizeProfilePhotoUrl(value: unknown) {
@@ -697,13 +927,46 @@ async function sendLoginOtpEmail({
   return "sent";
 }
 
+router.post("/username/availability", async (req, res) => {
+  try {
+    const { username } = parseRequestBody(
+      usernameAvailabilitySchema,
+      req.body,
+    );
+    const result = await db.query(
+      `
+      SELECT 1
+      FROM users
+      WHERE LOWER(username) = LOWER($1)
+      LIMIT 1;
+      `,
+      [username],
+    );
+
+    return res.json({
+      username,
+      available: result.rows.length === 0,
+    });
+  } catch (error) {
+    if (sendValidationError(res, error)) {
+      return;
+    }
+
+    console.error("Check username availability failed:", error);
+    return res.status(500).json({
+      message: "Could not check username availability",
+    });
+  }
+});
+
 router.post("/email-login-otp/request", async (req, res) => {
   try {
     assertLoginOtpConfigured();
-    const { email, password } = parseRequestBody(
+    const { identifier, password } = parseRequestBody(
       loginOtpRequestSchema,
       req.body,
     );
+    const email = await resolveLoginEmail(identifier);
     const credential = await verifyFirebaseEmailPassword(email, password);
 
     const requestCountResult = await db.query<{ request_count: number }>(
@@ -816,7 +1079,7 @@ router.post("/email-login-otp/request", async (req, res) => {
       code,
       message:
         statusCode === 401
-          ? "Incorrect email or password."
+          ? "Incorrect username, email, or password."
           : statusCode === 429
             ? "Too many sign-in attempts. Please try again later."
             : statusCode >= 500
@@ -1318,6 +1581,11 @@ router.post(
   verifyFirebaseCredentialToken,
   async (req: AuthRequest, res) => {
     try {
+      const {
+        username: requestedUsername,
+        requireUsername,
+        deferUsernameSetup,
+      } = parseRequestBody(syncUserSchema, req.body ?? {});
       const firebaseUser = req.user;
 
       if (!firebaseUser) {
@@ -1338,6 +1606,32 @@ router.post(
       const name = firebaseUser.name || email.split("@")[0];
       const photoUrl = firebaseUser.picture || null;
       const provider = firebaseUser.firebase?.sign_in_provider || "unknown";
+      const existingUserResult = await db.query<{ id: string; username: string | null }>(
+        `SELECT id, username FROM users WHERE firebase_uid = $1 LIMIT 1;`,
+        [firebaseUid],
+      );
+      const existingUser = existingUserResult.rows[0];
+
+      if (!existingUser?.username && !requestedUsername && requireUsername) {
+        return res.status(400).json({
+          code: "USERNAME_REQUIRED",
+          message:
+            "Choose your permanent username before creating your account.",
+        });
+      }
+
+      const canDeferUsernameSetup =
+        deferUsernameSetup &&
+        ["google", "google.com"].includes(String(provider || ""));
+      const username =
+        existingUser?.username ||
+        requestedUsername ||
+        (canDeferUsernameSetup
+          ? null
+          : await generateAvailableUsername(
+              buildUsernameBase(name, email),
+              existingUser?.id ?? null,
+            ));
 
       const result = await db.query(
         `
@@ -1347,11 +1641,12 @@ router.post(
         email,
         photo_url,
         provider,
+        username,
         avatar_mode,
         app_currency,
         app_language
       )
-      VALUES ($1, $2, $3, $4, $5, 'photo', 'INR', 'en')
+      VALUES ($1, $2, $3, $4, $5, $6, 'photo', 'INR', 'en')
       ON CONFLICT (firebase_uid)
       DO UPDATE SET
         name = EXCLUDED.name,
@@ -1367,7 +1662,7 @@ router.post(
           ELSE COALESCE(profile_photo_url, photo_url)
         END AS display_photo_url;
       `,
-        [firebaseUid, name, email, photoUrl, provider],
+        [firebaseUid, name, email, photoUrl, provider, username],
       );
 
       return res.json({
@@ -1375,6 +1670,22 @@ router.post(
         user: result.rows[0],
       });
     } catch (error) {
+      if (sendValidationError(res, error)) {
+        return;
+      }
+
+      if (
+        typeof error === "object" &&
+        error !== null &&
+        "code" in error &&
+        String((error as { code?: unknown }).code) === "23505"
+      ) {
+        return res.status(409).json({
+          code: "USERNAME_TAKEN",
+          message: "That username is already taken.",
+        });
+      }
+
       console.error("Sync user failed:", error);
 
       return res.status(500).json({
@@ -1400,6 +1711,7 @@ router.get("/me", verifyFirebaseToken, async (req: AuthRequest, res) => {
         id,
         firebase_uid,
         name,
+        username,
         email,
         photo_url,
         profile_photo_url,
@@ -1564,6 +1876,476 @@ router.post(
   },
 );
 
+
+router.post(
+  "/profile/identity-change/request",
+  verifyFirebaseToken,
+  async (req: AuthRequest, res) => {
+    try {
+      assertLoginOtpConfigured();
+      const firebaseUser = req.user;
+
+      if (!firebaseUser) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+
+      const { field, value } = parseRequestBody(
+        profileIdentityChangeRequestSchema,
+        req.body,
+      );
+      const userResult = await db.query<{
+        id: string;
+        name: string | null;
+        email: string;
+      }>(
+        `
+        SELECT id, name, email
+        FROM users
+        WHERE firebase_uid = $1
+        LIMIT 1;
+        `,
+        [firebaseUser.uid],
+      );
+      const currentUser = userResult.rows[0];
+
+      if (!currentUser) {
+        return res.status(404).json({ message: "User not found in database" });
+      }
+
+      let pendingValue = value.trim();
+
+      if (field === "name") {
+        if (pendingValue.length < 2 || pendingValue.length > 80) {
+          return res.status(400).json({
+            message: "Name must be between 2 and 80 characters.",
+          });
+        }
+
+        if (pendingValue === String(currentUser.name || "").trim()) {
+          return res.status(400).json({
+            message: "Enter a different name before requesting verification.",
+          });
+        }
+      } else {
+        const parsedEmail = z
+          .string()
+          .trim()
+          .email("Enter a valid email address")
+          .max(254, "Email address is too long")
+          .safeParse(pendingValue.toLowerCase());
+
+        if (!parsedEmail.success) {
+          return res.status(400).json({
+            message: parsedEmail.error.issues[0]?.message || "Enter a valid email address",
+          });
+        }
+
+        pendingValue = parsedEmail.data;
+
+        if (pendingValue === currentUser.email.toLowerCase()) {
+          return res.status(400).json({
+            message: "Enter a different email address before requesting verification.",
+          });
+        }
+
+        const emailInUse = await db.query(
+          `SELECT 1 FROM users WHERE LOWER(email) = LOWER($1) LIMIT 1;`,
+          [pendingValue],
+        );
+
+        if (emailInUse.rows.length > 0) {
+          return res.status(409).json({
+            message: "That email address is already linked to another account.",
+          });
+        }
+      }
+
+      const requestCountResult = await db.query<{ request_count: number }>(
+        `
+        SELECT COUNT(*)::int AS request_count
+        FROM profile_identity_change_otps
+        WHERE user_id = $1
+        AND created_at > NOW() - ($2::int * INTERVAL '1 minute');
+        `,
+        [currentUser.id, profileIdentityOtpRequestWindowMinutes],
+      );
+
+      if (
+        Number(requestCountResult.rows[0]?.request_count || 0) >=
+        profileIdentityOtpMaxRequests
+      ) {
+        return res.status(429).json({
+          code: "PROFILE_IDENTITY_OTP_RATE_LIMITED",
+          message: "Too many verification requests. Please try again later.",
+        });
+      }
+
+      const requestId = crypto.randomUUID();
+      const otp = createProfileIdentityOtp();
+      const expiresAt = new Date(Date.now() + profileIdentityOtpExpiryMs);
+      const emailStatus = await sendProfileIdentityOtpEmail({
+        currentEmail: currentUser.email,
+        otp,
+        changeType: field,
+      });
+
+      if (emailStatus !== "sent") {
+        return res.status(503).json({
+          code: "PROFILE_IDENTITY_OTP_DELIVERY_FAILED",
+          message:
+            emailStatus === "not_configured"
+              ? "Email verification is temporarily unavailable."
+              : "Could not send the verification code. Please try again.",
+        });
+      }
+
+      const client = await db.connect();
+
+      try {
+        await client.query("BEGIN");
+        await client.query(
+          `
+          UPDATE profile_identity_change_otps
+          SET consumed_at = NOW()
+          WHERE user_id = $1
+          AND change_type = $2
+          AND consumed_at IS NULL;
+          `,
+          [currentUser.id, field],
+        );
+        await client.query(
+          `
+          INSERT INTO profile_identity_change_otps (
+            id,
+            user_id,
+            change_type,
+            pending_value,
+            otp_hash,
+            expires_at
+          )
+          VALUES ($1, $2, $3, $4, $5, $6);
+          `,
+          [
+            requestId,
+            currentUser.id,
+            field,
+            pendingValue,
+            hashProfileIdentityOtp(otp, requestId, currentUser.id, field),
+            expiresAt,
+          ],
+        );
+        await client.query("COMMIT");
+      } catch (error) {
+        await client.query("ROLLBACK").catch(() => undefined);
+        throw error;
+      } finally {
+        client.release();
+      }
+
+      return res.status(201).json({
+        requestId,
+        field,
+        currentEmailHint: maskEmailAddress(currentUser.email),
+        expiresAt: expiresAt.toISOString(),
+        message: "Verification code sent to your current registered email.",
+      });
+    } catch (error) {
+      if (sendValidationError(res, error)) {
+        return;
+      }
+
+      console.error("Request profile identity change failed:", error);
+      return res.status(500).json({
+        message: "Could not request the account change verification code.",
+      });
+    }
+  },
+);
+
+router.post(
+  "/profile/identity-change/confirm",
+  verifyFirebaseToken,
+  async (req: AuthRequest, res) => {
+    const client = await db.connect();
+    let firebaseUidForRollback = "";
+    let firebaseRollback:
+      | { field: "name"; oldValue: string | null }
+      | { field: "email"; oldValue: string }
+      | null = null;
+
+    try {
+      assertLoginOtpConfigured();
+      const firebaseUser = req.user;
+
+      if (!firebaseUser) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+
+      firebaseUidForRollback = firebaseUser.uid;
+
+      const { requestId, otp } = parseRequestBody(
+        profileIdentityChangeConfirmSchema,
+        req.body,
+      );
+
+      await client.query("BEGIN");
+      const requestResult = await client.query<{
+        id: string;
+        user_id: string;
+        firebase_uid: string;
+        current_name: string | null;
+        current_email: string;
+        change_type: "name" | "email";
+        pending_value: string;
+        otp_hash: string;
+        attempts: number;
+        expires_at: Date | string;
+        consumed_at: Date | string | null;
+      }>(
+        `
+        SELECT
+          request.id,
+          request.user_id,
+          account.firebase_uid,
+          account.name AS current_name,
+          account.email AS current_email,
+          request.change_type,
+          request.pending_value,
+          request.otp_hash,
+          request.attempts,
+          request.expires_at,
+          request.consumed_at
+        FROM profile_identity_change_otps request
+        JOIN users account ON account.id = request.user_id
+        WHERE request.id = $1
+        AND account.firebase_uid = $2
+        FOR UPDATE;
+        `,
+        [requestId, firebaseUser.uid],
+      );
+      const changeRequest = requestResult.rows[0];
+
+      if (!changeRequest || changeRequest.consumed_at) {
+        await client.query("ROLLBACK");
+        return res.status(404).json({
+          message: "This verification request is no longer available.",
+        });
+      }
+
+      if (new Date(changeRequest.expires_at).getTime() <= Date.now()) {
+        await client.query(
+          `UPDATE profile_identity_change_otps SET consumed_at = NOW() WHERE id = $1;`,
+          [requestId],
+        );
+        await client.query("COMMIT");
+        return res.status(410).json({
+          message: "This verification code has expired. Request a new code.",
+        });
+      }
+
+      if (Number(changeRequest.attempts) >= profileIdentityOtpMaxAttempts) {
+        await client.query(
+          `UPDATE profile_identity_change_otps SET consumed_at = NOW() WHERE id = $1;`,
+          [requestId],
+        );
+        await client.query("COMMIT");
+        return res.status(429).json({
+          message: "Too many incorrect verification attempts. Request a new code.",
+        });
+      }
+
+      const expectedHash = hashProfileIdentityOtp(
+        otp,
+        requestId,
+        changeRequest.user_id,
+        changeRequest.change_type,
+      );
+
+      if (!timingSafeEqualHex(expectedHash, changeRequest.otp_hash)) {
+        const nextAttempts = Number(changeRequest.attempts) + 1;
+        await client.query(
+          `
+          UPDATE profile_identity_change_otps
+          SET attempts = $2,
+              consumed_at = CASE WHEN $2 >= $3 THEN NOW() ELSE consumed_at END
+          WHERE id = $1;
+          `,
+          [requestId, nextAttempts, profileIdentityOtpMaxAttempts],
+        );
+        await client.query("COMMIT");
+        return res.status(401).json({
+          message:
+            nextAttempts >= profileIdentityOtpMaxAttempts
+              ? "Too many incorrect attempts. Request a new verification code."
+              : "Incorrect verification code.",
+        });
+      }
+
+      if (changeRequest.change_type === "name") {
+        firebaseRollback = {
+          field: "name",
+          oldValue: changeRequest.current_name,
+        };
+        await adminAuth.updateUser(changeRequest.firebase_uid, {
+          displayName: changeRequest.pending_value,
+        });
+        await client.query(
+          `
+          UPDATE users
+          SET name = $2, updated_at = NOW()
+          WHERE id = $1;
+          `,
+          [changeRequest.user_id, changeRequest.pending_value],
+        );
+        await client.query(
+          `
+          UPDATE split_room_members
+          SET display_name = $2
+          WHERE user_id = $1;
+          `,
+          [changeRequest.user_id, changeRequest.pending_value],
+        );
+      } else {
+        const newEmail = changeRequest.pending_value.toLowerCase();
+        const emailInUse = await client.query(
+          `
+          SELECT 1
+          FROM users
+          WHERE LOWER(email) = LOWER($1)
+          AND id <> $2
+          LIMIT 1;
+          `,
+          [newEmail, changeRequest.user_id],
+        );
+
+        if (emailInUse.rows.length > 0) {
+          await client.query("ROLLBACK");
+          return res.status(409).json({
+            message: "That email address is already linked to another account.",
+          });
+        }
+
+        firebaseRollback = {
+          field: "email",
+          oldValue: changeRequest.current_email,
+        };
+        await adminAuth.updateUser(changeRequest.firebase_uid, {
+          email: newEmail,
+          emailVerified: false,
+        });
+        await client.query(
+          `
+          UPDATE users
+          SET email = $2, updated_at = NOW()
+          WHERE id = $1;
+          `,
+          [changeRequest.user_id, newEmail],
+        );
+        await client.query(
+          `
+          UPDATE friend_requests
+          SET recipient_email = $2
+          WHERE recipient_user_id = $1
+          OR LOWER(recipient_email) = LOWER($3);
+          `,
+          [changeRequest.user_id, newEmail, changeRequest.current_email],
+        );
+        await client.query(
+          `
+          UPDATE split_room_members
+          SET email = $2
+          WHERE user_id = $1
+          OR LOWER(COALESCE(email, '')) = LOWER($3);
+          `,
+          [changeRequest.user_id, newEmail, changeRequest.current_email],
+        );
+      }
+
+      await client.query(
+        `UPDATE profile_identity_change_otps SET consumed_at = NOW() WHERE id = $1;`,
+        [requestId],
+      );
+      await client.query("COMMIT");
+
+      const updatedUserResult = await db.query(
+        `
+        SELECT
+          id,
+          firebase_uid,
+          name,
+          username,
+          email,
+          photo_url,
+          profile_photo_url,
+          avatar_mode,
+          app_currency,
+          app_language,
+          (wallet_pin_hash IS NOT NULL) AS has_wallet_pin,
+          CASE
+            WHEN avatar_mode = 'initials' THEN NULL
+            ELSE COALESCE(profile_photo_url, photo_url)
+          END AS display_photo_url,
+          provider,
+          created_at,
+          updated_at
+        FROM users
+        WHERE id = $1;
+        `,
+        [changeRequest.user_id],
+      );
+
+      return res.json({
+        message:
+          changeRequest.change_type === "name"
+            ? "Account name updated successfully."
+            : "Registered email updated successfully.",
+        field: changeRequest.change_type,
+        user: updatedUserResult.rows[0],
+      });
+    } catch (error) {
+      await client.query("ROLLBACK").catch(() => undefined);
+
+      if (firebaseRollback) {
+        if (firebaseRollback.field === "name") {
+          await adminAuth
+            .updateUser(firebaseUidForRollback, {
+              displayName: firebaseRollback.oldValue || undefined,
+            })
+            .catch(() => undefined);
+        } else {
+          await adminAuth
+            .updateUser(firebaseUidForRollback, {
+              email: firebaseRollback.oldValue,
+            })
+            .catch(() => undefined);
+        }
+      }
+
+      if (sendValidationError(res, error)) {
+        return;
+      }
+
+      const firebaseCode =
+        typeof error === "object" && error !== null && "code" in error
+          ? String((error as { code?: unknown }).code || "")
+          : "";
+
+      if (firebaseCode === "auth/email-already-exists") {
+        return res.status(409).json({
+          message: "That email address is already linked to another account.",
+        });
+      }
+
+      console.error("Confirm profile identity change failed:", error);
+      return res.status(500).json({
+        message: "Could not complete the account identity change.",
+      });
+    } finally {
+      client.release();
+    }
+  },
+);
+
 router.patch("/profile", verifyFirebaseToken, async (req: AuthRequest, res) => {
   try {
     const firebaseUser = req.user;
@@ -1594,6 +2376,15 @@ router.patch("/profile", verifyFirebaseToken, async (req: AuthRequest, res) => {
       "appLanguage",
       "app_language",
     );
+    const usernameSupplied = hasOwnBodyField(req.body, "username");
+
+    if (usernameSupplied) {
+      return res.status(403).json({
+        code: "USERNAME_IMMUTABLE",
+        message:
+          "Your SplitVerse username is permanent and cannot be changed after signup.",
+      });
+    }
 
     const avatarMode = avatarModeSupplied
       ? normalizeAvatarMode(req.body?.avatarMode ?? req.body?.avatar_mode)
@@ -1609,7 +2400,6 @@ router.patch("/profile", verifyFirebaseToken, async (req: AuthRequest, res) => {
     const appLanguage = appLanguageSupplied
       ? normalizeAppLanguage(req.body?.appLanguage ?? req.body?.app_language)
       : null;
-
     if (profilePhotoSupplied && rawProfilePhotoUrl && !profilePhotoUrl) {
       return res.status(400).json({
         message: "Profile photo must be a valid http or https image URL",
@@ -1645,6 +2435,7 @@ router.patch("/profile", verifyFirebaseToken, async (req: AuthRequest, res) => {
         id,
         firebase_uid,
         name,
+        username,
         email,
         photo_url,
         profile_photo_url,
@@ -1702,16 +2493,19 @@ router.post(
         return res.status(401).json({ message: "Unauthorized" });
       }
 
-      const { pin, currentPin } = parseRequestBody(walletPinSchema, req.body);
+      const { pin, currentPin, username: requestedUsername } =
+        parseRequestBody(walletPinSchema, req.body);
 
       await client.query("BEGIN");
 
       const userResult = await client.query<{
         id: string;
         wallet_pin_hash: string | null;
+        username: string | null;
+        provider: string | null;
       }>(
         `
-      SELECT id, wallet_pin_hash
+      SELECT id, wallet_pin_hash, username, provider
       FROM users
       WHERE firebase_uid = $1
       FOR UPDATE;
@@ -1725,6 +2519,37 @@ router.post(
         await client.query("ROLLBACK");
 
         return res.status(404).json({ message: "User not found in database" });
+      }
+
+      const isGoogleUser = ["google", "google.com"].includes(
+        String(user.provider || ""),
+      );
+
+      if (!user.username && isGoogleUser && !requestedUsername) {
+        await client.query("ROLLBACK");
+
+        return res.status(400).json({
+          code: "USERNAME_REQUIRED",
+          message: "Choose your permanent username to complete Google signup.",
+        });
+      }
+
+      if (user.username && requestedUsername && requestedUsername !== user.username) {
+        await client.query("ROLLBACK");
+
+        return res.status(409).json({
+          code: "USERNAME_IMMUTABLE",
+          message: "Your SplitVerse username is permanent and cannot be changed.",
+        });
+      }
+
+      if (!user.username && requestedUsername && !isGoogleUser) {
+        await client.query("ROLLBACK");
+
+        return res.status(403).json({
+          code: "USERNAME_SETUP_NOT_ALLOWED",
+          message: "Username setup through this step is available only for Google signup.",
+        });
       }
 
       if (user.wallet_pin_hash) {
@@ -1765,6 +2590,7 @@ router.post(
         `
       UPDATE users
       SET
+        username = COALESCE(username, $3),
         wallet_pin_hash = $2,
         wallet_pin_failed_attempts = 0,
         wallet_pin_locked_until = NULL,
@@ -1772,7 +2598,7 @@ router.post(
         updated_at = NOW()
       WHERE id = $1;
       `,
-        [user.id, nextHash],
+        [user.id, nextHash, requestedUsername ?? null],
       );
 
       const updatedUser = await getAuthUserProfile(client, user.id);
@@ -1790,6 +2616,18 @@ router.post(
 
       if (sendValidationError(res, error) || sendWalletPinError(res, error)) {
         return;
+      }
+
+      if (
+        typeof error === "object" &&
+        error !== null &&
+        "code" in error &&
+        String((error as { code?: unknown }).code) === "23505"
+      ) {
+        return res.status(409).json({
+          code: "USERNAME_TAKEN",
+          message: "That username is already taken. Choose another one.",
+        });
       }
 
       console.error("Save wallet PIN failed:", error);

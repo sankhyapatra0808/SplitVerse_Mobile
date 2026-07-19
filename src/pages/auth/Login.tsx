@@ -3,10 +3,10 @@ import { Link, useLocation, useNavigate } from "react-router-dom";
 import {
   ArrowLeft,
   ArrowRight,
+  AtSign,
   Eye,
   EyeOff,
   LockKeyhole,
-  Mail,
   ReceiptText,
   ShieldCheck,
   UsersRound,
@@ -120,7 +120,7 @@ export default function Login() {
     setError("");
     setStatus("");
 
-    const trimmedEmail = email.trim();
+    const trimmedIdentifier = email.trim();
 
     if (otpSession) {
       const sanitizedOtp = otp.replace(/\D/g, "");
@@ -139,7 +139,7 @@ export default function Login() {
             sanitizedOtp,
           ),
         );
-        clearLoginAttempts(trimmedEmail);
+        clearLoginAttempts(trimmedIdentifier);
         navigate(from, { replace: true });
       } catch (loginError) {
         setError(getFirebaseErrorMessage(loginError));
@@ -150,12 +150,12 @@ export default function Login() {
       return;
     }
 
-    if (!trimmedEmail || !password) {
-      setError("Please enter email and password.");
+    if (!trimmedIdentifier || !password) {
+      setError("Please enter your username or email and password.");
       return;
     }
 
-    if (getLoginAttemptCount(trimmedEmail) >= maxDailyLoginAttempts) {
+    if (getLoginAttemptCount(trimmedIdentifier) >= maxDailyLoginAttempts) {
       setError("Too many login attempts today. Please try again tomorrow.");
       return;
     }
@@ -163,7 +163,7 @@ export default function Login() {
     try {
       setLoading(true);
       const session = await withTopProgress(() =>
-        startEmailLoginOtp(trimmedEmail, password, remember),
+        startEmailLoginOtp(trimmedIdentifier, password, remember),
       );
       setOtpSession(session);
       setPassword("");
@@ -177,7 +177,7 @@ export default function Login() {
         return;
       }
 
-      const attempts = recordFailedLoginAttempt(trimmedEmail);
+      const attempts = recordFailedLoginAttempt(trimmedIdentifier);
       const attemptsLeft = Math.max(0, maxDailyLoginAttempts - attempts);
 
       setError(
@@ -249,18 +249,18 @@ export default function Login() {
 
           <form onSubmit={handleLogin} className="auth-form">
             <label className="auth-field">
-              <span>Email address</span>
+              <span>Username or email</span>
               <div className="auth-input-shell">
-                <Mail size={18} />
+                <AtSign size={18} />
                 <input
-                  type="email"
-                  placeholder="you@example.com"
+                  type="text"
+                  placeholder="@username or you@example.com"
                   value={email}
                   onChange={(event) => {
                     setEmail(event.target.value);
                     resetOtpStep();
                   }}
-                  autoComplete="email"
+                  autoComplete="username"
                   disabled={loading || otpActive}
                 />
               </div>
@@ -348,7 +348,7 @@ export default function Login() {
                   onClick={resetOtpStep}
                   disabled={loading}
                 >
-                  Change email
+                  Change username or email
                 </button>
               </div>
             )}

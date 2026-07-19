@@ -198,6 +198,7 @@ export type DbUser = {
   id: string;
   firebase_uid: string;
   name: string | null;
+  username?: string | null;
   email: string;
   photo_url: string | null;
   profile_photo_url?: string | null;
@@ -632,6 +633,7 @@ export async function paySplitRoomDue(
 export type Friend = {
   id: string;
   name: string | null;
+  username?: string | null;
   email: string;
   photo_url: string | null;
   profile_photo_url?: string | null;
@@ -645,7 +647,9 @@ export type FriendRequest = {
   id: string;
   requester_user_id: string;
   requester_name: string | null;
+  requester_username?: string | null;
   requester_email: string;
+  recipient_user_id?: string | null;
   recipient_email: string;
   status: string;
   token?: string;
@@ -659,6 +663,18 @@ export type FriendsSummary = {
   friends: Friend[];
   receivedRequests: FriendRequest[];
   sentRequests: FriendRequest[];
+};
+
+export type GlobalPerson = {
+  id: string;
+  name: string | null;
+  username: string;
+  emailHint: string;
+  photo_url: string | null;
+  profile_photo_url?: string | null;
+  avatar_mode?: AvatarMode | null;
+  display_photo_url?: string | null;
+  relationshipStatus: "friends" | "request_sent" | "request_received" | "none";
 };
 
 export type FriendActivitySummary = {
@@ -857,10 +873,31 @@ export async function getDashboardSummary() {
   return apiFetch<DashboardSummary>("/api/dashboard/summary");
 }
 
-export async function syncCurrentUser() {
+export async function syncCurrentUser(
+  payload: {
+    username?: string;
+    requireUsername?: boolean;
+    deferUsernameSetup?: boolean;
+  } = {},
+) {
   return apiFetch<{ message: string; user: DbUser }>("/api/auth/sync-user", {
     method: "POST",
+    body: JSON.stringify({
+      requireUsername: payload.requireUsername ?? true,
+      deferUsernameSetup: payload.deferUsernameSetup ?? false,
+      ...(payload.username ? { username: payload.username } : {}),
+    }),
   });
+}
+
+export async function checkUsernameAvailability(username: string) {
+  return publicApiFetch<{ username: string; available: boolean }>(
+    "/api/auth/username/availability",
+    {
+      method: "POST",
+      body: JSON.stringify({ username }),
+    },
+  );
 }
 
 export type EmailLoginOtpSession = {
@@ -870,14 +907,14 @@ export type EmailLoginOtpSession = {
 };
 
 export async function requestEmailLoginOtp(
-  email: string,
+  identifier: string,
   password: string,
 ) {
   return publicApiFetch<EmailLoginOtpSession>(
     "/api/auth/email-login-otp/request",
     {
       method: "POST",
-      body: JSON.stringify({ email, password }),
+      body: JSON.stringify({ identifier, password }),
     },
   );
 }
@@ -1058,13 +1095,46 @@ export async function getFriendActivity(friendId: string) {
   );
 }
 
-export async function sendFriendRequest(email: string) {
-  const response = await apiFetch<{ message: string; request: FriendRequest }>(
-    "/api/friends/requests",
+export async function searchGlobalPeople(query: string) {
+  const searchParams = new URLSearchParams({ query });
+
+  return apiFetch<{ people: GlobalPerson[] }>(
+    `/api/friends/people?${searchParams.toString()}`,
+  );
+}
+
+export async function sendSplitVerseInvite(email: string) {
+  return apiFetch<{ message: string; emailStatus: string }>(
+    "/api/friends/invites",
     {
       method: "POST",
       body: JSON.stringify({ email }),
     },
+  );
+}
+
+export async function sendFriendRequest(
+  identifier: string,
+  recipientUserId?: string,
+) {
+  const response = await apiFetch<{ message: string; request: FriendRequest }>(
+    "/api/friends/requests",
+    {
+      method: "POST",
+      body: JSON.stringify({
+        identifier,
+        recipientUserId,
+      }),
+    },
+  );
+  clearApiCache("friends");
+  return response;
+}
+
+export async function deleteFriendRequest(requestId: string) {
+  const response = await apiFetch<{ message: string }>(
+    `/api/friends/requests/${requestId}`,
+    { method: "DELETE" },
   );
   clearApiCache("friends");
   return response;
@@ -1097,7 +1167,7 @@ export async function getTransactions(params?: {
   limit?: number;
   exportMode?: "count" | "year";
   year?: number;
-  month?: number;
+  month?: number | string;
   friendId?: string;
   roomId?: string;
 }) {
@@ -1169,6 +1239,48 @@ export async function updateProfileSettings(
   return response;
 }
 
+export type ProfileIdentityField = "name" | "email";
+
+export type ProfileIdentityChangeRequest = {
+  requestId: string;
+  field: ProfileIdentityField;
+  currentEmailHint: string;
+  expiresAt: string;
+  message: string;
+};
+
+export async function requestProfileIdentityChange(
+  field: ProfileIdentityField,
+  value: string,
+) {
+  return apiFetch<ProfileIdentityChangeRequest>(
+    "/api/auth/profile/identity-change/request",
+    {
+      method: "POST",
+      body: JSON.stringify({ field, value }),
+    },
+  );
+}
+
+export async function confirmProfileIdentityChange(
+  requestId: string,
+  otp: string,
+) {
+  const response = await apiFetch<{
+    message: string;
+    field: ProfileIdentityField;
+    user: DbUser;
+  }>("/api/auth/profile/identity-change/confirm", {
+    method: "POST",
+    body: JSON.stringify({ requestId, otp }),
+  });
+
+  clearApiCache("profile");
+  cacheProfileDisplay(response.user);
+  clearCachedAuthToken();
+  return response;
+}
+
 export async function uploadProfilePhoto(file: File) {
   const token = await getCachedAuthToken();
   const formData = new FormData();
@@ -1196,6 +1308,7 @@ export async function uploadProfilePhoto(file: File) {
 export type SaveWalletPinPayload = {
   pin: string;
   currentPin?: string;
+  username?: string;
 };
 
 export async function saveWalletPin(payload: SaveWalletPinPayload) {

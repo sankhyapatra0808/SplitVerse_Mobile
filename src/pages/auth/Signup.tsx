@@ -1,8 +1,9 @@
 import { useState, type FormEvent } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import {
   ArrowLeft,
   ArrowRight,
+  AtSign,
   Eye,
   EyeOff,
   LockKeyhole,
@@ -18,6 +19,7 @@ import logo from "../../assets/Logo-v2.png";
 import "../../styles/AuthPages.css";
 import { GoogleIcon } from "./SocialIcons";
 import { useAuth } from "../../context/useAuth";
+import { checkUsernameAvailability } from "../../lib/api";
 import { getFirebaseErrorMessage } from "../../utils/firebaseError";
 import { withTopProgress } from "../../utils/topProgress";
 
@@ -47,15 +49,62 @@ function getPasswordStrength(password: string) {
 
 export default function Signup() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { signupWithEmail, loginWithProvider } = useAuth();
+  const invitedEmail = String(searchParams.get("email") || "")
+    .trim()
+    .toLowerCase();
 
   const [name, setName] = useState("");
-  const [email, setEmail] = useState("");
+  const [username, setUsername] = useState("");
+  const [usernameStatus, setUsernameStatus] = useState<
+    "idle" | "checking" | "available" | "taken"
+  >("idle");
+  const [email, setEmail] = useState(invitedEmail);
   const [password, setPassword] = useState("");
   const [showPass, setShowPass] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const passwordStrength = getPasswordStrength(password);
+
+  const normalizeUsername = (value: string) =>
+    value.trim().toLowerCase().replace(/^@+/, "");
+
+  const validateUsername = (value: string) =>
+    /^[a-z0-9_]{3,30}$/.test(normalizeUsername(value));
+
+  const ensureUsernameAvailable = async () => {
+    const normalizedUsername = normalizeUsername(username);
+
+    if (!validateUsername(normalizedUsername)) {
+      setUsernameStatus("idle");
+      setError(
+        "Username must be 3 to 30 characters using lowercase letters, numbers, or underscores.",
+      );
+      return null;
+    }
+
+    try {
+      setUsernameStatus("checking");
+      const result = await checkUsernameAvailability(normalizedUsername);
+      setUsernameStatus(result.available ? "available" : "taken");
+
+      if (!result.available) {
+        setError("That username is already taken. Choose another one.");
+        return null;
+      }
+
+      return result.username;
+    } catch (availabilityError) {
+      setUsernameStatus("idle");
+      setError(
+        availabilityError instanceof Error
+          ? availabilityError.message
+          : "Could not check username availability.",
+      );
+      return null;
+    }
+  };
 
   const handleSocialSignup = async (provider: "google") => {
     setError("");
@@ -75,7 +124,7 @@ export default function Signup() {
     event.preventDefault();
     setError("");
 
-    if (!name.trim() || !email.trim() || !password) {
+    if (!name.trim() || !username.trim() || !email.trim() || !password) {
       setError("Please fill all fields.");
       return;
     }
@@ -87,9 +136,20 @@ export default function Signup() {
 
     try {
       setLoading(true);
+      const availableUsername = await ensureUsernameAvailable();
+
+      if (!availableUsername) {
+        return;
+      }
+
       const normalizedEmail = email.trim().toLowerCase();
       const session = await withTopProgress(() =>
-        signupWithEmail(name.trim(), normalizedEmail, password),
+        signupWithEmail(
+          name.trim(),
+          normalizedEmail,
+          password,
+          availableUsername,
+        ),
       );
       setPassword("");
       navigate("/login", {
@@ -153,6 +213,44 @@ export default function Signup() {
                   disabled={loading}
                 />
               </div>
+            </label>
+
+            <label className="auth-field">
+              <span>Permanent username</span>
+              <div className="auth-input-shell">
+                <AtSign size={18} />
+                <input
+                  type="text"
+                  placeholder="your_username"
+                  value={username}
+                  onChange={(event) => {
+                    setUsername(event.target.value.toLowerCase());
+                    setUsernameStatus("idle");
+                    setError("");
+                  }}
+                  onBlur={() => {
+                    if (username.trim()) {
+                      void ensureUsernameAvailable();
+                    }
+                  }}
+                  autoComplete="username"
+                  spellCheck={false}
+                  maxLength={30}
+                  disabled={loading}
+                />
+              </div>
+              <small
+                className={`auth-field-note username-${usernameStatus}`}
+                aria-live="polite"
+              >
+                {usernameStatus === "checking"
+                  ? "Checking availability..."
+                  : usernameStatus === "available"
+                    ? "Username is available. It becomes permanent after signup."
+                    : usernameStatus === "taken"
+                      ? "That username is already in use."
+                      : "Choose carefully. Your username cannot be changed later."}
+              </small>
             </label>
 
             <label className="auth-field">
