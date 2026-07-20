@@ -472,7 +472,7 @@ export default function Profile() {
             {
               translateX: tabAnimation.interpolate({
                 inputRange: [0, 1],
-                outputRange: [16, 0],
+                outputRange: [20, 0],
               }),
             },
           ],
@@ -511,7 +511,6 @@ export default function Profile() {
         {activeTab === "friends" && (
           <View style={styles.tabContent}>
             <AppCard style={styles.card}>
-              <Text style={styles.cardEyebrow}>Invite by email</Text>
               <Text style={styles.cardTitle}>Send friend request</Text>
               <AppTextInput
                 label="Friend email"
@@ -577,19 +576,6 @@ export default function Profile() {
             </AppCard>
 
             <AppCard style={styles.card}>
-              <Text style={styles.cardEyebrow}>Friend list</Text>
-              <Text style={styles.cardTitle}>Open dedicated friends page</Text>
-              <Text style={styles.cardText}>
-                Your full friend list now lives on a separate page for a cleaner
-                profile.
-              </Text>
-              <AppButton
-                title="Open friend list"
-                onPress={() => router.push("/(tabs)/friends")}
-              />
-            </AppCard>
-
-            <AppCard style={styles.card}>
               <Text style={styles.cardEyebrow}>Sent requests</Text>
               <Text style={styles.cardTitle}>Email invites</Text>
               {pendingSentRequests.length === 0 ? (
@@ -624,7 +610,6 @@ export default function Profile() {
         {activeTab === "activity" && (
           <View style={styles.tabContent}>
             <AppCard style={styles.card}>
-              <Text style={styles.cardEyebrow}>Rooms</Text>
               <Text style={styles.cardTitle}>Recent split rooms</Text>
               {recentRooms.length === 0 ? (
                 <EmptyState title="No rooms yet" />
@@ -667,21 +652,11 @@ export default function Profile() {
             <AppCard style={styles.card}>
               <View style={styles.cardHeadRow}>
                 <View>
-                  <Text style={styles.cardEyebrow}>Transactions</Text>
                   <Text style={styles.cardTitle}>Transaction history</Text>
                 </View>
-                <Text
-                  style={[
-                    styles.countPill,
-                    { backgroundColor: theme.surfaceStrong, color: theme.text },
-                  ]}
-                >
-                  {recentTransactions.length}/10
-                </Text>
               </View>
               <Text style={styles.cardText}>
-                Showing only the latest 10 transactions. The list scrolls after
-                5 recent transactions.
+                Showing only the latest 10 transactions.
               </Text>
               {recentTransactions.length === 0 ? (
                 <EmptyState title="No transactions yet" />

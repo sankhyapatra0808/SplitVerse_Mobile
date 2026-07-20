@@ -1718,10 +1718,9 @@ export default function SplitRooms() {
           {selectedRoom?.isOwner ? (
             <AppCard style={styles.addItemCard}>
               <View style={styles.sectionHeadingBlock}>
-                <Text style={styles.cardTitle}>Add item</Text>
-                <Text style={styles.sectionHeadingContext}>
+                <Text style={styles.sectionMainHeadingContext}>
                   {selectedRoom
-                    ? `Assign in ${selectedRoom.name}`
+                    ? `Assign items in ${selectedRoom.name}`
                     : "No room selected"}
                 </Text>
               </View>
@@ -1869,6 +1868,13 @@ export default function SplitRooms() {
 
                   <AppButton
                     title={savingItem ? "Adding item" : "Add item"}
+                    style={[
+                      styles.createRoomItemSubmitWrap,
+                      {
+                        borderColor: theme.primary,
+                        backgroundColor: theme.primary,
+                      },
+                    ]}
                     loading={savingItem}
                     onPress={() => {
                       setAssignMemberModalOpen(false);
@@ -1881,24 +1887,26 @@ export default function SplitRooms() {
           ) : null}
 
           <AppCard style={styles.detailsCard}>
-            <View style={styles.sectionHeadingBlock}>
-              <Text style={styles.cardTitle}>Selected room</Text>
-              <Text style={styles.sectionHeadingContext}>
-                {selectedRoom ? selectedRoom.name : "No room selected"}
-              </Text>
-            </View>
+            <View style={styles.cardHeadRow}>
+              <View style={styles.sectionHeadingBlock}>
+                <Text style={styles.cardTitle}>Selected room</Text>
+                <Text style={styles.sectionHeadingContext}>
+                  {selectedRoom ? selectedRoom.name : "No room selected"}
+                </Text>
+              </View>
 
-            {selectedRoom && canManageSelectedRoom() ? (
-              <Pressable
-                style={[
-                  styles.roomActionsButton,
-                  { backgroundColor: theme.surfaceStrong },
-                ]}
-                onPress={() => setRoomActionsOpen(true)}
-              >
-                <Text style={styles.roomActionsButtonText}>Room actions</Text>
-              </Pressable>
-            ) : null}
+              {selectedRoom && canManageSelectedRoom() ? (
+                <Pressable
+                  style={[
+                    styles.roomActionsButton,
+                    { backgroundColor: theme.surfaceStrong },
+                  ]}
+                  onPress={() => setRoomActionsOpen(true)}
+                >
+                  <Text style={styles.roomActionsButtonText}>Room actions</Text>
+                </Pressable>
+              ) : null}
+            </View>
 
             {!selectedRoom ? (
               <EmptyState
@@ -1993,11 +2001,24 @@ export default function SplitRooms() {
 
               {selectedRoom?.isOwner && selectedRoomHasMemberPendingDues ? (
                 <Pressable
-                  style={styles.reminderButton}
+                  style={[
+                    styles.reminderButton,
+                    {
+                      backgroundColor:
+                        theme.mode === "dark" ? "#ff9100" : colors.primary,
+                    },
+                  ]}
                   onPress={requestSendRoomReminder}
                   disabled={remindingRoomId === selectedRoom?.id}
                 >
-                  <Text style={styles.reminderButtonText}>
+                  <Text
+                    style={[
+                      styles.reminderButtonText,
+                      {
+                        color: theme.mode === "dark" ? "#000000" : "#FFFFFF",
+                      },
+                    ]}
+                  >
                     {remindingRoomId === selectedRoom?.id
                       ? "Sending"
                       : "Remind"}
@@ -2209,14 +2230,6 @@ export default function SplitRooms() {
                   <View style={styles.createRoomModalTitleBlock}>
                     <Text
                       style={[
-                        styles.createRoomModalEyebrow,
-                        { color: modalMutedColor },
-                      ]}
-                    >
-                      ROOMS
-                    </Text>
-                    <Text
-                      style={[
                         styles.createRoomModalTitle,
                         { color: modalTextColor },
                       ]}
@@ -2271,7 +2284,7 @@ export default function SplitRooms() {
                     label="Room name"
                     value={roomName}
                     onChangeText={setRoomName}
-                    placeholder="Dinner at Park Street"
+                    placeholder="Dinner with friends"
                     editable={!savingRoom}
                     style={styles.roomNameInput}
                   />
@@ -2523,13 +2536,19 @@ export default function SplitRooms() {
                     friendModalOpen || paidByModalOpen ? "none" : "auto"
                   }
                   style={[
-                    styles.createRoomSubmitWrap,
                     (friendModalOpen || paidByModalOpen) &&
                       styles.createRoomLowerContentHidden,
                   ]}
                 >
                   <AppButton
                     title={savingRoom ? "Creating room" : "Create room"}
+                    style={[
+                      styles.createRoomSubmitWrap,
+                      {
+                        borderColor: theme.primary,
+                        backgroundColor: theme.primary,
+                      },
+                    ]}
                     loading={savingRoom}
                     onPress={() => {
                       closeCreateDropdowns();
@@ -3234,6 +3253,10 @@ const styles = StyleSheet.create({
     color: colors.body,
     ...typography.bodySm,
   },
+  sectionMainHeadingContext: {
+    color: colors.ink,
+    ...typography.titleMd,
+  },
   selector: {
     minHeight: 64,
     flexDirection: "row",
@@ -3790,11 +3813,9 @@ const styles = StyleSheet.create({
     minHeight: 38,
     justifyContent: "center",
     borderRadius: radius.pill,
-    backgroundColor: colors.surfaceStrong,
     paddingHorizontal: spacing.base,
   },
   reminderButtonText: {
-    color: colors.primary,
     fontSize: 12,
     fontWeight: "700",
   },
@@ -4027,7 +4048,23 @@ const styles = StyleSheet.create({
     opacity: 0,
   },
   createRoomSubmitWrap: {
+    minHeight: 48,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: colors.hairlineSoft,
+    borderRadius: radius.pill,
+    backgroundColor: colors.surfaceSoft,
     marginTop: spacing.lg,
+  },
+  createRoomItemSubmitWrap: {
+    minHeight: 48,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: colors.hairlineSoft,
+    borderRadius: radius.pill,
+    backgroundColor: colors.surfaceSoft,
   },
   roomNameInput: {
     minHeight: 65,
