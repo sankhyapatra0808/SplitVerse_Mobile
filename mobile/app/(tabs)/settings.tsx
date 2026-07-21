@@ -32,15 +32,19 @@ import {
 } from "../../src/context/useAppSettings";
 import {
   deleteAccount,
+  confirmProfileIdentityChange,
   deleteFriend,
   downloadMyData,
+  getBlockedUsers,
   getFriendsSummary,
+  requestProfileIdentityChange,
   requestWalletPinResetOtp,
   resetWalletPinWithOtp,
   saveWalletPin,
   updateProfileSettings,
   uploadProfilePhoto,
   type Friend,
+  type ProfileIdentityField,
 } from "../../src/lib/api";
 import { showErrorAlert } from "../../src/lib/errors";
 import { colors, radius, spacing, typography } from "../../src/theme/tokens";
@@ -131,6 +135,23 @@ export default function Settings() {
   const [friendsLoading, setFriendsLoading] = useState(true);
   const [friendSearch, setFriendSearch] = useState("");
   const [deletingFriendId, setDeletingFriendId] = useState("");
+  const [blockedCount, setBlockedCount] = useState(0);
+  const [identityName, setIdentityName] = useState(
+    dbUser?.display_name || dbUser?.name || user?.displayName || "",
+  );
+  const [identityEmail, setIdentityEmail] = useState(
+    dbUser?.email || user?.email || "",
+  );
+  const [identityRequest, setIdentityRequest] = useState<{
+    requestId: string;
+    field: ProfileIdentityField;
+    currentEmailHint: string;
+  } | null>(null);
+  const [identityOtp, setIdentityOtp] = useState("");
+  const [requestingIdentityField, setRequestingIdentityField] = useState<
+    ProfileIdentityField | ""
+  >("");
+  const [confirmingIdentity, setConfirmingIdentity] = useState(false);
   const [profileSaving, setProfileSaving] = useState(false);
   const [profilePhotoUrl, setProfilePhotoUrl] = useState("");
   const [walletPinSet, setWalletPinSet] = useState(
@@ -160,7 +181,19 @@ export default function Settings() {
   const email = dbUser?.email || user?.email || "";
   const username = dbUser?.username
     ? `@${dbUser.username}`
-    : "Username coming soon";
+    : "Username setup pending";
+  const originalIdentityName = String(
+    dbUser?.display_name || dbUser?.name || user?.displayName || "",
+  ).trim();
+  const originalIdentityEmail = String(dbUser?.email || user?.email || "")
+    .trim()
+    .toLowerCase();
+  const nameChanged =
+    identityName.trim().length >= 2 &&
+    identityName.trim() !== originalIdentityName;
+  const emailChanged =
+    identityEmail.trim().toLowerCase() !== originalIdentityEmail &&
+    /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(identityEmail.trim());
   const walletBalance = Number(dbUser?.wallet_balance || 0);
   const convertedAmount = convertCurrency(
     converterAmount,
@@ -197,6 +230,11 @@ export default function Settings() {
       : `Rates: ${exchangeRatesSource}${exchangeRatesFetchedAt ? ` · ${formatDate(exchangeRatesFetchedAt, { hour: "2-digit", minute: "2-digit" })}` : ""}`;
 
   useEffect(() => {
+    setIdentityName(originalIdentityName);
+    setIdentityEmail(originalIdentityEmail);
+  }, [originalIdentityEmail, originalIdentityName]);
+
+  useEffect(() => {
     setWalletPinSet(Boolean(dbUser?.has_wallet_pin));
   }, [dbUser?.has_wallet_pin]);
 
@@ -205,8 +243,23 @@ export default function Settings() {
     async function loadFriends() {
       try {
         setFriendsLoading(true);
-        const data = await getFriendsSummary();
-        if (active) setFriends(data.friends ?? []);
+        const [friendsResult, blockedResult] = await Promise.allSettled([
+          getFriendsSummary(),
+          getBlockedUsers(),
+        ]);
+
+        if (friendsResult.status === "rejected") {
+          throw friendsResult.reason;
+        }
+
+        if (active) {
+          setFriends(friendsResult.value.friends ?? []);
+          setBlockedCount(
+            blockedResult.status === "fulfilled"
+              ? (blockedResult.value.blockedUsers?.length ?? 0)
+              : 0,
+          );
+        }
       } catch (error) {
         if (active) {
           showErrorAlert(error, {
@@ -224,6 +277,57 @@ export default function Settings() {
       active = false;
     };
   }, []);
+
+  async function handleRequestIdentityChange(field: ProfileIdentityField) {
+    const value = field === "name" ? identityName.trim() : identityEmail.trim();
+
+    try {
+      setRequestingIdentityField(field);
+      const response = await requestProfileIdentityChange(field, value);
+      setIdentityOtp("");
+      setIdentityRequest({
+        requestId: response.requestId,
+        field: response.field,
+        currentEmailHint: response.currentEmailHint,
+      });
+      Alert.alert("Verification code sent", response.message);
+    } catch (error) {
+      showErrorAlert(error, {
+        title: "Could not send verification code",
+        fallbackMessage:
+          "The verification code could not be sent to your current email. Please try again.",
+      });
+    } finally {
+      setRequestingIdentityField("");
+    }
+  }
+
+  async function handleConfirmIdentityChange() {
+    if (!identityRequest || identityOtp.length !== 6) {
+      Alert.alert("OTP required", "Enter the 6-digit verification code.");
+      return;
+    }
+
+    try {
+      setConfirmingIdentity(true);
+      const response = await confirmProfileIdentityChange(
+        identityRequest.requestId,
+        identityOtp,
+      );
+      setIdentityRequest(null);
+      setIdentityOtp("");
+      await refreshDbUser();
+      Alert.alert("Identity updated", response.message);
+    } catch (error) {
+      showErrorAlert(error, {
+        title: "Verification failed",
+        fallbackMessage:
+          "The account change could not be verified. Check the OTP and try again.",
+      });
+    } finally {
+      setConfirmingIdentity(false);
+    }
+  }
 
   async function saveProfileDisplay(
     nextAvatarId = avatarId,
@@ -588,11 +692,8 @@ export default function Settings() {
       </View>
 
       <View style={styles.header}>
-        <Text style={styles.eyebrow}>Settings</Text>
-        <Text style={styles.title}>App settings</Text>
-        <Text style={styles.subtitle}>
-          The same SplitVerse settings from web, adapted for mobile touch.
-        </Text>
+        <Text style={styles.eyebrow}>SplitVerse App Settings</Text>
+        <Text style={styles.title}>Settings</Text>
       </View>
 
       <AppCard style={styles.card}>
@@ -600,7 +701,7 @@ export default function Settings() {
         <Text style={styles.cardTitle}>Photo display</Text>
         <SettingSwitch
           title="Use initials instead of photo"
-          description="Hide your profile picture and show initials to friends."
+          description="Show only initials in the app."
           value={avatarId === "initials"}
           onValueChange={(value) => void handleAvatarModeChange(value)}
           disabled={profileSaving}
@@ -629,28 +730,95 @@ export default function Settings() {
           </View>
         </View>
         <AppButton
-          title="Upload profile photo"
+          title="Upload/Change profile photo"
           variant="secondary"
           loading={profileSaving}
           onPress={handlePickProfilePhoto}
         />
-        <AppTextInput
-          label="Or paste image URL"
-          value={profilePhotoUrl}
-          onChangeText={setProfilePhotoUrl}
-          placeholder="https://example.com/photo.jpg"
-          autoCapitalize="none"
-        />
         <AppButton
           title="Save profile photo"
+          style={[
+            styles.createRoomItemSubmitWrap,
+            {
+              borderColor: theme.primary,
+              backgroundColor: theme.primary,
+            },
+          ]}
           loading={profileSaving}
           onPress={() => void saveProfileDisplay()}
         />
       </AppCard>
 
       <AppCard style={styles.card}>
+        <Text style={styles.cardEyebrow}>Public identity</Text>
+        <Text style={styles.cardTitle}>Name, email, and username</Text>
+        <View
+          style={[
+            styles.lockedIdentityRow,
+            { borderColor: theme.border, backgroundColor: theme.surface },
+          ]}
+        >
+          <View style={styles.rowCopy}>
+            <Text style={styles.summaryLabel}>Unique username</Text>
+            <Text style={styles.rowTitle}>{username}</Text>
+          </View>
+          <Ionicons name="lock-closed" size={18} color={theme.muted} />
+        </View>
+
+        <AppTextInput
+          label="Account name"
+          value={identityName}
+          onChangeText={setIdentityName}
+          autoCapitalize="words"
+          editable={!requestingIdentityField && !confirmingIdentity}
+        />
+        <AppButton
+          title={
+            requestingIdentityField === "name"
+              ? "Sending verification"
+              : "Verify name change"
+          }
+          style={[
+            styles.createRoomItemSubmitWrap,
+            {
+              borderColor: theme.primary,
+              backgroundColor: theme.primary,
+            },
+          ]}
+          loading={requestingIdentityField === "name"}
+          disabled={!nameChanged || Boolean(requestingIdentityField)}
+          onPress={() => void handleRequestIdentityChange("name")}
+        />
+
+        <AppTextInput
+          label="Registered email"
+          value={identityEmail}
+          onChangeText={setIdentityEmail}
+          autoCapitalize="none"
+          keyboardType="email-address"
+          editable={!requestingIdentityField && !confirmingIdentity}
+        />
+        <AppButton
+          title={
+            requestingIdentityField === "email"
+              ? "Sending verification"
+              : "Verify email change"
+          }
+          style={[
+            styles.createRoomItemSubmitWrap,
+            {
+              borderColor: theme.primary,
+              backgroundColor: theme.primary,
+            },
+          ]}
+          loading={requestingIdentityField === "email"}
+          disabled={!emailChanged || Boolean(requestingIdentityField)}
+          onPress={() => void handleRequestIdentityChange("email")}
+        />
+      </AppCard>
+
+      <AppCard style={styles.card}>
         <Text style={styles.cardEyebrow}>Application currency</Text>
-        <Text style={styles.cardTitle}>Money display</Text>
         <Text style={styles.cardText}>
           Use this currency and language across the app.
         </Text>
@@ -691,7 +859,6 @@ export default function Settings() {
 
       <AppCard style={styles.card}>
         <Text style={styles.cardEyebrow}>Currency converter</Text>
-        <Text style={styles.cardTitle}>Quick conversion</Text>
         <AppTextInput
           label="Amount"
           value={String(converterAmount)}
@@ -733,7 +900,6 @@ export default function Settings() {
       </AppCard>
 
       <AppCard style={styles.card}>
-        <Text style={styles.cardEyebrow}>Experience</Text>
         <Text style={styles.cardTitle}>User preferences</Text>
         <SettingSwitch
           title="Settlement reminders"
@@ -755,14 +921,13 @@ export default function Settings() {
         />
         <SettingSwitch
           title="Dark mode"
-          description="Use black surfaces, grey cards, and orange primary actions."
+          description="Use Dark mode as workspace."
           value={darkMode}
           onValueChange={setDarkMode}
         />
       </AppCard>
 
       <AppCard style={styles.card}>
-        <Text style={styles.cardEyebrow}>Wallet defaults</Text>
         <Text style={styles.cardTitle}>Payment safety</Text>
         <DropdownSelect
           label="Default wallet top-up method"
@@ -775,7 +940,7 @@ export default function Settings() {
         />
         <SettingSwitch
           title="Ask before wallet payment"
-          description="Show a confirmation before paying split-room dues from wallet."
+          description="Show a confirmation before paying."
           value={confirmBeforeWalletPayment}
           onValueChange={setConfirmBeforeWalletPayment}
         />
@@ -880,11 +1045,11 @@ export default function Settings() {
         ) : (
           <ScrollView
             style={
-              visibleFriends.length > 4 ? styles.friendListViewport : undefined
+              visibleFriends.length > 3 ? styles.friendListViewport : undefined
             }
             contentContainerStyle={styles.list}
             nestedScrollEnabled
-            scrollEnabled={visibleFriends.length > 4}
+            scrollEnabled={visibleFriends.length > 3}
             showsVerticalScrollIndicator={false}
             keyboardShouldPersistTaps="handled"
           >
@@ -908,7 +1073,8 @@ export default function Settings() {
                 />
                 <View style={styles.rowCopy}>
                   <Text style={styles.rowTitle}>{getFriendLabel(friend)}</Text>
-                  <Text style={styles.rowSubtext}>
+                  <Text style={styles.rowSubtext} numberOfLines={1}>
+                    {friend.username ? `@${friend.username} · ` : ""}
                     {formatFriendshipAge(friend.friendship_days)}
                   </Text>
                 </View>
@@ -922,6 +1088,21 @@ export default function Settings() {
             ))}
           </ScrollView>
         )}
+      </AppCard>
+
+      <AppCard style={styles.card}>
+        <Text style={styles.cardEyebrow}>Privacy and safety</Text>
+        <Text style={styles.cardTitle}>Blocked people</Text>
+        <Text style={styles.cardText}>
+          {blockedCount === 0
+            ? "You have not blocked anyone."
+            : `${blockedCount} blocked account${blockedCount === 1 ? "" : "s"}.`}
+        </Text>
+        <AppButton
+          title="Open blocked list"
+          variant="secondary"
+          onPress={() => router.push("/(tabs)/blocked-users")}
+        />
       </AppCard>
 
       <AppCard style={styles.card}>
@@ -944,11 +1125,55 @@ export default function Settings() {
         />
         <AppButton
           title="Delete account"
-          variant="secondary"
+          variant="danger"
+          style={styles.deleteAccountButton}
           onPress={() => setDeleteDialogOpen(true)}
         />
         <AppButton title="Logout" variant="secondary" onPress={handleLogout} />
       </AppCard>
+
+      <SheetModal
+        visible={Boolean(identityRequest)}
+        eyebrow="Identity verification"
+        title={
+          identityRequest?.field === "name"
+            ? "Verify name change"
+            : "Verify email change"
+        }
+        onClose={() => {
+          if (!confirmingIdentity) {
+            setIdentityRequest(null);
+            setIdentityOtp("");
+          }
+        }}
+      >
+        <Text style={styles.cardText}>
+          Enter the code sent to{" "}
+          {identityRequest?.currentEmailHint || "your current email"}.
+        </Text>
+        <AppTextInput
+          label="Verification code"
+          value={identityOtp}
+          onChangeText={(value) =>
+            setIdentityOtp(value.replace(/\D/g, "").slice(0, 6))
+          }
+          keyboardType="number-pad"
+          editable={!confirmingIdentity}
+        />
+        <AppButton
+          title={confirmingIdentity ? "Verifying" : "Confirm change"}
+          style={[
+            styles.createRoomItemSubmitWrap,
+            {
+              borderColor: theme.primary,
+              backgroundColor: theme.primary,
+            },
+          ]}
+          loading={confirmingIdentity}
+          disabled={identityOtp.length !== 6}
+          onPress={() => void handleConfirmIdentityChange()}
+        />
+      </SheetModal>
 
       <SheetModal
         visible={walletPinResetOpen}
@@ -1014,6 +1239,8 @@ export default function Settings() {
         <AppButton
           title={deletingAccount ? "Deleting account" : "Delete account"}
           loading={deletingAccount}
+          variant="danger"
+          style={styles.deleteAccountButton}
           onPress={handleDeleteAccount}
         />
       </SheetModal>
@@ -1177,7 +1404,8 @@ const styles = StyleSheet.create({
   switchDescription: { color: colors.body, ...typography.bodySm },
   list: { gap: spacing.sm },
   friendListViewport: {
-    maxHeight: 4 * 76 + 4 * spacing.sm,
+    maxHeight: 3 * 76 + 2 * spacing.sm,
+    flexGrow: 0,
   },
   friendRow: {
     minHeight: 76,
@@ -1193,5 +1421,36 @@ const styles = StyleSheet.create({
   rowCopy: { flex: 1, minWidth: 0, gap: 2 },
   rowTitle: { color: colors.ink, ...typography.titleSm },
   rowSubtext: { color: colors.body, ...typography.bodySm },
-  smallButton: { minWidth: 90, minHeight: 40, paddingHorizontal: spacing.sm },
+  deleteAccountButton: {
+    minHeight: 50,
+    alignSelf: "stretch",
+    borderRadius: radius.pill,
+    paddingHorizontal: spacing.lg,
+  },
+  smallButton: {
+    minWidth: 88,
+    maxWidth: 112,
+    minHeight: 40,
+    alignSelf: "center",
+    flexGrow: 0,
+    paddingHorizontal: spacing.sm,
+  },
+  lockedIdentityRow: {
+    minHeight: 64,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    borderWidth: 1,
+    borderRadius: radius.lg,
+    padding: spacing.sm,
+  },
+    createRoomItemSubmitWrap: {
+    minHeight: 48,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: colors.hairlineSoft,
+    borderRadius: radius.pill,
+    backgroundColor: colors.surfaceSoft,
+  },
 });

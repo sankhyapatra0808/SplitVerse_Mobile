@@ -101,7 +101,11 @@ export default function Notifications() {
   );
 
   function openNotification(item: LiveNotificationItem) {
-    router.push(item.route as never);
+    router.push(
+      item.params
+        ? ({ pathname: item.route, params: item.params } as never)
+        : (item.route as never),
+    );
   }
 
   return (

@@ -98,9 +98,13 @@ export default function DropdownSelect<T extends string>({
                       borderColor: active
                         ? theme.primary
                         : theme.mode === "dark"
-                          ? "rgba(255,255,255,0.46)"
+                          ? "rgba(229,231,235,0.78)"
                           : theme.border,
-                      backgroundColor: active ? theme.primary : "transparent",
+                      backgroundColor: active
+                        ? theme.primary
+                        : theme.mode === "dark"
+                          ? "rgba(255,255,255,0.03)"
+                          : "transparent",
                     },
                   ]}
                 >

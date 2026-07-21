@@ -47,7 +47,8 @@ type AuthContextValue = {
   signup: (
     email: string,
     password: string,
-    name?: string,
+    name: string,
+    username: string,
   ) => Promise<EmailLoginOtpSession>;
   loginWithGoogleIdToken: (
     idToken: string,
@@ -226,7 +227,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       dbUser,
       initializing,
 
-      signup: async (email, password, name) => {
+      signup: async (email, password, name, username) => {
         credentialBootstrapInProgress.current = true;
 
         try {
@@ -244,7 +245,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             await credential.user.getIdToken(true);
           }
 
-          await syncCurrentUser();
+          await syncCurrentUser({
+            username: username.trim().toLowerCase(),
+            requireUsername: true,
+          });
           return await requestEmailLoginOtp(normalizedEmail, password);
         } catch (error) {
           throw normalizeAppError(error, {
@@ -265,7 +269,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           await setRememberSession(remember);
           const credential = GoogleAuthProvider.credential(idToken);
           await signInWithCredential(auth, credential);
-          await syncSignedInUser();
+          const response = await syncCurrentUser({
+            requireUsername: false,
+            deferUsernameSetup: true,
+          });
+          await touchSessionActivity();
+          setDbUser(response.user);
         } catch (error) {
           throw normalizeAppError(error, {
             title: "Google sign-in failed",
@@ -277,10 +286,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       startEmailLoginOtp: async (email, password) => {
         try {
-          return await requestEmailLoginOtp(
-            email.trim().toLowerCase(),
-            password,
-          );
+          return await requestEmailLoginOtp(email.trim().toLowerCase(), password);
         } catch (error) {
           throw normalizeAppError(error, {
             title: "Could not send login code",

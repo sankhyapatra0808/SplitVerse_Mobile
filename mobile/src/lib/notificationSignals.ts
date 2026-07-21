@@ -12,6 +12,7 @@ export type LiveNotificationItem = {
   amount?: number;
   kind: NotificationKind;
   route: "/(tabs)/profile" | "/(tabs)/wallet" | "/(tabs)/split-rooms";
+  params?: Record<string, string>;
 };
 
 export function buildFriendNotifications(
@@ -25,7 +26,20 @@ export function buildFriendNotifications(
       detail: `${request.requester_name || "Someone"} wants to connect.`,
       kind: "friend" as const,
       route: "/(tabs)/profile" as const,
+      params: { tab: "friends", requestId: request.id },
     }));
+}
+
+function getBalancePendingAmount(
+  balance: SplitRoom["balances"][number],
+): number {
+  return Number(
+    balance.pendingTotal ??
+      balance.totalPending ??
+      balance.outstandingAmount ??
+      balance.amount ??
+      0,
+  );
 }
 
 export function buildRoomNotifications(
@@ -34,14 +48,37 @@ export function buildRoomNotifications(
   return rooms
     .filter((room) => Number(room.outstandingAmount || 0) > 0)
     .slice(0, 6)
-    .map((room) => ({
-      id: `room-${room.id}-${Number(room.outstandingAmount || 0).toFixed(2)}`,
-      title: "Room due reminder",
-      detail: `${room.name} still has pending dues.`,
-      amount: Number(room.outstandingAmount || 0),
-      kind: "room" as const,
-      route: "/(tabs)/split-rooms" as const,
-    }));
+    .map((room) => {
+      const dueBalance = (room.balances ?? []).find((balance) => {
+        const member = (room.members ?? []).find(
+          (candidate) => candidate.id === balance.memberId,
+        );
+        return (
+          !balance.isMe &&
+          !member?.isMe &&
+          getBalancePendingAmount(balance) > 0
+        );
+      });
+      const dueName = dueBalance?.name?.trim();
+
+      return {
+        id: `room-${room.id}-${Number(room.outstandingAmount || 0).toFixed(2)}`,
+        title: "Room due reminder",
+        detail: dueName
+          ? `${dueName} has a pending due in ${room.name}.`
+          : `${room.name} still has pending dues.`,
+        amount: Number(room.outstandingAmount || 0),
+        kind: "room" as const,
+        route: "/(tabs)/split-rooms" as const,
+        params: {
+          roomId: room.id,
+          openDue: "1",
+          ...(dueBalance?.memberId
+            ? { memberId: dueBalance.memberId }
+            : {}),
+        },
+      };
+    });
 }
 
 export function buildWalletNotifications(

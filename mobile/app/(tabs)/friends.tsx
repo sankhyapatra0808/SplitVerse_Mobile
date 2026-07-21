@@ -2,6 +2,7 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import { router, useFocusEffect } from "expo-router";
 import { useCallback, useMemo, useState } from "react";
 import {
+  Alert,
   Pressable,
   BackHandler,
   ScrollView,
@@ -18,6 +19,7 @@ import Screen from "../../src/components/Screen";
 import Text from "../../src/components/LocalizedText";
 import { useAppSettings } from "../../src/context/useAppSettings";
 import {
+  blockFriend,
   getFriendsSummary,
   type Friend,
   type FriendsSummary,
@@ -54,6 +56,7 @@ export default function FriendsPage() {
   );
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(!friendsCache);
+  const [blockingId, setBlockingId] = useState("");
 
   const visibleFriends = useMemo(() => {
     const value = search.trim().toLowerCase();
@@ -102,6 +105,41 @@ export default function FriendsPage() {
       return () => subscription.remove();
     }, []),
   );
+
+  async function handleBlockFriend(friend: Friend) {
+    Alert.alert(
+      "Block friend?",
+      `Block ${getFriendLabel(friend)}? This removes the friendship and stops new requests until you unblock them.`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Block",
+          style: "destructive",
+          onPress: () => {
+            void (async () => {
+              try {
+                setBlockingId(friend.id);
+                await blockFriend(friend.id);
+                const nextSummary = {
+                  ...summary,
+                  friends: summary.friends.filter((item) => item.id !== friend.id),
+                };
+                friendsCache = nextSummary;
+                setSummary(nextSummary);
+              } catch (error) {
+                showErrorAlert(error, {
+                  title: "Could not block friend",
+                  fallbackMessage: "This friend could not be blocked. Please try again.",
+                });
+              } finally {
+                setBlockingId("");
+              }
+            })();
+          },
+        },
+      ],
+    );
+  }
 
   if (loading && !friendsCache) {
     return (
@@ -198,9 +236,18 @@ export default function FriendsPage() {
                     style={[styles.meta, { color: theme.body }]}
                     numberOfLines={1}
                   >
+                    {friend.username ? `@${friend.username} · ` : ""}
                     {getFriendDays(friend)}
                   </Text>
                 </View>
+
+                <AppButton
+                  title={blockingId === friend.id ? "Blocking" : "Block"}
+                  loading={blockingId === friend.id}
+                  variant="secondary"
+                  style={styles.blockButton}
+                  onPress={() => handleBlockFriend(friend)}
+                />
               </View>
             ))}
           </ScrollView>
@@ -249,4 +296,10 @@ const styles = StyleSheet.create({
   copy: { flex: 1, minWidth: 0 },
   name: { ...typography.titleSm },
   meta: { marginTop: 2, ...typography.bodySm },
+  blockButton: {
+    minWidth: 82,
+    maxWidth: 104,
+    minHeight: 40,
+    paddingHorizontal: spacing.sm,
+  },
 });

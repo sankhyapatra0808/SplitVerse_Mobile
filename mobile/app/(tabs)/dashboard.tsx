@@ -14,9 +14,9 @@ import {
   Pressable,
   ScrollView,
   StyleSheet,
-  TextInput,
   View,
 } from "react-native";
+import AppTextInput from "../../src/components/AppTextInput";
 import Avatar from "../../src/components/Avatar";
 import Screen from "../../src/components/Screen";
 import SpendBarChart, {
@@ -51,7 +51,6 @@ import {
   getTransactionDisplayAmount,
   normalizeTransactionsForDisplay,
 } from "../../src/lib/transactionDisplay";
-import { fontFamilies } from "../../src/theme/fonts";
 import { showErrorAlert } from "../../src/lib/errors";
 import { useRefreshOnReturn } from "../../src/hooks/useRefreshOnReturn";
 import { useScreenFocusRef } from "../../src/hooks/useScreenFocusRef";
@@ -748,62 +747,24 @@ export default function Dashboard() {
                 </Text>
 
                 <View style={styles.expenseFormFields}>
-                  <View style={styles.expenseField}>
-                    <Text
-                      style={[
-                        styles.expenseFieldLabel,
-                        { color: modalTextColor },
-                      ]}
-                    >
-                      Expense title
-                    </Text>
-                    <TextInput
-                      value={expenseTitle}
-                      onChangeText={setExpenseTitle}
-                      placeholder="Lunch, fuel, groceries"
-                      placeholderTextColor={modalMutedColor}
-                      selectionColor={expenseActionColor}
-                      editable={!savingExpense}
-                      returnKeyType="next"
-                      style={[
-                        styles.expenseTextInput,
-                        {
-                          backgroundColor: theme.background,
-                          borderColor: theme.border,
-                          color: modalTextColor,
-                        },
-                      ]}
-                    />
-                  </View>
+                  <AppTextInput
+                    label="Expense title"
+                    value={expenseTitle}
+                    onChangeText={setExpenseTitle}
+                    placeholder="Lunch, fuel, groceries"
+                    editable={!savingExpense}
+                    returnKeyType="next"
+                  />
 
-                  <View style={styles.expenseField}>
-                    <Text
-                      style={[
-                        styles.expenseFieldLabel,
-                        { color: modalTextColor },
-                      ]}
-                    >
-                      Amount
-                    </Text>
-                    <TextInput
-                      value={expenseAmount}
-                      onChangeText={setExpenseAmount}
-                      keyboardType="decimal-pad"
-                      placeholder="250"
-                      placeholderTextColor={modalMutedColor}
-                      selectionColor={expenseActionColor}
-                      editable={!savingExpense}
-                      returnKeyType="done"
-                      style={[
-                        styles.expenseTextInput,
-                        {
-                          backgroundColor: theme.background,
-                          borderColor: theme.border,
-                          color: modalTextColor,
-                        },
-                      ]}
-                    />
-                  </View>
+                  <AppTextInput
+                    label="Amount"
+                    value={expenseAmount}
+                    onChangeText={setExpenseAmount}
+                    keyboardType="decimal-pad"
+                    placeholder="250"
+                    editable={!savingExpense}
+                    returnKeyType="done"
+                  />
                 </View>
 
                 <Pressable
@@ -1090,27 +1051,6 @@ const styles = StyleSheet.create({
   expenseFormFields: {
     gap: spacing.base,
     marginTop: spacing.lg,
-  },
-  expenseField: {
-    gap: spacing.sm,
-  },
-  expenseFieldLabel: {
-    ...typography.bodySm,
-    fontWeight: "600",
-  },
-  expenseTextInput: {
-    width: "100%",
-    height: 56,
-    minHeight: 56,
-    borderWidth: 1,
-    borderRadius: radius.lg,
-    paddingHorizontal: spacing.base,
-    paddingVertical: 0,
-    fontSize: 16,
-    lineHeight: 20,
-    textAlignVertical: "center",
-    fontFamily: fontFamilies.libreRegular,
-    fontWeight: "400",
   },
   expenseSubmitButton: {
     minHeight: 52,

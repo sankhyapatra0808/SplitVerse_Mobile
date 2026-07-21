@@ -14,7 +14,7 @@ import Text from "./LocalizedText";
 type AppButtonProps = Omit<PressableProps, "style"> & {
   title: string;
   loading?: boolean;
-  variant?: "primary" | "secondary";
+  variant?: "primary" | "secondary" | "danger";
   style?: StyleProp<ViewStyle>;
 };
 
@@ -33,14 +33,19 @@ function AppButton({
   const { theme } = useAppSettings();
   const isDisabled = Boolean(disabled || loading);
   const primary = variant === "primary";
+  const danger = variant === "danger";
 
   const resolvedRipple = useMemo(
     () =>
       androidRipple ?? {
-        color: primary ? theme.primaryActive : theme.borderSoft,
+        color: primary
+          ? theme.primaryActive
+          : danger
+            ? "rgba(255,255,255,0.20)"
+            : theme.borderSoft,
         borderless: false,
       },
-    [androidRipple, primary, theme.borderSoft, theme.primaryActive],
+    [androidRipple, danger, primary, theme.borderSoft, theme.primaryActive],
   );
 
   return (
@@ -62,8 +67,14 @@ function AppButton({
             ? theme.surfaceStrong
             : primary
               ? theme.primary
-              : theme.surfaceStrong,
-          borderColor: primary ? theme.primary : theme.borderSoft,
+              : danger
+                ? theme.danger
+                : theme.surfaceStrong,
+          borderColor: primary
+            ? theme.primary
+            : danger
+              ? theme.danger
+              : theme.borderSoft,
           opacity: isDisabled ? 0.72 : 1,
           transform: [{ scale: pressed && !isDisabled ? 0.985 : 1 }],
         },
@@ -73,13 +84,15 @@ function AppButton({
       {loading ? (
         <ActivityIndicator
           accessibilityLabel={`${title} in progress`}
-          color={primary ? theme.onPrimary : theme.text}
+          color={primary || danger ? theme.onPrimary : theme.text}
         />
       ) : (
         <Text
           style={[
             styles.text,
-            { color: primary ? theme.onPrimary : theme.primary },
+            {
+              color: primary || danger ? theme.onPrimary : theme.primary,
+            },
           ]}
         >
           {title}

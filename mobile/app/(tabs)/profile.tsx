@@ -1,7 +1,7 @@
 import { LinearGradient } from "expo-linear-gradient";
 import Ionicons from "@expo/vector-icons/Ionicons";
-import { router } from "expo-router";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { router, useLocalSearchParams } from "expo-router";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   Alert,
   Animated,
@@ -28,15 +28,18 @@ import { useAuth } from "../../src/context/AuthContext";
 import { useAppSettings } from "../../src/context/useAppSettings";
 import {
   acceptFriendRequest,
+  deleteFriendRequest,
   getFriendActivity,
   getFriendsSummary,
   getSplitRooms,
   getTransactions,
   getWalletSummary,
+  searchGlobalPeople,
   sendFriendRequest,
-  type Friend,
+  sendSplitVerseInvite,
   type FriendActivityResponse,
   type FriendsSummary,
+  type GlobalPerson,
   type SplitRoom,
   type TransactionItem,
 } from "../../src/lib/api";
@@ -51,7 +54,6 @@ import {
 } from "../../src/lib/transactionExport";
 import { showErrorAlert } from "../../src/lib/errors";
 import { useRefreshOnReturn } from "../../src/hooks/useRefreshOnReturn";
-import { isValidEmailAddress } from "../../src/lib/validation";
 import { colors, radius, spacing, typography } from "../../src/theme/tokens";
 import { HERO_BLUR_RADIUS } from "../../src/theme/performance";
 
@@ -77,8 +79,18 @@ let profileCache: {
   };
 } | null = null;
 
-function getFriendLabel(friend: Friend) {
-  return friend.name || friend.email.split("@")[0] || friend.email;
+
+function getRelationshipLabel(status: GlobalPerson["relationshipStatus"]) {
+  switch (status) {
+    case "friends":
+      return "Friends";
+    case "request_sent":
+      return "Request sent";
+    case "request_received":
+      return "In your inbox";
+    default:
+      return "Send request";
+  }
 }
 
 function getTransactionTitle(transaction: ProfileTransaction) {
@@ -114,6 +126,10 @@ function getYearOptions(joinedAt?: string) {
 export default function Profile() {
   const { user, dbUser } = useAuth();
   const { avatarId, formatCurrency, formatDate, theme } = useAppSettings();
+  const { tab, requestId } = useLocalSearchParams<{
+    tab?: string | string[];
+    requestId?: string | string[];
+  }>();
 
   const [activeTab, setActiveTab] = useState<ProfileTab>("account");
   const [friendsSummary, setFriendsSummary] = useState<FriendsSummary>(
@@ -126,11 +142,14 @@ export default function Profile() {
   const [transactionSummary, setTransactionSummary] = useState(
     profileCache?.transactionSummary ?? {},
   );
-  const [friendEmail, setFriendEmail] = useState("");
   const [friendSearch, setFriendSearch] = useState("");
+  const [peopleResults, setPeopleResults] = useState<GlobalPerson[]>([]);
+  const [peopleLoading, setPeopleLoading] = useState(false);
+  const [peopleSearchCompletedFor, setPeopleSearchCompletedFor] = useState("");
   const [loadingProfileData, setLoadingProfileData] = useState(!profileCache);
-  const [sendingRequest, setSendingRequest] = useState(false);
+  const [sendingTarget, setSendingTarget] = useState("");
   const [acceptingRequestId, setAcceptingRequestId] = useState("");
+  const [deletingRequestId, setDeletingRequestId] = useState("");
   const [activityLoadingId, setActivityLoadingId] = useState("");
   const [transactions, setTransactions] = useState<TransactionItem[]>(
     profileCache?.transactions ?? [],
@@ -153,6 +172,22 @@ export default function Profile() {
   const [exporting, setExporting] = useState(false);
 
   const tabAnimation = useRef(new Animated.Value(1)).current;
+  const peopleSearchRequestRef = useRef(0);
+  const handledTabParamRef = useRef("");
+
+  useEffect(() => {
+    const requestedTab = Array.isArray(tab) ? tab[0] : tab;
+    const requestedId = Array.isArray(requestId) ? requestId[0] : requestId;
+    const requestSignature = `${requestedTab || ""}:${requestedId || ""}`;
+
+    if (
+      requestedTab === "friends" &&
+      handledTabParamRef.current !== requestSignature
+    ) {
+      handledTabParamRef.current = requestSignature;
+      setActiveTab("friends");
+    }
+  }, [requestId, tab]);
 
   useEffect(() => {
     tabAnimation.setValue(0);
@@ -164,6 +199,43 @@ export default function Profile() {
       mass: 0.8,
     }).start();
   }, [activeTab, tabAnimation]);
+
+  useEffect(() => {
+    const query = friendSearch.trim();
+
+    if (query.length < 2) {
+      peopleSearchRequestRef.current += 1;
+      setPeopleResults([]);
+      setPeopleSearchCompletedFor("");
+      setPeopleLoading(false);
+      return;
+    }
+
+    const requestId = ++peopleSearchRequestRef.current;
+    setPeopleLoading(true);
+    const timer = setTimeout(async () => {
+      try {
+        const response = await searchGlobalPeople(query);
+        if (requestId === peopleSearchRequestRef.current) {
+          setPeopleResults(response.people ?? []);
+          setPeopleSearchCompletedFor(query.toLowerCase());
+        }
+      } catch (error) {
+        if (requestId === peopleSearchRequestRef.current) {
+          setPeopleResults([]);
+          setPeopleSearchCompletedFor("");
+          showErrorAlert(error, {
+            title: "Could not search people",
+            fallbackMessage: "Global people search is temporarily unavailable.",
+          });
+        }
+      } finally {
+        if (requestId === peopleSearchRequestRef.current) setPeopleLoading(false);
+      }
+    }, 320);
+
+    return () => clearTimeout(timer);
+  }, [friendSearch]);
 
   const displayName =
     dbUser?.display_name ||
@@ -188,15 +260,15 @@ export default function Profile() {
   const pendingSentRequests = friendsSummary.sentRequests.filter(
     (request) => request.status === "pending",
   );
-  const visibleFriends = useMemo(() => {
-    const search = friendSearch.trim().toLowerCase();
-    if (!search) return friendsSummary.friends;
-    return friendsSummary.friends.filter((friend) =>
-      `${friend.name ?? ""} ${friend.email}`.toLowerCase().includes(search),
-    );
-  }, [friendSearch, friendsSummary.friends]);
-  const recentRooms = rooms.slice(0, 4);
+  const recentRooms = rooms.slice(0, 10);
   const recentTransactions = transactions.slice(0, 10);
+  const trimmedPeopleSearch = friendSearch.trim();
+  const normalizedInviteEmail = trimmedPeopleSearch.toLowerCase();
+  const canInviteByEmail =
+    /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedInviteEmail) &&
+    !peopleLoading &&
+    peopleSearchCompletedFor === normalizedInviteEmail &&
+    peopleResults.length === 0;
   const yearOptions = getYearOptions(transactionSummary.accountCreatedAt);
 
   const loadProfileData = useCallback(async (silent = false) => {
@@ -255,33 +327,63 @@ export default function Profile() {
     void loadProfileData(true);
   }, [loadProfileData]);
 
-  async function handleSendRequest() {
-    const targetEmail = friendEmail.trim().toLowerCase();
-    if (!targetEmail) {
-      Alert.alert("Missing email", "Enter your friend's email.");
-      return;
-    }
-    if (!isValidEmailAddress(targetEmail)) {
-      Alert.alert(
-        "Invalid email address",
-        "Enter your friend's complete email address, such as name@example.com.",
-      );
-      return;
-    }
+  async function handleSendRequest(
+    identifier: string,
+    recipientUserId?: string,
+  ) {
     try {
-      setSendingRequest(true);
-      await sendFriendRequest(targetEmail);
-      setFriendEmail("");
+      setSendingTarget(recipientUserId || identifier);
+      await sendFriendRequest(identifier, recipientUserId);
       await loadProfileData(true);
+      const response = await searchGlobalPeople(friendSearch.trim());
+      setPeopleResults(response.people ?? []);
       Alert.alert("Request sent", "Friend request created.");
     } catch (error) {
       showErrorAlert(error, {
         title: "Friend request failed",
-        fallbackMessage:
-          "The friend request could not be sent. Check the email address and try again.",
+        fallbackMessage: "The friend request could not be sent. Please try again.",
       });
     } finally {
-      setSendingRequest(false);
+      setSendingTarget("");
+    }
+  }
+
+  async function handleSendInvite(emailAddress: string) {
+    try {
+      setSendingTarget(`invite:${emailAddress}`);
+      const response = await sendSplitVerseInvite(emailAddress);
+      Alert.alert("Signup invite sent", response.message);
+    } catch (error) {
+      showErrorAlert(error, {
+        title: "Could not send signup invite",
+        fallbackMessage: "The signup invitation email could not be sent.",
+      });
+    } finally {
+      setSendingTarget("");
+    }
+  }
+
+  async function handleDeleteRequest(
+    requestId: string,
+    mode: "cancel" | "decline",
+  ) {
+    try {
+      setDeletingRequestId(requestId);
+      await deleteFriendRequest(requestId);
+      await loadProfileData(true);
+      Alert.alert(
+        mode === "cancel" ? "Request cancelled" : "Request declined",
+        mode === "cancel"
+          ? "The sent friend request was cancelled."
+          : "The friend request was declined.",
+      );
+    } catch (error) {
+      showErrorAlert(error, {
+        title: "Could not update request",
+        fallbackMessage: "The friend request could not be updated.",
+      });
+    } finally {
+      setDeletingRequestId("");
     }
   }
 
@@ -501,7 +603,7 @@ export default function Profile() {
                 </View>
               </View>
               <AppButton
-                title="Open app settings"
+                title="Open settings"
                 onPress={() => router.push("/(tabs)/settings")}
               />
             </AppCard>
@@ -511,21 +613,90 @@ export default function Profile() {
         {activeTab === "friends" && (
           <View style={styles.tabContent}>
             <AppCard style={styles.card}>
-              <Text style={styles.cardTitle}>Send friend request</Text>
+              <Text style={styles.cardEyebrow}>Global people search</Text>
+              <Text style={styles.cardTitle}>Find and invite</Text>
               <AppTextInput
-                label="Friend email"
-                value={friendEmail}
-                onChangeText={setFriendEmail}
+                label="Username, name, or exact email"
+                value={friendSearch}
+                onChangeText={setFriendSearch}
                 autoCapitalize="none"
-                keyboardType="email-address"
-                placeholder="friend@example.com"
-                editable={!sendingRequest}
+                autoCorrect={false}
+                placeholder="@username or person@example.com"
               />
-              <AppButton
-                title="Send request"
-                loading={sendingRequest}
-                onPress={handleSendRequest}
-              />
+
+              {peopleLoading ? (
+                <Text style={styles.cardText}>Searching SplitVerse…</Text>
+              ) : trimmedPeopleSearch.length < 2 ? (
+                <Text style={styles.cardText}>Enter at least 2 characters.</Text>
+              ) : peopleResults.length === 0 ? (
+                <View style={styles.searchEmpty}>
+                  <Text style={styles.cardText}>No matching people found.</Text>
+                  {canInviteByEmail ? (
+                    <AppButton
+                      title={
+                        sendingTarget === `invite:${normalizedInviteEmail}`
+                          ? "Sending invite"
+                          : "Send signup invite"
+                      }
+                      loading={sendingTarget === `invite:${normalizedInviteEmail}`}
+                      onPress={() => void handleSendInvite(normalizedInviteEmail)}
+                    />
+                  ) : null}
+                </View>
+              ) : (
+                <ScrollView
+                  style={peopleResults.length > 3 ? styles.peopleResultsViewport : undefined}
+                  contentContainerStyle={styles.list}
+                  scrollEnabled={peopleResults.length > 3}
+                  nestedScrollEnabled
+                  keyboardShouldPersistTaps="handled"
+                  showsVerticalScrollIndicator={false}
+                >
+                  {peopleResults.map((person) => {
+                    const canSend = person.relationshipStatus === "none";
+                    const sending = sendingTarget === person.id;
+                    return (
+                      <View
+                        key={person.id}
+                        style={[
+                          styles.personRow,
+                          { borderColor: theme.border, backgroundColor: theme.surface },
+                        ]}
+                      >
+                        <Avatar
+                          name={person.name}
+                          email={person.emailHint}
+                          imageUrl={
+                            person.display_photo_url ||
+                            person.profile_photo_url ||
+                            person.photo_url
+                          }
+                          size={42}
+                        />
+                        <View style={styles.rowCopy}>
+                          <Text style={styles.rowTitle} numberOfLines={1}>
+                            {person.name || `@${person.username}`}
+                          </Text>
+                          <Text style={styles.rowSubtext} numberOfLines={1}>
+                            @{person.username}
+                            {person.emailHint ? ` · ${person.emailHint}` : ""}
+                          </Text>
+                        </View>
+                        <AppButton
+                          title={sending ? "Sending" : getRelationshipLabel(person.relationshipStatus)}
+                          loading={sending}
+                          disabled={!canSend || Boolean(sendingTarget)}
+                          variant={canSend ? "primary" : "secondary"}
+                          style={styles.personAction}
+                          onPress={() =>
+                            void handleSendRequest(person.username, person.id)
+                          }
+                        />
+                      </View>
+                    );
+                  })}
+                </ScrollView>
+              )}
             </AppCard>
 
             <AppCard style={styles.card}>
@@ -539,36 +710,42 @@ export default function Profile() {
                     <View
                       style={[
                         styles.requestRow,
-                        {
-                          borderColor: theme.border,
-                          backgroundColor: theme.surface,
-                        },
+                        { borderColor: theme.border, backgroundColor: theme.surface },
                       ]}
                       key={request.id}
                     >
                       <Avatar
                         name={request.requester_name}
                         email={request.requester_email}
-                        size={44}
+                        size={42}
                       />
                       <View style={styles.rowCopy}>
                         <Text style={styles.rowTitle} numberOfLines={1}>
                           {request.requester_name || request.requester_email}
                         </Text>
                         <Text style={styles.rowSubtext} numberOfLines={1}>
-                          {request.requester_email}
+                          {request.requester_username
+                            ? `@${request.requester_username}`
+                            : request.requester_email}
                         </Text>
                       </View>
-                      <AppButton
-                        title={
-                          acceptingRequestId === request.id
-                            ? "Accepting"
-                            : "Accept"
-                        }
-                        loading={acceptingRequestId === request.id}
-                        onPress={() => handleAcceptRequest(request.id)}
-                        style={styles.smallButton}
-                      />
+                      <View style={styles.requestActions}>
+                        <AppButton
+                          title={acceptingRequestId === request.id ? "Accepting" : "Accept"}
+                          loading={acceptingRequestId === request.id}
+                          disabled={deletingRequestId === request.id}
+                          onPress={() => handleAcceptRequest(request.id)}
+                          style={styles.compactAction}
+                        />
+                        <AppButton
+                          title={deletingRequestId === request.id ? "Declining" : "Decline"}
+                          loading={deletingRequestId === request.id}
+                          disabled={acceptingRequestId === request.id}
+                          variant="secondary"
+                          onPress={() => void handleDeleteRequest(request.id, "decline")}
+                          style={styles.compactAction}
+                        />
+                      </View>
                     </View>
                   ))}
                 </View>
@@ -577,7 +754,7 @@ export default function Profile() {
 
             <AppCard style={styles.card}>
               <Text style={styles.cardEyebrow}>Sent requests</Text>
-              <Text style={styles.cardTitle}>Email invites</Text>
+              <Text style={styles.cardTitle}>Waiting for acceptance</Text>
               {pendingSentRequests.length === 0 ? (
                 <EmptyState title="No sent requests" />
               ) : (
@@ -586,19 +763,23 @@ export default function Profile() {
                     <View
                       style={[
                         styles.sentRow,
-                        {
-                          borderColor: theme.border,
-                          backgroundColor: theme.surface,
-                        },
+                        { borderColor: theme.border, backgroundColor: theme.surface },
                       ]}
                       key={request.id}
                     >
-                      <Text style={styles.rowTitle}>
-                        {request.recipient_email}
-                      </Text>
-                      <Text style={styles.rowSubtext}>
-                        Waiting for acceptance
-                      </Text>
+                      <View style={styles.rowCopy}>
+                        <Text style={styles.rowTitle} numberOfLines={1}>
+                          {request.recipient_email}
+                        </Text>
+                        <Text style={styles.rowSubtext}>Waiting for acceptance</Text>
+                      </View>
+                      <AppButton
+                        title={deletingRequestId === request.id ? "Cancelling" : "Cancel"}
+                        loading={deletingRequestId === request.id}
+                        variant="secondary"
+                        style={styles.compactAction}
+                        onPress={() => void handleDeleteRequest(request.id, "cancel")}
+                      />
                     </View>
                   ))}
                 </View>
@@ -614,7 +795,13 @@ export default function Profile() {
               {recentRooms.length === 0 ? (
                 <EmptyState title="No rooms yet" />
               ) : (
-                <View style={styles.list}>
+                <ScrollView
+                  style={recentRooms.length > 3 ? styles.roomActivityScroll : undefined}
+                  contentContainerStyle={styles.list}
+                  scrollEnabled={recentRooms.length > 3}
+                  nestedScrollEnabled
+                  showsVerticalScrollIndicator={false}
+                >
                   {recentRooms.map((room) => (
                     <View
                       style={[
@@ -640,7 +827,7 @@ export default function Profile() {
                       />
                     </View>
                   ))}
-                </View>
+                </ScrollView>
               )}
               <AppButton
                 title="Open rooms"
@@ -663,11 +850,12 @@ export default function Profile() {
               ) : (
                 <ScrollView
                   style={
-                    recentTransactions.length > 5
+                    recentTransactions.length > 4
                       ? styles.transactionScroll
                       : undefined
                   }
                   nestedScrollEnabled
+                  scrollEnabled={recentTransactions.length > 4}
                   showsVerticalScrollIndicator={false}
                 >
                   <View style={styles.transactionList}>
@@ -1012,6 +1200,21 @@ const styles = StyleSheet.create({
   accountLabel: { color: colors.body, ...typography.caption },
   accountValue: { color: colors.ink, ...typography.bodySm },
   list: { gap: spacing.sm },
+  peopleResultsViewport: { maxHeight: 3 * 70 + 2 * spacing.sm, flexGrow: 0 },
+  personRow: {
+    minHeight: 70,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    borderWidth: 1,
+    borderRadius: radius.lg,
+    padding: spacing.sm,
+  },
+  personAction: { minWidth: 100, maxWidth: 126, minHeight: 40, paddingHorizontal: spacing.sm },
+  requestActions: { gap: spacing.xs, alignItems: "stretch" },
+  compactAction: { minWidth: 86, maxWidth: 108, minHeight: 38, paddingHorizontal: spacing.xs },
+  searchEmpty: { gap: spacing.sm },
+  roomActivityScroll: { maxHeight: 3 * 64 + 2 * spacing.sm, flexGrow: 0 },
   requestRow: {
     minHeight: 76,
     flexDirection: "row",
@@ -1064,7 +1267,10 @@ const styles = StyleSheet.create({
     minHeight: 40,
     paddingHorizontal: spacing.sm,
   },
-  transactionScroll: { maxHeight: 380 },
+  transactionScroll: {
+    maxHeight: 4 * 68 + 3 * spacing.sm,
+    flexGrow: 0,
+  },
   transactionList: { gap: spacing.sm },
   transactionRow: {
     minHeight: 68,

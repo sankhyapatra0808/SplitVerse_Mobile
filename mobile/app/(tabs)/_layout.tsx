@@ -44,6 +44,7 @@ export default function TabsLayout() {
       <Tabs.Screen name="settings" options={{ href: null }} />
       <Tabs.Screen name="notifications" options={{ href: null }} />
       <Tabs.Screen name="room-history" options={{ href: null }} />
+      <Tabs.Screen name="blocked-users" options={{ href: null }} />
     </Tabs>
   );
 }

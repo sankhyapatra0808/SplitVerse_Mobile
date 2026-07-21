@@ -26,7 +26,7 @@ const sections = [
   },
   {
     title: "3. Accounts and security",
-    body: "You must provide accurate information, protect your password, OTPs, wallet PIN, and device, and notify SplitVerse promptly if you suspect unauthorised access. You are responsible for activity performed through your account unless applicable law provides otherwise.",
+    body: "You must provide accurate information, protect your password, OTPs, wallet PIN, and device, and notify SplitVerse promptly if you suspect unauthorised access. Your unique username is selected once during signup or first-time Google onboarding, is permanent and non-transferable, and cannot later be changed. You are responsible for activity performed through your account unless applicable law provides otherwise.",
   },
   {
     title: "4. Payments, wallet balances, and third parties",

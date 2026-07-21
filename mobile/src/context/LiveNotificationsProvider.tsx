@@ -24,7 +24,7 @@ import {
   type LiveNotificationItem,
 } from "../lib/notificationSignals";
 
-const POLL_MS = 9000;
+const POLL_MS = 15000;
 const INITIAL_REFRESH_DELAY_MS = 1200;
 
 function getToastIcon(item: LiveNotificationItem): AppToastPayload["icon"] {
@@ -39,7 +39,12 @@ function buildToast(item: LiveNotificationItem): AppToastPayload {
     title: item.title,
     message: item.detail,
     icon: getToastIcon(item),
-    onPress: () => router.push(item.route as never),
+    onPress: () =>
+      router.push(
+        item.params
+          ? ({ pathname: item.route, params: item.params } as never)
+          : (item.route as never),
+      ),
   };
 }
 

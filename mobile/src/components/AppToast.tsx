@@ -1,6 +1,6 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { Image } from "expo-image";
-import { memo, useEffect, useRef } from "react";
+import { memo, useEffect, useState } from "react";
 import { Animated, Pressable, StyleSheet, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAppSettings } from "../context/useAppSettings";
@@ -24,7 +24,7 @@ type AppToastProps = {
 function AppToast({ toast, onHide }: AppToastProps) {
   const { theme } = useAppSettings();
   const insets = useSafeAreaInsets();
-  const anim = useRef(new Animated.Value(0)).current;
+  const [anim] = useState(() => new Animated.Value(0));
 
   useEffect(() => {
     if (!toast) return;
@@ -47,7 +47,7 @@ function AppToast({ toast, onHide }: AppToastProps) {
         useNativeDriver: true,
         isInteraction: false,
       }).start(onHide);
-    }, 2050);
+    }, 3200);
 
     return () => {
       clearTimeout(timer);
@@ -90,7 +90,14 @@ function AppToast({ toast, onHide }: AppToastProps) {
             transform: [{ scale: pressed && toast.onPress ? 0.985 : 1 }],
           },
         ]}
-        onPress={toast.onPress}
+        onPress={
+          toast.onPress
+            ? () => {
+                toast.onPress?.();
+                onHide();
+              }
+            : undefined
+        }
         disabled={!toast.onPress}
       >
         {toast.imageUrl ? (

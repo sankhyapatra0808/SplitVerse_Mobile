@@ -5,22 +5,30 @@ import AppTextInput from "./AppTextInput";
 import Text from "./LocalizedText";
 import { useAuth } from "../context/AuthContext";
 import { useAppSettings } from "../context/useAppSettings";
-import { saveWalletPin } from "../lib/api";
+import { checkUsernameAvailability, saveWalletPin } from "../lib/api";
 import { showErrorAlert } from "../lib/errors";
 import { radius, spacing, typography } from "../theme/tokens";
 
 export default function MandatoryWalletPinSetup() {
   const { user, dbUser, refreshDbUser } = useAuth();
   const { theme } = useAppSettings();
+  const [username, setUsername] = useState("");
   const [pin, setPin] = useState("");
   const [confirmPin, setConfirmPin] = useState("");
   const [saving, setSaving] = useState(false);
 
   const visible = Boolean(user && dbUser && dbUser.has_wallet_pin === false);
+  const needsGoogleUsername = Boolean(
+    visible && !dbUser?.username && String(dbUser?.provider || "").toLowerCase().includes("google"),
+  );
+  const normalizedUsername = username.trim().toLowerCase().replace(/^@+/, "");
 
   const canSave = useMemo(
-    () => /^\d{4,6}$/.test(pin) && pin === confirmPin,
-    [confirmPin, pin],
+    () =>
+      /^\d{4,6}$/.test(pin) &&
+      pin === confirmPin &&
+      (!needsGoogleUsername || /^[a-z0-9_]{3,30}$/.test(normalizedUsername)),
+    [confirmPin, needsGoogleUsername, normalizedUsername, pin],
   );
 
   async function handleSavePin() {
@@ -34,9 +42,28 @@ export default function MandatoryWalletPinSetup() {
       return;
     }
 
+    if (needsGoogleUsername && !/^[a-z0-9_]{3,30}$/.test(normalizedUsername)) {
+      Alert.alert(
+        "Invalid username",
+        "Use 3 to 30 lowercase letters, numbers, or underscores.",
+      );
+      return;
+    }
+
     try {
       setSaving(true);
-      await saveWalletPin({ pin });
+      if (needsGoogleUsername) {
+        const availability = await checkUsernameAvailability(normalizedUsername);
+        if (!availability.available) {
+          Alert.alert("Username unavailable", "That username is already taken.");
+          return;
+        }
+      }
+      await saveWalletPin({
+        pin,
+        ...(needsGoogleUsername ? { username: normalizedUsername } : {}),
+      });
+      setUsername("");
       setPin("");
       setConfirmPin("");
       await refreshDbUser();
@@ -70,13 +97,36 @@ export default function MandatoryWalletPinSetup() {
               Wallet security
             </Text>
             <Text style={[styles.title, { color: theme.text }]}>
-              Set your wallet PIN
+              {needsGoogleUsername
+                ? "Complete your Google signup"
+                : "Set your wallet PIN"}
             </Text>
             <Text style={[styles.subtitle, { color: theme.body }]}>
-              Create a wallet PIN before using SplitVerse payments. This matches
-              the website security flow.
+              {needsGoogleUsername
+                ? "Choose your permanent unique username and create your wallet PIN."
+                : "Create a wallet PIN before using SplitVerse payments."}
             </Text>
           </View>
+
+          {needsGoogleUsername ? (
+            <AppTextInput
+              label="Unique username"
+              value={username}
+              onChangeText={(value) =>
+                setUsername(
+                  value
+                    .toLowerCase()
+                    .replace(/^@+/, "")
+                    .replace(/[^a-z0-9_]/g, "")
+                    .slice(0, 30),
+                )
+              }
+              autoCapitalize="none"
+              autoCorrect={false}
+              placeholder="your_username"
+              editable={!saving}
+            />
+          ) : null}
 
           <AppTextInput
             label="Wallet PIN"
@@ -103,7 +153,13 @@ export default function MandatoryWalletPinSetup() {
           />
 
           <AppButton
-            title={saving ? "Saving PIN" : "Save wallet PIN"}
+            title={
+              saving
+                ? "Saving"
+                : needsGoogleUsername
+                  ? "Complete setup"
+                  : "Save wallet PIN"
+            }
             loading={saving}
             disabled={!canSave || saving}
             onPress={handleSavePin}

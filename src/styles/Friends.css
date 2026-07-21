@@ -1226,3 +1226,46 @@
     grid-auto-flow: row;
   }
 }
+
+
+/* Friend blocking actions */
+.friends-grid .friend-row-actions {
+  justify-self: end;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.friends-grid .friend-block-button {
+  min-height: 40px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border: 1px solid rgba(207, 32, 47, 0.24);
+  border-radius: 999px;
+  padding: 0 14px;
+  color: var(--dash-danger);
+  background: rgba(207, 32, 47, 0.07);
+  cursor: pointer;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.friends-grid .friend-block-button:hover:not(:disabled) {
+  background: rgba(207, 32, 47, 0.12);
+}
+
+.friends-grid .friend-block-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+@media (max-width: 700px) {
+  .friends-grid .friend-row-actions {
+    grid-column: 2;
+    justify-self: start;
+    flex-wrap: wrap;
+  }
+}

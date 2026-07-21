@@ -1,8 +1,10 @@
 import { LinearGradient } from "expo-linear-gradient";
+import { useLocalSearchParams } from "expo-router";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Alert,
+  FlatList,
   ImageBackground,
   Keyboard,
   KeyboardAvoidingView,
@@ -11,6 +13,7 @@ import {
   Pressable,
   ScrollView,
   StyleSheet,
+  useWindowDimensions,
   View,
 } from "react-native";
 import AmountText from "../../src/components/AmountText";
@@ -55,6 +58,13 @@ import { HERO_BLUR_RADIUS } from "../../src/theme/performance";
 
 const INITIAL_VISIBLE_ROOMS = 3;
 const ROOM_LOAD_BATCH = 2;
+
+type CreateRoomDropdownAnchor = {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+};
 
 function formatMoney(value?: number | null) {
   return `₹${Number(value || 0).toLocaleString("en-IN", {
@@ -349,6 +359,12 @@ function removeOptimisticRoomItem(room: SplitRoom, itemId: string): SplitRoom {
 export default function SplitRooms() {
   const { user, dbUser } = useAuth();
   const { avatarId, formatCurrency, theme } = useAppSettings();
+  const { width: windowWidth, height: windowHeight } = useWindowDimensions();
+  const { roomId, memberId, openDue } = useLocalSearchParams<{
+    roomId?: string | string[];
+    memberId?: string | string[];
+    openDue?: string | string[];
+  }>();
 
   const [rooms, setRooms] = useState<SplitRoom[]>([]);
   const [visibleRoomCount, setVisibleRoomCount] = useState(
@@ -377,6 +393,10 @@ export default function SplitRooms() {
 
   const [friendModalOpen, setFriendModalOpen] = useState(false);
   const [paidByModalOpen, setPaidByModalOpen] = useState(false);
+  const [createRoomDropdownAnchor, setCreateRoomDropdownAnchor] =
+    useState<CreateRoomDropdownAnchor | null>(null);
+  const friendSelectorRef = useRef<View>(null);
+  const paidBySelectorRef = useRef<View>(null);
   const [assignMemberModalOpen, setAssignMemberModalOpen] = useState(false);
   const [editItemModalOpen, setEditItemModalOpen] = useState(false);
 
@@ -388,6 +408,11 @@ export default function SplitRooms() {
 
   const [memberBalanceTarget, setMemberBalanceTarget] =
     useState<SplitRoomBalance | null>(null);
+  const handledDueLinkRef = useRef("");
+  const pendingDueLinkRef = useRef<{
+    roomId: string;
+    memberId?: string;
+  } | null>(null);
 
   const [roomActionsOpen, setRoomActionsOpen] = useState(false);
   const [deletingRoomId, setDeletingRoomId] = useState("");
@@ -662,6 +687,61 @@ export default function SplitRooms() {
     setMemberBalanceTarget(null);
     setRoomActionsOpen(false);
   }, [selectedRoomId]);
+
+  useEffect(() => {
+    const requestedRoomId = Array.isArray(roomId) ? roomId[0] : roomId;
+    const requestedMemberId = Array.isArray(memberId) ? memberId[0] : memberId;
+    const shouldOpenDue = (Array.isArray(openDue) ? openDue[0] : openDue) === "1";
+
+    if (!requestedRoomId || !shouldOpenDue || rooms.length === 0) {
+      return;
+    }
+
+    const linkSignature = `${requestedRoomId}:${requestedMemberId || ""}`;
+    if (handledDueLinkRef.current === linkSignature) {
+      return;
+    }
+
+    const targetRoom = rooms.find((room) => room.id === requestedRoomId);
+    if (!targetRoom) {
+      return;
+    }
+
+    handledDueLinkRef.current = linkSignature;
+    pendingDueLinkRef.current = {
+      roomId: requestedRoomId,
+      memberId: requestedMemberId,
+    };
+    selectedRoomIdRef.current = requestedRoomId;
+    setSelectedRoomId(requestedRoomId);
+  }, [memberId, openDue, roomId, rooms]);
+
+  useEffect(() => {
+    const pendingLink = pendingDueLinkRef.current;
+    if (!pendingLink || selectedRoom?.id !== pendingLink.roomId) {
+      return;
+    }
+
+    const targetBalance =
+      selectedMemberBalances.find(
+        (balance) => balance.memberId === pendingLink.memberId,
+      ) ||
+      selectedMemberBalances.find((balance) => {
+        const member = selectedRoom?.members.find(
+          (candidate) => candidate.id === balance.memberId,
+        );
+        return (
+          !balance.isMe &&
+          !member?.isMe &&
+          getBalancePendingAmount(balance) > 0
+        );
+      });
+
+    pendingDueLinkRef.current = null;
+    if (targetBalance) {
+      setMemberBalanceTarget(targetBalance);
+    }
+  }, [selectedMemberBalances, selectedRoom]);
 
   useEffect(() => {
     if (
@@ -1397,6 +1477,20 @@ export default function SplitRooms() {
   function closeCreateDropdowns() {
     setFriendModalOpen(false);
     setPaidByModalOpen(false);
+    setCreateRoomDropdownAnchor(null);
+  }
+
+  function openCreateRoomDropdown(kind: "friends" | "paidBy") {
+    Keyboard.dismiss();
+
+    const selectorRef =
+      kind === "friends" ? friendSelectorRef : paidBySelectorRef;
+
+    selectorRef.current?.measureInWindow((x, y, width, height) => {
+      setCreateRoomDropdownAnchor({ x, y, width, height });
+      setFriendModalOpen(kind === "friends");
+      setPaidByModalOpen(kind === "paidBy");
+    });
   }
 
   function openCreateRoomModal() {
@@ -2218,7 +2312,7 @@ export default function SplitRooms() {
               }
               showsVerticalScrollIndicator={false}
               bounces={false}
-              scrollEnabled={!friendModalOpen && !paidByModalOpen}
+              scrollEnabled
             >
               <AppCard
                 style={[
@@ -2267,19 +2361,6 @@ export default function SplitRooms() {
                 </Text>
 
                 <View style={styles.createRoomFormFields}>
-                  {friendModalOpen || paidByModalOpen ? (
-                    <Pressable
-                      accessibilityRole="button"
-                      accessibilityLabel="Close open dropdown"
-                      style={styles.createRoomDropdownShield}
-                      onPress={() => {
-                        Keyboard.dismiss();
-                        setFriendModalOpen(false);
-                        setPaidByModalOpen(false);
-                      }}
-                    />
-                  ) : null}
-
                   <AppTextInput
                     label="Room name"
                     value={roomName}
@@ -2290,6 +2371,8 @@ export default function SplitRooms() {
                   />
 
                   <View
+                    ref={friendSelectorRef}
+                    collapsable={false}
                     style={[
                       styles.dropdownWrap,
                       friendModalOpen && styles.createRoomFloatingDropdownWrap,
@@ -2304,9 +2387,12 @@ export default function SplitRooms() {
                         },
                       ]}
                       onPress={() => {
-                        Keyboard.dismiss();
-                        setFriendModalOpen((open) => !open);
-                        setPaidByModalOpen(false);
+                        if (friendModalOpen) {
+                          closeCreateDropdowns();
+                          return;
+                        }
+
+                        openCreateRoomDropdown("friends");
                       }}
                       disabled={savingRoom}
                     >
@@ -2324,107 +2410,11 @@ export default function SplitRooms() {
                       />
                     </Pressable>
 
-                    {friendModalOpen ? (
-                      <View
-                        style={[
-                          styles.dropdownMenu,
-                          styles.createRoomFloatingDropdownMenu,
-                          {
-                            borderColor: theme.border,
-                            backgroundColor: theme.card,
-                          },
-                        ]}
-                      >
-                        <AppTextInput
-                          label="Search friends"
-                          value={friendSearch}
-                          onChangeText={setFriendSearch}
-                          autoCapitalize="none"
-                          placeholder="Search by name or email"
-                        />
-
-                        {friends.length === 0 ? (
-                          <Text style={styles.dropdownEmptyText}>
-                            No friends yet
-                          </Text>
-                        ) : filteredFriends.length === 0 ? (
-                          <Text style={styles.dropdownEmptyText}>
-                            No matching friends
-                          </Text>
-                        ) : (
-                          <ScrollView
-                            style={[
-                              styles.dropdownScroll,
-                              styles.createRoomFloatingDropdownScroll,
-                            ]}
-                            nestedScrollEnabled
-                            showsVerticalScrollIndicator={false}
-                            keyboardShouldPersistTaps="handled"
-                          >
-                            {filteredFriends.map((friend) => {
-                              const selected = selectedFriendEmails.includes(
-                                friend.email,
-                              );
-
-                              return (
-                                <Pressable
-                                  key={friend.id}
-                                  style={[
-                                    styles.dropdownOption,
-                                    {
-                                      borderColor: theme.border,
-                                      backgroundColor: theme.surface,
-                                    },
-                                    selected && {
-                                      borderColor: theme.primary,
-                                      backgroundColor: theme.primarySoft,
-                                    },
-                                  ]}
-                                  onPress={() =>
-                                    toggleSelectedFriend(friend.email)
-                                  }
-                                >
-                                  <Avatar
-                                    name={friend.name}
-                                    email={friend.email}
-                                    imageUrl={
-                                      friend.display_photo_url ||
-                                      friend.profile_photo_url ||
-                                      friend.photo_url
-                                    }
-                                    size={36}
-                                  />
-
-                                  <View style={styles.optionCopy}>
-                                    <Text
-                                      style={styles.optionTitle}
-                                      numberOfLines={1}
-                                    >
-                                      {getFriendName(friend)}
-                                    </Text>
-                                  </View>
-
-                                  <Ionicons
-                                    name={
-                                      selected
-                                        ? "checkmark-circle"
-                                        : "ellipse-outline"
-                                    }
-                                    size={19}
-                                    color={
-                                      selected ? theme.primary : theme.muted
-                                    }
-                                  />
-                                </Pressable>
-                              );
-                            })}
-                          </ScrollView>
-                        )}
-                      </View>
-                    ) : null}
                   </View>
 
                   <View
+                    ref={paidBySelectorRef}
+                    collapsable={false}
                     pointerEvents={friendModalOpen ? "none" : "auto"}
                     style={[
                       styles.dropdownWrap,
@@ -2441,8 +2431,12 @@ export default function SplitRooms() {
                         },
                       ]}
                       onPress={() => {
-                        setPaidByModalOpen((open) => !open);
-                        setFriendModalOpen(false);
+                        if (paidByModalOpen) {
+                          closeCreateDropdowns();
+                          return;
+                        }
+
+                        openCreateRoomDropdown("paidBy");
                       }}
                       disabled={savingRoom}
                     >
@@ -2460,74 +2454,6 @@ export default function SplitRooms() {
                       />
                     </Pressable>
 
-                    {paidByModalOpen ? (
-                      <View
-                        style={[
-                          styles.dropdownMenu,
-                          styles.createRoomFloatingDropdownMenu,
-                          {
-                            borderColor: theme.border,
-                            backgroundColor: theme.card,
-                          },
-                        ]}
-                      >
-                        <ScrollView
-                          style={[
-                            styles.dropdownScroll,
-                            styles.createRoomFloatingDropdownScroll,
-                          ]}
-                          nestedScrollEnabled
-                          showsVerticalScrollIndicator={false}
-                        >
-                          {paidByOptions.map((option) => {
-                            const selected = option.email === roomPaidByEmail;
-
-                            return (
-                              <Pressable
-                                key={option.email}
-                                style={[
-                                  styles.dropdownOption,
-                                  {
-                                    borderColor: theme.border,
-                                    backgroundColor: theme.surface,
-                                  },
-                                  selected && {
-                                    borderColor: theme.primary,
-                                    backgroundColor: theme.primarySoft,
-                                  },
-                                ]}
-                                onPress={() => {
-                                  setRoomPaidByEmail(option.email);
-                                  setPaidByModalOpen(false);
-                                }}
-                              >
-                                <View style={styles.optionCopy}>
-                                  <Text style={styles.optionTitle}>
-                                    {option.name}
-                                  </Text>
-                                  <Text
-                                    style={styles.optionSubtext}
-                                    numberOfLines={1}
-                                  >
-                                    {option.email}
-                                  </Text>
-                                </View>
-
-                                <Ionicons
-                                  name={
-                                    selected
-                                      ? "checkmark-circle"
-                                      : "ellipse-outline"
-                                  }
-                                  size={19}
-                                  color={selected ? theme.primary : theme.muted}
-                                />
-                              </Pressable>
-                            );
-                          })}
-                        </ScrollView>
-                      </View>
-                    ) : null}
                   </View>
                 </View>
 
@@ -2559,6 +2485,232 @@ export default function SplitRooms() {
               </AppCard>
             </ScrollView>
           </KeyboardAvoidingView>
+        </View>
+      </Modal>
+
+      <Modal
+        visible={Boolean(
+          createRoomModalVisible &&
+            createRoomDropdownAnchor &&
+            (friendModalOpen || paidByModalOpen),
+        )}
+        transparent
+        animationType="none"
+        statusBarTranslucent
+        navigationBarTranslucent
+        onRequestClose={closeCreateDropdowns}
+      >
+        <View style={styles.createRoomDropdownPortal}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Close open dropdown"
+            style={StyleSheet.absoluteFill}
+            onPress={closeCreateDropdowns}
+          />
+
+          {createRoomDropdownAnchor ? (
+            <KeyboardAvoidingView
+              pointerEvents="box-none"
+              style={StyleSheet.absoluteFill}
+              behavior={Platform.OS === "ios" ? "padding" : undefined}
+            >
+              <View
+                style={[
+                  styles.dropdownMenu,
+                  styles.createRoomDropdownPortalMenu,
+                  {
+                    borderColor: theme.border,
+                    backgroundColor: theme.card,
+                    width: Math.min(
+                      createRoomDropdownAnchor.width,
+                      windowWidth - spacing.base * 2,
+                    ),
+                    left: Math.max(
+                      spacing.base,
+                      Math.min(
+                        createRoomDropdownAnchor.x,
+                        windowWidth -
+                          Math.min(
+                            createRoomDropdownAnchor.width,
+                            windowWidth - spacing.base * 2,
+                          ) -
+                          spacing.base,
+                      ),
+                    ),
+                    top: (() => {
+                      const menuHeight = friendModalOpen ? 250 : 184;
+                      const below =
+                        createRoomDropdownAnchor.y +
+                        createRoomDropdownAnchor.height +
+                        spacing.xs;
+
+                      if (below + menuHeight <= windowHeight - spacing.base) {
+                        return below;
+                      }
+
+                      return Math.max(
+                        spacing.base,
+                        createRoomDropdownAnchor.y - menuHeight - spacing.xs,
+                      );
+                    })(),
+                  },
+                ]}
+              >
+                {friendModalOpen ? (
+                  <>
+                    <AppTextInput
+                      label="Search friends"
+                      value={friendSearch}
+                      onChangeText={setFriendSearch}
+                      autoCapitalize="none"
+                      placeholder="Search by name or email"
+                    />
+
+                    {friends.length === 0 ? (
+                      <Text style={styles.dropdownEmptyText}>No friends yet</Text>
+                    ) : filteredFriends.length === 0 ? (
+                      <Text style={styles.dropdownEmptyText}>
+                        No matching friends
+                      </Text>
+                    ) : (
+                      <FlatList
+                        data={filteredFriends}
+                        keyExtractor={(friend) => friend.id}
+                        style={[
+                          styles.dropdownScroll,
+                          styles.createRoomFloatingDropdownScroll,
+                        ]}
+                        contentContainerStyle={
+                          styles.createRoomDropdownListContent
+                        }
+                        scrollEnabled
+                        keyboardShouldPersistTaps="always"
+                        keyboardDismissMode={
+                          Platform.OS === "ios" ? "interactive" : "on-drag"
+                        }
+                        showsVerticalScrollIndicator
+                        persistentScrollbar={Platform.OS === "android"}
+                        nestedScrollEnabled
+                        removeClippedSubviews={false}
+                        renderItem={({ item: friend }) => {
+                          const selected = selectedFriendEmails.includes(
+                            friend.email,
+                          );
+
+                          return (
+                            <Pressable
+                              style={[
+                                styles.dropdownOption,
+                                {
+                                  borderColor: theme.border,
+                                  backgroundColor: theme.surface,
+                                },
+                                selected && {
+                                  borderColor: theme.primary,
+                                  backgroundColor: theme.primarySoft,
+                                },
+                              ]}
+                              onPress={() => toggleSelectedFriend(friend.email)}
+                            >
+                              <Avatar
+                                name={friend.name}
+                                email={friend.email}
+                                imageUrl={
+                                  friend.display_photo_url ||
+                                  friend.profile_photo_url ||
+                                  friend.photo_url
+                                }
+                                size={36}
+                              />
+
+                              <View style={styles.optionCopy}>
+                                <Text
+                                  style={styles.optionTitle}
+                                  numberOfLines={1}
+                                >
+                                  {getFriendName(friend)}
+                                </Text>
+                              </View>
+
+                              <Ionicons
+                                name={
+                                  selected
+                                    ? "checkmark-circle"
+                                    : "ellipse-outline"
+                                }
+                                size={19}
+                                color={selected ? theme.primary : theme.muted}
+                              />
+                            </Pressable>
+                          );
+                        }}
+                      />
+                    )}
+                  </>
+                ) : (
+                  <FlatList
+                    data={paidByOptions}
+                    keyExtractor={(option) => option.email}
+                    style={[
+                      styles.dropdownScroll,
+                      styles.createRoomFloatingDropdownScroll,
+                    ]}
+                    contentContainerStyle={styles.createRoomDropdownListContent}
+                    scrollEnabled
+                    keyboardShouldPersistTaps="always"
+                    keyboardDismissMode={
+                      Platform.OS === "ios" ? "interactive" : "on-drag"
+                    }
+                    showsVerticalScrollIndicator
+                    persistentScrollbar={Platform.OS === "android"}
+                    nestedScrollEnabled
+                    removeClippedSubviews={false}
+                    renderItem={({ item: option }) => {
+                      const selected = option.email === roomPaidByEmail;
+
+                      return (
+                        <Pressable
+                          style={[
+                            styles.dropdownOption,
+                            {
+                              borderColor: theme.border,
+                              backgroundColor: theme.surface,
+                            },
+                            selected && {
+                              borderColor: theme.primary,
+                              backgroundColor: theme.primarySoft,
+                            },
+                          ]}
+                          onPress={() => {
+                            setRoomPaidByEmail(option.email);
+                            closeCreateDropdowns();
+                          }}
+                        >
+                          <View style={styles.optionCopy}>
+                            <Text style={styles.optionTitle}>{option.name}</Text>
+                            <Text
+                              style={styles.optionSubtext}
+                              numberOfLines={1}
+                            >
+                              {option.email}
+                            </Text>
+                          </View>
+
+                          <Ionicons
+                            name={
+                              selected ? "checkmark-circle" : "ellipse-outline"
+                            }
+                            size={19}
+                            color={selected ? theme.primary : theme.muted}
+                          />
+                        </Pressable>
+                      );
+                    }}
+                  />
+                )}
+              </View>
+            </KeyboardAvoidingView>
+          ) : null}
         </View>
       </Modal>
 
@@ -3910,7 +4062,6 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surfaceSoft,
     padding: spacing.sm,
   },
-
   memberSheetIdentity: {
     minHeight: 76,
     flexDirection: "row",
@@ -4020,9 +4171,22 @@ const styles = StyleSheet.create({
     gap: spacing.base,
     marginTop: spacing.lg,
   },
-  createRoomDropdownShield: {
-    ...StyleSheet.absoluteFillObject,
-    zIndex: 20,
+  createRoomDropdownPortal: {
+    flex: 1,
+  },
+  createRoomDropdownPortalMenu: {
+    position: "absolute",
+    zIndex: 50,
+    elevation: 50,
+    maxHeight: 250,
+    marginTop: 0,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.22,
+    shadowRadius: 20,
+  },
+  createRoomDropdownListContent: {
+    paddingBottom: spacing.xs,
   },
   createRoomFloatingDropdownWrap: {
     zIndex: 30,
@@ -4042,7 +4206,9 @@ const styles = StyleSheet.create({
     shadowRadius: 20,
   },
   createRoomFloatingDropdownScroll: {
-    maxHeight: 145,
+    height: 168,
+    maxHeight: 168,
+    flexGrow: 0,
   },
   createRoomLowerContentHidden: {
     opacity: 0,

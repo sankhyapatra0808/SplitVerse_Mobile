@@ -1159,6 +1159,30 @@ export async function deleteFriend(friendId: string) {
   return response;
 }
 
+export type BlockedUser = Friend & { blocked_at?: string };
+
+export async function getBlockedUsers() {
+  return apiFetch<{ blockedUsers: BlockedUser[] }>("/api/friends/blocked");
+}
+
+export async function blockFriend(friendId: string) {
+  const response = await apiFetch<{ message: string; blockedUser: BlockedUser }>(
+    `/api/friends/${friendId}/block`,
+    { method: "POST" },
+  );
+  clearApiCache("friends");
+  return response;
+}
+
+export async function unblockUser(userId: string) {
+  const response = await apiFetch<{ message: string }>(
+    `/api/friends/blocked/${userId}`,
+    { method: "DELETE" },
+  );
+  clearApiCache("friends");
+  return response;
+}
+
 // Transaction History Export function
 
 export async function getTransactions(params?: {

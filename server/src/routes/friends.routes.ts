@@ -226,6 +226,21 @@ async function createFriendship(userA: string, userB: string) {
   );
 }
 
+async function usersHaveBlockRelationship(userA: string, userB: string) {
+  const result = await db.query(
+    `
+    SELECT 1
+    FROM user_blocks
+    WHERE (blocker_user_id = $1 AND blocked_user_id = $2)
+       OR (blocker_user_id = $2 AND blocked_user_id = $1)
+    LIMIT 1;
+    `,
+    [userA, userB],
+  );
+
+  return result.rows.length > 0;
+}
+
 function escapeHtml(value: string) {
   return value
     .replaceAll("&", "&amp;")
@@ -460,8 +475,14 @@ router.get("/", verifyFirebaseToken, async (req: AuthRequest, res) => {
             WHEN friendship.user_one_id = $1 THEN friendship.user_two_id
             ELSE friendship.user_one_id
           END
-        WHERE friendship.user_one_id = $1
-        OR friendship.user_two_id = $1
+        WHERE (friendship.user_one_id = $1
+        OR friendship.user_two_id = $1)
+        AND NOT EXISTS (
+          SELECT 1
+          FROM user_blocks blocked
+          WHERE (blocked.blocker_user_id = $1 AND blocked.blocked_user_id = friend.id)
+             OR (blocked.blocker_user_id = friend.id AND blocked.blocked_user_id = $1)
+        )
         ORDER BY friend.name NULLS LAST, friend.email;
         `,
         [dbUser.id],
@@ -491,9 +512,15 @@ router.get("/", verifyFirebaseToken, async (req: AuthRequest, res) => {
           ON requester.id = request.requester_user_id
         WHERE LOWER(request.recipient_email) = LOWER($1)
         AND request.status = 'pending'
+        AND NOT EXISTS (
+          SELECT 1
+          FROM user_blocks blocked
+          WHERE (blocked.blocker_user_id = $2 AND blocked.blocked_user_id = requester.id)
+             OR (blocked.blocker_user_id = requester.id AND blocked.blocked_user_id = $2)
+        )
         ORDER BY request.created_at DESC;
         `,
-        [dbUser.email],
+        [dbUser.email, dbUser.id],
       ),
       db.query<FriendRequestRow>(
         `
@@ -610,6 +637,12 @@ router.get("/people", verifyFirebaseToken, async (req: AuthRequest, res) => {
           OR LOWER(incoming_request.recipient_email) = LOWER($2)
         )
       WHERE candidate.id <> $1
+      AND NOT EXISTS (
+        SELECT 1
+        FROM user_blocks blocked
+        WHERE (blocked.blocker_user_id = $1 AND blocked.blocked_user_id = candidate.id)
+           OR (blocked.blocker_user_id = candidate.id AND blocked.blocked_user_id = $1)
+      )
       AND (
         LOWER(candidate.username) LIKE $3 || '%'
         OR LOWER(COALESCE(candidate.name, '')) LIKE '%' || $3 || '%'
@@ -778,6 +811,12 @@ router.post("/requests", verifyFirebaseToken, async (req: AuthRequest, res) => {
       return res
         .status(400)
         .json({ message: "You cannot send a friend request to yourself" });
+    }
+
+    if (recipientUser && (await usersHaveBlockRelationship(dbUser.id, recipientUser.id))) {
+      return res.status(403).json({
+        message: "A friend request cannot be sent between blocked accounts.",
+      });
     }
 
     if (recipientUser) {
@@ -954,6 +993,157 @@ router.delete(
       console.error("Delete friend request failed:", error);
 
       return res.status(500).json({ message: "Failed to delete friend request" });
+    }
+  },
+);
+
+router.get("/blocked", verifyFirebaseToken, async (req: AuthRequest, res) => {
+  try {
+    const firebaseUser = req.user;
+    if (!firebaseUser) return res.status(401).json({ message: "Unauthorized" });
+
+    const dbUser = await getCurrentUser(firebaseUser.uid);
+    if (!dbUser) return res.status(404).json({ message: "User not found in database" });
+
+    const result = await db.query(
+      `
+      SELECT
+        blocked_user.id,
+        blocked_user.name,
+        blocked_user.username,
+        blocked_user.email,
+        blocked_user.photo_url,
+        blocked_user.profile_photo_url,
+        blocked_user.avatar_mode,
+        CASE
+          WHEN blocked_user.avatar_mode = 'initials' THEN NULL
+          ELSE COALESCE(blocked_user.profile_photo_url, blocked_user.photo_url)
+        END AS display_photo_url,
+        user_blocks.created_at AS blocked_at
+      FROM user_blocks
+      JOIN users blocked_user ON blocked_user.id = user_blocks.blocked_user_id
+      WHERE user_blocks.blocker_user_id = $1
+      ORDER BY user_blocks.created_at DESC;
+      `,
+      [dbUser.id],
+    );
+
+    return res.json({ blockedUsers: result.rows });
+  } catch (error) {
+    console.error("Load blocked users failed:", error);
+    return res.status(500).json({ message: "Failed to load blocked users" });
+  }
+});
+
+router.delete(
+  "/blocked/:userId",
+  verifyFirebaseToken,
+  async (req: AuthRequest, res) => {
+    try {
+      const firebaseUser = req.user;
+      if (!firebaseUser) return res.status(401).json({ message: "Unauthorized" });
+
+      const dbUser = await getCurrentUser(firebaseUser.uid);
+      if (!dbUser) return res.status(404).json({ message: "User not found in database" });
+
+      const blockedUserId = String(req.params.userId || "");
+      if (!blockedUserId) {
+        return res.status(400).json({ message: "Blocked user is required" });
+      }
+
+      const result = await db.query(
+        `DELETE FROM user_blocks
+         WHERE blocker_user_id = $1 AND blocked_user_id = $2
+         RETURNING id;`,
+        [dbUser.id, blockedUserId],
+      );
+
+      if (result.rows.length === 0) {
+        return res.status(404).json({ message: "Blocked user not found" });
+      }
+
+      sendLiveUpdate([dbUser.id, blockedUserId], {
+        type: "friends",
+        reason: "user-unblocked",
+      });
+      return res.json({ message: "User unblocked" });
+    } catch (error) {
+      console.error("Unblock user failed:", error);
+      return res.status(500).json({ message: "Failed to unblock user" });
+    }
+  },
+);
+
+router.post(
+  "/:friendId/block",
+  verifyFirebaseToken,
+  async (req: AuthRequest, res) => {
+    const client = await db.connect();
+    try {
+      const firebaseUser = req.user;
+      if (!firebaseUser) return res.status(401).json({ message: "Unauthorized" });
+
+      const dbUser = await getCurrentUser(firebaseUser.uid);
+      if (!dbUser) return res.status(404).json({ message: "User not found in database" });
+
+      const friendId = String(req.params.friendId || "");
+      if (!friendId || friendId === dbUser.id) {
+        return res.status(400).json({ message: "Choose another user to block" });
+      }
+
+      const targetResult = await client.query(
+        `
+        SELECT
+          id, name, username, email, photo_url, profile_photo_url, avatar_mode,
+          CASE WHEN avatar_mode = 'initials' THEN NULL
+               ELSE COALESCE(profile_photo_url, photo_url) END AS display_photo_url
+        FROM users
+        WHERE id = $1
+        LIMIT 1;
+        `,
+        [friendId],
+      );
+      const blockedUser = targetResult.rows[0];
+      if (!blockedUser) return res.status(404).json({ message: "User not found" });
+
+      const [userOneId, userTwoId] = sortFriendPair(dbUser.id, friendId);
+      await client.query("BEGIN");
+      await client.query(
+        `INSERT INTO user_blocks (blocker_user_id, blocked_user_id)
+         VALUES ($1, $2)
+         ON CONFLICT (blocker_user_id, blocked_user_id) DO NOTHING;`,
+        [dbUser.id, friendId],
+      );
+      await client.query(
+        `DELETE FROM friendships WHERE user_one_id = $1 AND user_two_id = $2;`,
+        [userOneId, userTwoId],
+      );
+      await client.query(
+        `
+        UPDATE friend_requests
+        SET status = 'cancelled', updated_at = NOW()
+        WHERE status = 'pending'
+        AND (
+          (requester_user_id = $1 AND (recipient_user_id = $2 OR LOWER(recipient_email) = LOWER($3)))
+          OR
+          (requester_user_id = $2 AND (recipient_user_id = $1 OR LOWER(recipient_email) = LOWER($4)))
+        );
+        `,
+        [dbUser.id, friendId, blockedUser.email, dbUser.email],
+      );
+      await client.query("COMMIT");
+
+      sendLiveUpdate([dbUser.id, friendId], {
+        type: "friends",
+        reason: "user-blocked",
+      });
+      return res.json({ message: "User blocked", blockedUser });
+    } catch (error) {
+      await client.query("ROLLBACK").catch(() => undefined);
+      console.error("Block user failed:", error);
+      return res.status(500).json({ message: "Failed to block user" });
+    } finally {
+      client.release();
     }
   },
 );
@@ -1259,6 +1449,12 @@ router.post(
 
       if (!friendRequest) {
         return res.status(404).json({ message: "Friend request not found" });
+      }
+
+      if (await usersHaveBlockRelationship(friendRequest.requester_user_id, dbUser.id)) {
+        return res.status(403).json({
+          message: "This friend request cannot be accepted because one account is blocked.",
+        });
       }
 
       await createFriendship(friendRequest.requester_user_id, dbUser.id);

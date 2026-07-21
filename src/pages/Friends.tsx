@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import {
+  Ban,
   Check,
   Mail,
   Search,
@@ -14,6 +15,7 @@ import {
 import DashboardLayout from "./dashboard/DashboardLayout";
 import {
   acceptFriendRequest,
+  blockFriend,
   deleteFriendRequest,
   getFriendActivity,
   getFriendsSummary,
@@ -129,6 +131,7 @@ export default function Friends() {
   const [selectedFriendActivity, setSelectedFriendActivity] =
     useState<FriendActivityResponse | null>(null);
   const [loadingFriendActivityId, setLoadingFriendActivityId] = useState("");
+  const [blockingFriendId, setBlockingFriendId] = useState("");
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const peopleSearchRequestRef = useRef(0);
@@ -334,6 +337,31 @@ export default function Friends() {
       );
     } finally {
       setDeletingRequestId("");
+    }
+  }
+
+  async function handleBlockFriend(friendId: string, friendName: string) {
+    const confirmed = window.confirm(
+      `Block ${friendName}? This removes the friendship and prevents new requests until you unblock them.`,
+    );
+    if (!confirmed) return;
+
+    try {
+      setBlockingFriendId(friendId);
+      setMessage("");
+      setError("");
+      await withTopProgress(() => blockFriend(friendId));
+      setSummary((current) => ({
+        ...current,
+        friends: current.friends.filter((friend) => friend.id !== friendId),
+      }));
+      setMessage(`${friendName} was blocked.`);
+    } catch (blockError) {
+      setError(
+        blockError instanceof Error ? blockError.message : "Could not block this user",
+      );
+    } finally {
+      setBlockingFriendId("");
     }
   }
 
@@ -551,14 +579,33 @@ export default function Friends() {
                       {friend.email}
                     </small>
                   </div>
-                  <button
-                    className="friend-activity-button"
-                    type="button"
-                    onClick={() => handleViewFriendActivity(friend.id)}
-                    disabled={loadingFriendActivityId === friend.id}
-                  >
-                    {loadingFriendActivityId === friend.id ? "Loading" : "Activity"}
-                  </button>
+                  <div className="friend-row-actions">
+                    <button
+                      className="friend-activity-button"
+                      type="button"
+                      onClick={() => handleViewFriendActivity(friend.id)}
+                      disabled={
+                        loadingFriendActivityId === friend.id ||
+                        blockingFriendId === friend.id
+                      }
+                    >
+                      {loadingFriendActivityId === friend.id ? "Loading" : "Activity"}
+                    </button>
+                    <button
+                      className="friend-block-button"
+                      type="button"
+                      onClick={() =>
+                        void handleBlockFriend(
+                          friend.id,
+                          getFriendLabel(friend.name, friend.email),
+                        )
+                      }
+                      disabled={blockingFriendId === friend.id}
+                    >
+                      <Ban size={15} />
+                      {blockingFriendId === friend.id ? "Blocking" : "Block"}
+                    </button>
+                  </div>
                 </div>
               ))}
             </div>

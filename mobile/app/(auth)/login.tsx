@@ -26,7 +26,6 @@ import {
   MAX_DAILY_LOGIN_ATTEMPTS,
 } from "../../src/lib/loginAttemptGuard";
 import { setPendingLoginOtp } from "../../src/lib/pendingLoginOtp";
-import { isValidEmailAddress } from "../../src/lib/validation";
 
 const REMEMBER_LOGIN_KEY = "splitverse-auth-remember-login";
 
@@ -94,15 +93,20 @@ export default function Login() {
     Keyboard.dismiss();
     setError("");
 
-    const trimmedEmail = email.trim().toLowerCase();
+    const identifier = email.trim().toLowerCase();
 
-    if (!trimmedEmail) {
-      setError("Enter the email address linked to your SplitVerse account.");
+    if (!identifier) {
+      setError("Enter your email address or username.");
       return;
     }
 
-    if (!isValidEmailAddress(trimmedEmail)) {
-      setError("Enter a complete email address, such as name@example.com.");
+    const normalizedUsername = identifier.replace(/^@+/, "");
+    const looksLikeEmail = identifier.includes("@");
+    if (
+      (!looksLikeEmail && !/^[a-z0-9_]{3,30}$/.test(normalizedUsername)) ||
+      (looksLikeEmail && !identifier.includes(".") && !identifier.startsWith("@"))
+    ) {
+      setError("Enter a valid email address or SplitVerse username.");
       return;
     }
 
@@ -112,7 +116,7 @@ export default function Login() {
     }
 
     if (
-      (await getLoginAttemptCount(trimmedEmail)) >= MAX_DAILY_LOGIN_ATTEMPTS
+      (await getLoginAttemptCount(identifier)) >= MAX_DAILY_LOGIN_ATTEMPTS
     ) {
       setError("Too many login attempts today. Please try again tomorrow.");
       return;
@@ -127,13 +131,13 @@ export default function Login() {
       );
 
       const session = await startEmailLoginOtp(
-        trimmedEmail,
+        identifier,
         password,
         rememberFor30Days,
       );
 
       setPendingLoginOtp({
-        email: trimmedEmail,
+        email: session.email,
         remember: rememberFor30Days,
         sessionId: session.sessionId,
         destinationEmail: session.email,
@@ -153,7 +157,7 @@ export default function Login() {
         return;
       }
 
-      const attempts = await recordFailedLoginAttempt(trimmedEmail);
+      const attempts = await recordFailedLoginAttempt(identifier);
       const attemptsLeft = Math.max(0, MAX_DAILY_LOGIN_ATTEMPTS - attempts);
 
       setError(
@@ -201,7 +205,7 @@ export default function Login() {
         <View style={styles.formBody}>
           <View style={[styles.fields, compact && styles.fieldsCompact]}>
             <FloatingAuthField
-              label={t("Email")}
+              label={t("Email or username")}
               palette={palette}
               compact={compact}
               value={email}
@@ -211,9 +215,7 @@ export default function Login() {
               }}
               autoCapitalize="none"
               autoCorrect={false}
-              keyboardType="email-address"
-              textContentType="emailAddress"
-              autoComplete="email"
+              keyboardType="default"
               editable={!loading}
               returnKeyType="next"
               blurOnSubmit={false}

@@ -1073,3 +1073,26 @@
     min-width: 0;
   }
 }
+
+
+/* Keep the friend search control at its intended compact height even when the
+   settings grid stretches the surrounding card. */
+.friend-delete-card {
+  align-content: start;
+}
+
+.friend-delete-card .friend-search-field {
+  width: 100%;
+  height: 46px !important;
+  min-height: 46px !important;
+  max-height: 46px !important;
+  box-sizing: border-box;
+  align-self: start;
+  flex: 0 0 46px;
+}
+
+.friend-delete-card .friend-search-field input {
+  height: 44px !important;
+  min-height: 0 !important;
+  max-height: 44px !important;
+}
