@@ -4062,6 +4062,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surfaceSoft,
     padding: spacing.sm,
   },
+
   memberSheetIdentity: {
     minHeight: 76,
     flexDirection: "row",

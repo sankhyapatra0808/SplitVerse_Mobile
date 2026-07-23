@@ -79,7 +79,6 @@ let profileCache: {
   };
 } | null = null;
 
-
 function getRelationshipLabel(status: GlobalPerson["relationshipStatus"]) {
   switch (status) {
     case "friends":
@@ -230,7 +229,8 @@ export default function Profile() {
           });
         }
       } finally {
-        if (requestId === peopleSearchRequestRef.current) setPeopleLoading(false);
+        if (requestId === peopleSearchRequestRef.current)
+          setPeopleLoading(false);
       }
     }, 320);
 
@@ -341,7 +341,8 @@ export default function Profile() {
     } catch (error) {
       showErrorAlert(error, {
         title: "Friend request failed",
-        fallbackMessage: "The friend request could not be sent. Please try again.",
+        fallbackMessage:
+          "The friend request could not be sent. Please try again.",
       });
     } finally {
       setSendingTarget("");
@@ -627,7 +628,9 @@ export default function Profile() {
               {peopleLoading ? (
                 <Text style={styles.cardText}>Searching SplitVerse…</Text>
               ) : trimmedPeopleSearch.length < 2 ? (
-                <Text style={styles.cardText}>Enter at least 2 characters.</Text>
+                <Text style={styles.cardText}>
+                  Enter at least 2 characters.
+                </Text>
               ) : peopleResults.length === 0 ? (
                 <View style={styles.searchEmpty}>
                   <Text style={styles.cardText}>No matching people found.</Text>
@@ -638,14 +641,22 @@ export default function Profile() {
                           ? "Sending invite"
                           : "Send signup invite"
                       }
-                      loading={sendingTarget === `invite:${normalizedInviteEmail}`}
-                      onPress={() => void handleSendInvite(normalizedInviteEmail)}
+                      loading={
+                        sendingTarget === `invite:${normalizedInviteEmail}`
+                      }
+                      onPress={() =>
+                        void handleSendInvite(normalizedInviteEmail)
+                      }
                     />
                   ) : null}
                 </View>
               ) : (
                 <ScrollView
-                  style={peopleResults.length > 3 ? styles.peopleResultsViewport : undefined}
+                  style={
+                    peopleResults.length > 3
+                      ? styles.peopleResultsViewport
+                      : undefined
+                  }
                   contentContainerStyle={styles.list}
                   scrollEnabled={peopleResults.length > 3}
                   nestedScrollEnabled
@@ -660,7 +671,10 @@ export default function Profile() {
                         key={person.id}
                         style={[
                           styles.personRow,
-                          { borderColor: theme.border, backgroundColor: theme.surface },
+                          {
+                            borderColor: theme.border,
+                            backgroundColor: theme.surface,
+                          },
                         ]}
                       >
                         <Avatar
@@ -683,7 +697,11 @@ export default function Profile() {
                           </Text>
                         </View>
                         <AppButton
-                          title={sending ? "Sending" : getRelationshipLabel(person.relationshipStatus)}
+                          title={
+                            sending
+                              ? "Sending"
+                              : getRelationshipLabel(person.relationshipStatus)
+                          }
                           loading={sending}
                           disabled={!canSend || Boolean(sendingTarget)}
                           variant={canSend ? "primary" : "secondary"}
@@ -710,7 +728,10 @@ export default function Profile() {
                     <View
                       style={[
                         styles.requestRow,
-                        { borderColor: theme.border, backgroundColor: theme.surface },
+                        {
+                          borderColor: theme.border,
+                          backgroundColor: theme.surface,
+                        },
                       ]}
                       key={request.id}
                     >
@@ -731,18 +752,28 @@ export default function Profile() {
                       </View>
                       <View style={styles.requestActions}>
                         <AppButton
-                          title={acceptingRequestId === request.id ? "Accepting" : "Accept"}
+                          title={
+                            acceptingRequestId === request.id
+                              ? "Accepting"
+                              : "Accept"
+                          }
                           loading={acceptingRequestId === request.id}
                           disabled={deletingRequestId === request.id}
                           onPress={() => handleAcceptRequest(request.id)}
                           style={styles.compactAction}
                         />
                         <AppButton
-                          title={deletingRequestId === request.id ? "Declining" : "Decline"}
+                          title={
+                            deletingRequestId === request.id
+                              ? "Declining"
+                              : "Decline"
+                          }
                           loading={deletingRequestId === request.id}
                           disabled={acceptingRequestId === request.id}
                           variant="secondary"
-                          onPress={() => void handleDeleteRequest(request.id, "decline")}
+                          onPress={() =>
+                            void handleDeleteRequest(request.id, "decline")
+                          }
                           style={styles.compactAction}
                         />
                       </View>
@@ -763,7 +794,10 @@ export default function Profile() {
                     <View
                       style={[
                         styles.sentRow,
-                        { borderColor: theme.border, backgroundColor: theme.surface },
+                        {
+                          borderColor: theme.border,
+                          backgroundColor: theme.surface,
+                        },
                       ]}
                       key={request.id}
                     >
@@ -771,14 +805,22 @@ export default function Profile() {
                         <Text style={styles.rowTitle} numberOfLines={1}>
                           {request.recipient_email}
                         </Text>
-                        <Text style={styles.rowSubtext}>Waiting for acceptance</Text>
+                        <Text style={styles.rowSubtext}>
+                          Waiting for acceptance
+                        </Text>
                       </View>
                       <AppButton
-                        title={deletingRequestId === request.id ? "Cancelling" : "Cancel"}
+                        title={
+                          deletingRequestId === request.id
+                            ? "Cancelling"
+                            : "Cancel"
+                        }
                         loading={deletingRequestId === request.id}
                         variant="secondary"
                         style={styles.compactAction}
-                        onPress={() => void handleDeleteRequest(request.id, "cancel")}
+                        onPress={() =>
+                          void handleDeleteRequest(request.id, "cancel")
+                        }
                       />
                     </View>
                   ))}
@@ -796,7 +838,11 @@ export default function Profile() {
                 <EmptyState title="No rooms yet" />
               ) : (
                 <ScrollView
-                  style={recentRooms.length > 3 ? styles.roomActivityScroll : undefined}
+                  style={
+                    recentRooms.length > 3
+                      ? styles.roomActivityScroll
+                      : undefined
+                  }
                   contentContainerStyle={styles.list}
                   scrollEnabled={recentRooms.length > 3}
                   nestedScrollEnabled
@@ -1026,6 +1072,13 @@ export default function Profile() {
         )}
         <AppButton
           title={exporting ? "Preparing export" : "Export"}
+          style={[
+            styles.createRoomItemSubmitWrap,
+            {
+              borderColor: theme.primary,
+              backgroundColor: theme.primary,
+            },
+          ]}
           loading={exporting}
           onPress={handleExportTransactions}
         />
@@ -1210,9 +1263,19 @@ const styles = StyleSheet.create({
     borderRadius: radius.lg,
     padding: spacing.sm,
   },
-  personAction: { minWidth: 100, maxWidth: 126, minHeight: 40, paddingHorizontal: spacing.sm },
+  personAction: {
+    minWidth: 100,
+    maxWidth: 126,
+    minHeight: 40,
+    paddingHorizontal: spacing.sm,
+  },
   requestActions: { gap: spacing.xs, alignItems: "stretch" },
-  compactAction: { minWidth: 86, maxWidth: 108, minHeight: 38, paddingHorizontal: spacing.xs },
+  compactAction: {
+    minWidth: 86,
+    maxWidth: 108,
+    minHeight: 38,
+    paddingHorizontal: spacing.xs,
+  },
   searchEmpty: { gap: spacing.sm },
   roomActivityScroll: { maxHeight: 3 * 64 + 2 * spacing.sm, flexGrow: 0 },
   requestRow: {
@@ -1310,5 +1373,14 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: "600",
     lineHeight: 26,
+  },
+  createRoomItemSubmitWrap: {
+    minHeight: 48,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: colors.hairlineSoft,
+    borderRadius: radius.pill,
+    backgroundColor: colors.surfaceSoft,
   },
 });

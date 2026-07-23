@@ -1444,7 +1444,7 @@ const styles = StyleSheet.create({
     borderRadius: radius.lg,
     padding: spacing.sm,
   },
-    createRoomItemSubmitWrap: {
+  createRoomItemSubmitWrap: {
     minHeight: 48,
     alignItems: "center",
     justifyContent: "center",
