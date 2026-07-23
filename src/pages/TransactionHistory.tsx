@@ -424,7 +424,6 @@ export default function TransactionHistory() {
             />
 
             <label className="transaction-month-field">
-              <span className="sr-only">Transaction month</span>
               <input
                 className="transaction-advanced-input compact"
                 type="text"
