@@ -38,3 +38,7 @@ build/
 .vscode/
 .idea/
 coverage/
+
+SplitVerse-Mobile-v1.0.0-preview.apk
+
+*.apk
