@@ -134,7 +134,7 @@ Use the generated production Android build for your own store release or distrib
 To make the APK downloadable from your GitHub README, place the APK in the new release in github and keep this link:
 
 ```md
-[Download SplitVerse Mobile APK](https://github.com/[your repository]/SplitVerse_Mobile/releases/download/v1.0.0-preview/SplitVerse-Mobile-v1.0.0-preview.apk)
+[Download SplitVerse Mobile APK](https://github.com/sankhyapatra0808/SplitVerse_Mobile/releases/download/v1.0.0-preview/SplitVerse-Mobile-v1.0.0-preview.apk)
 ```
 
 Replace the filename in the link whenever you upload a newer APK.
