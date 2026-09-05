@@ -691,7 +691,8 @@ export default function SplitRooms() {
   useEffect(() => {
     const requestedRoomId = Array.isArray(roomId) ? roomId[0] : roomId;
     const requestedMemberId = Array.isArray(memberId) ? memberId[0] : memberId;
-    const shouldOpenDue = (Array.isArray(openDue) ? openDue[0] : openDue) === "1";
+    const shouldOpenDue =
+      (Array.isArray(openDue) ? openDue[0] : openDue) === "1";
 
     if (!requestedRoomId || !shouldOpenDue || rooms.length === 0) {
       return;
@@ -731,9 +732,7 @@ export default function SplitRooms() {
           (candidate) => candidate.id === balance.memberId,
         );
         return (
-          !balance.isMe &&
-          !member?.isMe &&
-          getBalancePendingAmount(balance) > 0
+          !balance.isMe && !member?.isMe && getBalancePendingAmount(balance) > 0
         );
       });
 
@@ -2409,7 +2408,6 @@ export default function SplitRooms() {
                         color={theme.body}
                       />
                     </Pressable>
-
                   </View>
 
                   <View
@@ -2453,7 +2451,6 @@ export default function SplitRooms() {
                         color={theme.body}
                       />
                     </Pressable>
-
                   </View>
                 </View>
 
@@ -2491,8 +2488,8 @@ export default function SplitRooms() {
       <Modal
         visible={Boolean(
           createRoomModalVisible &&
-            createRoomDropdownAnchor &&
-            (friendModalOpen || paidByModalOpen),
+          createRoomDropdownAnchor &&
+          (friendModalOpen || paidByModalOpen),
         )}
         transparent
         animationType="none"
@@ -2567,7 +2564,9 @@ export default function SplitRooms() {
                     />
 
                     {friends.length === 0 ? (
-                      <Text style={styles.dropdownEmptyText}>No friends yet</Text>
+                      <Text style={styles.dropdownEmptyText}>
+                        No friends yet
+                      </Text>
                     ) : filteredFriends.length === 0 ? (
                       <Text style={styles.dropdownEmptyText}>
                         No matching friends
@@ -2687,7 +2686,9 @@ export default function SplitRooms() {
                           }}
                         >
                           <View style={styles.optionCopy}>
-                            <Text style={styles.optionTitle}>{option.name}</Text>
+                            <Text style={styles.optionTitle}>
+                              {option.name}
+                            </Text>
                             <Text
                               style={styles.optionSubtext}
                               numberOfLines={1}
@@ -2850,6 +2851,13 @@ export default function SplitRooms() {
                           ? "Collecting"
                           : "Manual collect"
                       }
+                      style={[
+                        styles.createRoomItemSubmitWrap,
+                        {
+                          borderColor: theme.primary,
+                          backgroundColor: theme.primary,
+                        },
+                      ]}
                       loading={collectingMemberId === balance.memberId}
                       onPress={() => requestCollectMemberDues(balance)}
                     />
