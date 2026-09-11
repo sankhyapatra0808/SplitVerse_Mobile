@@ -2236,8 +2236,10 @@ export default function SharedSplitRooms() {
               />
             </label>
             {splitMode === "automatic" && (
-              <fieldset className="automatic-member-picker">
-                <legend>Split between friends</legend>
+              <fieldset
+                className="automatic-member-picker"
+                aria-label="Members included in the automatic split"
+              >
                 <div>
                   {sortedMembers.map((member) => (
                     <label key={member.id}>

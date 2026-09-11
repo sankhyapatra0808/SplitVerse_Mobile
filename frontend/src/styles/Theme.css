@@ -19,6 +19,18 @@ html[data-theme="light"] {
   --dash-surface-strong: #ebe5da;
   --dash-surface-dark: #0a0b0d;
   --dash-surface-dark-elevated: #16181c;
+  --splitverse-skeleton-base: #d5cec2;
+  --splitverse-skeleton-highlight: #f0ebe2;
+
+  --dash-loader-primary: #0052ff;
+  --dash-loader-ink: #0a0b0d;
+  --dash-loader-muted: #7c828a;
+  --dash-loader-canvas: #fffdf9;
+  --dash-loader-soft: #f6f1e7;
+  --dash-loader-strong: var(--splitverse-skeleton-base);
+  --dash-loader-line: #ddd7cd;
+  --dash-loader-dark: #0a0b0d;
+  --dash-loader-dark-soft: #16181c;
 
   --sv-primary: #0052ff;
   --sv-primary-active: #003ecc;
@@ -64,6 +76,18 @@ html[data-theme="dark"] {
   --dash-surface-strong: #20242c;
   --dash-surface-dark: #050608;
   --dash-surface-dark-elevated: #16181c;
+  --splitverse-skeleton-base: #242933;
+  --splitverse-skeleton-highlight: #3b424f;
+
+  --dash-loader-primary: #0052ff;
+  --dash-loader-ink: #f4f5f7;
+  --dash-loader-muted: #8b929f;
+  --dash-loader-canvas: #101216;
+  --dash-loader-soft: #0a0b0d;
+  --dash-loader-strong: var(--splitverse-skeleton-base);
+  --dash-loader-line: #2a2f39;
+  --dash-loader-dark: #050608;
+  --dash-loader-dark-soft: #16181c;
   --dash-success: #05b169;
   --dash-danger: #f15b66;
   --dash-warning: #f4b000;
@@ -189,6 +213,85 @@ html[data-theme="dark"] :is(input, textarea)::placeholder {
 
 html[data-theme="dark"] .auth-social-btn.google span {
   background: var(--auth-canvas);
+}
+
+html[data-theme="dark"] :is(
+  .dashboard-brand img,
+  .auth-brand img,
+  .logo-sv
+) {
+  content: url("../assets/Logo-v2.svg");
+}
+
+/* Keep every website skeleton on the same dashboard shimmer system. */
+html[data-theme] :is(
+  .dashboard-loader-shimmer,
+  .dashboard-value-skeleton,
+  .app-loading-skeleton
+) {
+  background: linear-gradient(
+    90deg,
+    var(--splitverse-skeleton-base) 0%,
+    var(--splitverse-skeleton-highlight) 44%,
+    var(--splitverse-skeleton-base) 88%
+  );
+  background-size: 220% 100%;
+  animation: splitverseSkeletonShimmer 1.25s ease-in-out infinite;
+}
+
+html[data-theme] :is(
+  .loader-card-dark,
+  .loader-card-dark-surface,
+  .total-spend-card
+) :is(.dashboard-loader-shimmer, .dashboard-value-skeleton, .app-loading-skeleton),
+html[data-theme] .app-loading-skeleton.light {
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0.08) 0%,
+    rgba(255, 255, 255, 0.2) 44%,
+    rgba(255, 255, 255, 0.08) 88%
+  );
+  background-size: 220% 100%;
+}
+
+/* Dark-mode coverage for the two remaining light-only financial surfaces. */
+html[data-theme="dark"] .danger-zone-card {
+  border-color: rgba(241, 91, 102, 0.28);
+}
+
+html[data-theme="dark"] .net-settlement-card {
+  border-color: var(--dash-hairline);
+  background: var(--dash-canvas);
+}
+
+html[data-theme="dark"] .net-settlement-panel {
+  background: var(--dash-surface-dark);
+}
+
+html[data-theme="dark"] :is(
+  .net-settlement-list,
+  .net-settlement-detail-list
+) {
+  border-color: var(--dash-hairline-soft);
+  background: var(--dash-surface-soft);
+}
+
+html[data-theme="dark"] :is(
+  .net-settlement-row,
+  .net-settlement-empty
+) {
+  color: var(--dash-ink);
+  background: var(--dash-canvas);
+}
+
+@keyframes splitverseSkeletonShimmer {
+  from {
+    background-position: 120% 0;
+  }
+
+  to {
+    background-position: -120% 0;
+  }
 }
 
 html[data-theme="dark"] img {

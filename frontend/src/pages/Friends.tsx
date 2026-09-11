@@ -143,6 +143,11 @@ export default function Friends() {
 
   useEffect(() => {
     let active = true;
+    const loadingSafetyTimer = window.setTimeout(() => {
+      if (active) {
+        setLoading(false);
+      }
+    }, 10_000);
 
     async function loadInitialFriends() {
       try {
@@ -162,6 +167,7 @@ export default function Friends() {
           );
         }
       } finally {
+        window.clearTimeout(loadingSafetyTimer);
         if (active) {
           setLoading(false);
         }
@@ -172,6 +178,7 @@ export default function Friends() {
 
     return () => {
       active = false;
+      window.clearTimeout(loadingSafetyTimer);
     };
   }, []);
 
@@ -562,7 +569,7 @@ export default function Friends() {
                 </p>
               )}
               {!loading && summary.friends.length === 0 && (
-                <p className="dashboard-muted-text">No friends yet.</p>
+                <p className="dashboard-muted-text">No friends added yet.</p>
               )}
               {!loading && summary.friends.length > 0 && visibleFriends.length === 0 && (
                 <p className="dashboard-muted-text">

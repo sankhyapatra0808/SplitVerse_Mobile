@@ -3559,7 +3559,7 @@ img.room-member-avatar {
   gap: 18px;
   padding: 24px;
   color: #ffffff;
-  background: var(--dash-ink);
+  background: var(--dash-surface-dark);
 }
 
 .net-settlement-panel .bento-card-head h2,
