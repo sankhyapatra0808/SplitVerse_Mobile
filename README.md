@@ -17,7 +17,6 @@ Run each project from the root:
 ```bash
 npm run dev:frontend
 npm run dev:backend
-npm run dev:mobile
 ```
 
 Build the website and backend together with `npm run build`. Apply database
