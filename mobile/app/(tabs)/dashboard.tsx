@@ -223,7 +223,7 @@ export default function Dashboard() {
 
   const friendCount = friendsSummary?.friends?.length ?? 0;
   const roomCount = rooms.length;
-  const expenseActionColor = theme.mode === "dark" ? "#F59E0B" : "#2563EB";
+  const expenseActionColor = theme.primary;
   const modalTextColor = theme.mode === "dark" ? "#F8FAFC" : "#111827";
   const modalMutedColor = theme.mode === "dark" ? "#A8B0BC" : "#667085";
 
@@ -533,7 +533,7 @@ export default function Dashboard() {
             <LinearGradient
               colors={
                 theme.mode === "dark"
-                  ? ["#050608", "#111318"]
+                  ? [theme.background, theme.card]
                   : [theme.primary, theme.primaryActive]
               }
               start={{ x: 0, y: 0 }}

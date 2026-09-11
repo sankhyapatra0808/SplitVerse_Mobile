@@ -4,6 +4,17 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/src/assets/Logo-v2.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#0a0b0d" />
+    <script>
+      try {
+        const settings = JSON.parse(localStorage.getItem("splitverse-app-settings") || "{}");
+        document.documentElement.dataset.theme = settings.darkMode === false ? "light" : "dark";
+        document.documentElement.style.colorScheme = settings.darkMode === false ? "light" : "dark";
+      } catch {
+        document.documentElement.dataset.theme = "dark";
+        document.documentElement.style.colorScheme = "dark";
+      }
+    </script>
     <title>split-verse</title>
   </head>
   <body>

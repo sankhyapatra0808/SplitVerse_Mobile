@@ -70,7 +70,7 @@ export default function AnimatedTabBar({
   }, [animations, state.index, state.routes, visibleRoutes]);
 
   const isDark = theme.mode === "dark";
-  const barBackground = isDark ? "#050608" : theme.canvas;
+  const barBackground = isDark ? theme.background : theme.canvas;
   const barBorder = isDark ? "rgba(255,255,255,0.10)" : theme.primary;
   const inactiveColor = isDark ? "rgba(255,255,255,0.92)" : theme.text;
 

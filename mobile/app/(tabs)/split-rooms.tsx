@@ -392,7 +392,7 @@ export default function SplitRooms() {
         user?.photoURL ||
         undefined;
 
-  const roomActionColor = theme.mode === "dark" ? "#F59E0B" : "#2563EB";
+  const roomActionColor = theme.primary;
   const modalTextColor = theme.mode === "dark" ? "#F8FAFC" : "#111827";
   const modalMutedColor = theme.mode === "dark" ? "#A8B0BC" : "#667085";
 
@@ -1496,7 +1496,7 @@ export default function SplitRooms() {
           <LinearGradient
             colors={
               theme.mode === "dark"
-                ? ["#111318", "#050608"]
+                ? [theme.card, theme.background]
                 : [theme.surfaceStrong, theme.card]
             }
             start={{ x: 0, y: 0 }}
@@ -2271,7 +2271,7 @@ export default function SplitRooms() {
                     styles.reminderButton,
                     {
                       backgroundColor:
-                        theme.mode === "dark" ? "#ff9100" : colors.primary,
+                        theme.primary,
                     },
                   ]}
                   onPress={requestSendRoomReminder}
@@ -2280,9 +2280,7 @@ export default function SplitRooms() {
                   <Text
                     style={[
                       styles.reminderButtonText,
-                      {
-                        color: theme.mode === "dark" ? "#000000" : "#FFFFFF",
-                      },
+                      { color: theme.onPrimary },
                     ]}
                   >
                     {remindingRoomId === selectedRoom?.id

@@ -28,7 +28,7 @@ export default function SegmentedTabs({
       style={[
         styles.wrap,
         {
-          backgroundColor: isDark ? "#050608" : theme.surfaceStrong,
+          backgroundColor: isDark ? theme.background : theme.surfaceStrong,
           borderColor: isDark ? "rgba(255,255,255,0.10)" : theme.border,
         },
       ]}
@@ -43,7 +43,7 @@ export default function SegmentedTabs({
             style={[
               styles.tab,
               active && {
-                backgroundColor: isDark ? "#111318" : "#ffffff",
+                backgroundColor: isDark ? theme.card : theme.canvas,
                 borderColor: theme.primary,
               },
             ]}

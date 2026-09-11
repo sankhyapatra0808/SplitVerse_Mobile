@@ -6,6 +6,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
+import { Appearance } from "react-native";
 import { getExchangeRates } from "../lib/api";
 import { getErrorMessage, showErrorAlert } from "../lib/errors";
 import { translateUiText, type AppLanguageCode } from "../i18n/uiTranslations";
@@ -31,16 +32,16 @@ const lightTheme: ThemeColors = {
   primary: "#0052ff",
   primaryActive: "#003ecc",
   primarySoft: "#e8f0ff",
-  background: "#f7f7f7",
-  canvas: "#ffffff",
-  card: "#ffffff",
-  surface: "#f7f7f7",
-  surfaceStrong: "#eef0f3",
+  background: "#f6f1e7",
+  canvas: "#fffdf9",
+  card: "#fffdf9",
+  surface: "#faf7f0",
+  surfaceStrong: "#ebe5da",
   text: "#0a0b0d",
   body: "#5b616e",
   muted: "#7c828a",
-  border: "#dee1e6",
-  borderSoft: "#eef0f3",
+  border: "#ddd7cd",
+  borderSoft: "#ebe5da",
   onPrimary: "#ffffff",
   success: "#05b169",
   danger: "#cf202f",
@@ -50,23 +51,23 @@ const lightTheme: ThemeColors = {
 
 const darkTheme: ThemeColors = {
   mode: "dark",
-  primary: "#ff8a1f",
-  primaryActive: "#e66f00",
-  primarySoft: "rgba(255, 138, 31, 0.16)",
-  background: "#050608",
-  canvas: "#0b0d10",
-  card: "#15171c",
-  surface: "#0b0d10",
-  surfaceStrong: "#252932",
+  primary: "#0052ff",
+  primaryActive: "#3678ff",
+  primarySoft: "rgba(0, 82, 255, 0.18)",
+  background: "#0a0b0d",
+  canvas: "#101216",
+  card: "#16181c",
+  surface: "#101216",
+  surfaceStrong: "#20242c",
   text: "#f4f5f7",
   body: "#c2c7d0",
   muted: "#8b929f",
   border: "#2a2f39",
   borderSoft: "#20242c",
-  onPrimary: "#111111",
-  success: "#24d58a",
-  danger: "#ff6875",
-  warning: "#ffc857",
+  onPrimary: "#ffffff",
+  success: "#05b169",
+  danger: "#f15b66",
+  warning: "#f4b000",
   backdrop: "rgba(0, 0, 0, 0.68)",
 };
 
@@ -372,6 +373,10 @@ export function AppSettingsProvider({ children }: { children: ReactNode }) {
   >(null);
   const [exchangeRatesLoading, setExchangeRatesLoading] = useState(true);
   const [exchangeRatesError, setExchangeRatesError] = useState("");
+
+  useEffect(() => {
+    Appearance.setColorScheme(darkMode ? "dark" : "light");
+  }, [darkMode]);
 
   useEffect(() => {
     let active = true;

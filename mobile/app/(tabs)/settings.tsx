@@ -920,7 +920,7 @@ export default function Settings() {
         />
         <SettingSwitch
           title="Dark mode"
-          description="Use Dark mode as workspace."
+          description="Use the near-black SplitVerse workspace. Enabled by default."
           value={darkMode}
           onValueChange={setDarkMode}
         />

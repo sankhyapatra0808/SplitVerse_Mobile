@@ -282,7 +282,7 @@ export default function Wallet() {
           <LinearGradient
             colors={
               theme.mode === "dark"
-                ? ["#111318", "#050608"]
+                ? [theme.card, theme.background]
                 : [theme.surfaceStrong, theme.card]
             }
             start={{ x: 0, y: 0 }}
@@ -349,7 +349,7 @@ export default function Wallet() {
             walletHealthTone === "danger" && styles.healthDanger,
             walletHealthTone === "warning" && styles.healthWarning,
             {
-              backgroundColor: theme.mode === "dark" ? "#050608" : "#ffffff",
+              backgroundColor: theme.mode === "dark" ? theme.background : theme.canvas,
               borderColor:
                 theme.mode === "dark"
                   ? "rgba(255,255,255,0.10)"

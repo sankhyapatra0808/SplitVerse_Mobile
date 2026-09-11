@@ -129,7 +129,7 @@ export default function Notifications() {
           <LinearGradient
             colors={
               theme.mode === "dark"
-                ? ["#111318", "#050608"]
+                ? [theme.card, theme.background]
                 : [theme.surfaceStrong, theme.card]
             }
             start={{ x: 0, y: 0 }}

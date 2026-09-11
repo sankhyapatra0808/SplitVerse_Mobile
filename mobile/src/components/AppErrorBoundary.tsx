@@ -69,7 +69,7 @@ const styles = StyleSheet.create({
   screen: {
     flex: 1,
     justifyContent: "center",
-    backgroundColor: "#050608",
+    backgroundColor: "#0a0b0d",
     padding: 20,
   },
   card: {
@@ -81,7 +81,7 @@ const styles = StyleSheet.create({
     padding: 22,
   },
   eyebrow: {
-    color: "#ff8a1f",
+    color: "#0052ff",
     fontSize: 12,
     fontWeight: "700",
     letterSpacing: 1,
@@ -103,12 +103,12 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     marginTop: 4,
     borderRadius: 999,
-    backgroundColor: "#ff8a1f",
+    backgroundColor: "#0052ff",
     overflow: "hidden",
   },
   buttonText: {
     width: "100%",
-    color: "#111111",
+    color: "#ffffff",
     fontSize: 14,
     fontWeight: "700",
     textAlign: "center",

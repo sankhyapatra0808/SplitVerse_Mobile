@@ -20,7 +20,7 @@ export const defaultPreferences: AppPreferences = {
   currency: "INR",
   language: "English",
   compactMode: false,
-  privacyMode: false,
+  privacyMode: true,
   walletConfirmation: true,
   paymentNotifications: true,
   friendRequestNotifications: true,

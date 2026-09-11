@@ -1,0 +1,205 @@
+html[data-theme="light"] {
+  --bg: #f6f1e7;
+  --text: #5b616e;
+  --text-h: #0a0b0d;
+  --border: #ddd7cd;
+  --code-bg: #eee8dc;
+  --social-bg: rgba(255, 253, 249, 0.72);
+
+  --dash-primary: #0052ff;
+  --dash-primary-active: #003ecc;
+  --dash-ink: #0a0b0d;
+  --dash-body: #5b616e;
+  --dash-muted: #7c828a;
+  --dash-muted-soft: #a8acb3;
+  --dash-hairline: #ddd7cd;
+  --dash-hairline-soft: #ebe5da;
+  --dash-canvas: #fffdf9;
+  --dash-surface-soft: #f6f1e7;
+  --dash-surface-strong: #ebe5da;
+  --dash-surface-dark: #0a0b0d;
+  --dash-surface-dark-elevated: #16181c;
+
+  --sv-primary: #0052ff;
+  --sv-primary-active: #003ecc;
+  --sv-ink: #0a0b0d;
+  --sv-body: #5b616e;
+  --sv-muted: #7c828a;
+  --sv-muted-soft: #a8acb3;
+  --sv-hairline: #ddd7cd;
+  --sv-hairline-soft: #ebe5da;
+  --sv-canvas: #faf7f0;
+  --sv-surface-soft: #f1ebdf;
+  --sv-surface-strong: #e9e2d6;
+
+  --auth-ink: #0a0b0d;
+  --auth-body: #5b616e;
+  --auth-muted: #7c828a;
+  --auth-muted-soft: #a8acb3;
+  --auth-hairline: #ddd7cd;
+  --auth-hairline-soft: #ebe5da;
+  --auth-canvas: #faf7f0;
+  --auth-surface-soft: #f1ebdf;
+  --auth-surface-strong: #e9e2d6;
+}
+
+html[data-theme="dark"] {
+  --bg: #0a0b0d;
+  --text: #c2c7d0;
+  --text-h: #f4f5f7;
+  --border: #2a2f39;
+  --code-bg: #16181c;
+  --social-bg: rgba(22, 24, 28, 0.82);
+
+  --dash-primary: #0052ff;
+  --dash-primary-active: #3678ff;
+  --dash-ink: #f4f5f7;
+  --dash-body: #c2c7d0;
+  --dash-muted: #8b929f;
+  --dash-muted-soft: #a8acb3;
+  --dash-hairline: #2a2f39;
+  --dash-hairline-soft: #20242c;
+  --dash-canvas: #101216;
+  --dash-surface-soft: #0a0b0d;
+  --dash-surface-strong: #20242c;
+  --dash-surface-dark: #050608;
+  --dash-surface-dark-elevated: #16181c;
+  --dash-success: #05b169;
+  --dash-danger: #f15b66;
+  --dash-warning: #f4b000;
+
+  --sv-primary: #0052ff;
+  --sv-primary-active: #3678ff;
+  --sv-ink: #f4f5f7;
+  --sv-body: #c2c7d0;
+  --sv-muted: #8b929f;
+  --sv-muted-soft: #a8acb3;
+  --sv-hairline: #2a2f39;
+  --sv-hairline-soft: #20242c;
+  --sv-canvas: #0a0b0d;
+  --sv-surface-soft: #101216;
+  --sv-surface-strong: #20242c;
+  --sv-surface-dark: #050608;
+  --sv-surface-dark-elevated: #16181c;
+  --sv-on-dark: #ffffff;
+  --sv-on-dark-soft: #a8acb3;
+
+  --auth-primary: #0052ff;
+  --auth-primary-active: #3678ff;
+  --auth-ink: #f4f5f7;
+  --auth-body: #c2c7d0;
+  --auth-muted: #8b929f;
+  --auth-muted-soft: #a8acb3;
+  --auth-hairline: #2a2f39;
+  --auth-hairline-soft: #20242c;
+  --auth-canvas: #0a0b0d;
+  --auth-surface-soft: #101216;
+  --auth-surface-strong: #20242c;
+  --auth-surface-dark: #050608;
+  --auth-surface-dark-elevated: #16181c;
+}
+
+html[data-theme="light"] body,
+html[data-theme="light"] #root {
+  color: var(--text);
+  background: #f6f1e7;
+}
+
+html[data-theme="dark"] body,
+html[data-theme="dark"] #root {
+  color: var(--text);
+  background: #0a0b0d;
+}
+
+html[data-theme="dark"] .dashboard-topbar,
+html[data-theme="dark"] .landing-nav,
+html[data-theme="dark"] .public-info-nav {
+  border-color: var(--dash-hairline);
+  background: rgba(16, 18, 22, 0.94);
+}
+
+html[data-theme="dark"] .public-info-page {
+  --public-primary: #0052ff;
+  --public-primary-active: #3678ff;
+  --public-ink: #f4f5f7;
+  --public-body: #c2c7d0;
+  --public-muted: #8b929f;
+  --public-hairline: #2a2f39;
+  --public-hairline-soft: #20242c;
+  --public-canvas: #0a0b0d;
+  --public-surface-soft: #101216;
+  --public-surface-strong: #20242c;
+  --public-surface-dark: #050608;
+}
+
+html[data-theme="light"] .public-info-page {
+  --public-hairline: #ddd7cd;
+  --public-hairline-soft: #ebe5da;
+  --public-canvas: #faf7f0;
+  --public-surface-soft: #f1ebdf;
+  --public-surface-strong: #e9e2d6;
+}
+
+html[data-theme="dark"] :is(
+  .profile-notification-list button:hover,
+  .profile-notification-list button:focus-visible,
+  .friend-request-row.highlighted,
+  .friends-grid .friends-list-card,
+  .friends-grid .friend-row,
+  .friends-grid .friend-row:hover,
+  .friend-search-field:focus-within,
+  .friend-dropdown-trigger:hover,
+  .friend-dropdown-trigger[aria-expanded="true"],
+  .friend-picker-search input:focus,
+  .friend-picker-chip:hover,
+  .split-room-member-row.removable,
+  .member-balance-row.expanded,
+  .split-room-payment-method,
+  .split-room-payment-item-row,
+  .split-room-payment-pin-dialog,
+  .split-room-payment-dialog,
+  .split-room-history-dialog,
+  .settings-dialog,
+  .transaction-export-dialog
+) {
+  color: var(--dash-ink);
+  border-color: var(--dash-hairline);
+  background: var(--dash-canvas);
+}
+
+html[data-theme="dark"] :is(
+  .assign-category,
+  .assign-rooms,
+  .expense-category-field
+) :is(button, [role="button"]) {
+  color: var(--dash-ink);
+  border-color: var(--dash-hairline);
+  background: var(--dash-canvas);
+}
+
+html[data-theme="dark"] :is(input, textarea, select) {
+  color: var(--dash-ink);
+  border-color: var(--dash-hairline);
+  background-color: var(--dash-canvas);
+}
+
+html[data-theme="dark"] :is(input, textarea)::placeholder {
+  color: var(--dash-muted);
+}
+
+html[data-theme="dark"] .auth-social-btn.google span {
+  background: var(--auth-canvas);
+}
+
+html[data-theme="dark"] img {
+  color-scheme: normal;
+}
+
+html.privacy-shield-active body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 2147483647;
+  background: #000000;
+  pointer-events: all;
+}

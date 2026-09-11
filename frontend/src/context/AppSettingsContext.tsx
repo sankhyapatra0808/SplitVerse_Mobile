@@ -56,6 +56,7 @@ type StoredSettings = Partial<{
   avatarId: AvatarId;
   compactMode: boolean;
   privacyMode: boolean;
+  darkMode: boolean;
   settlementReminders: boolean;
   appCurrency: CurrencyCode;
   appLanguage: AppLanguageCode;
@@ -261,6 +262,7 @@ export function AppSettingsProvider({ children }: AppSettingsProviderProps) {
   const [privacyMode, setPrivacyModeState] = useState(
     storedSettings.privacyMode ?? true,
   );
+  const [darkMode, setDarkModeState] = useState(storedSettings.darkMode ?? true);
   const [privacyShieldActive, setPrivacyShieldActive] = useState(false);
   const [settlementReminders, setSettlementRemindersState] = useState(
     storedSettings.settlementReminders ?? true,
@@ -319,6 +321,14 @@ export function AppSettingsProvider({ children }: AppSettingsProviderProps) {
   useEffect(() => observeUiTranslations(appLanguage), [appLanguage]);
 
   useEffect(() => {
+    document.documentElement.dataset.theme = darkMode ? "dark" : "light";
+    document.documentElement.style.colorScheme = darkMode ? "dark" : "light";
+    document
+      .querySelector('meta[name="theme-color"]')
+      ?.setAttribute("content", darkMode ? "#0a0b0d" : "#f6f1e7");
+  }, [darkMode]);
+
+  useEffect(() => {
     document.body.classList.toggle("splitverse-privacy-enabled", privacyMode);
 
     return () => {
@@ -329,31 +339,69 @@ export function AppSettingsProvider({ children }: AppSettingsProviderProps) {
   useEffect(() => {
     if (!privacyMode) {
       const timer = window.setTimeout(() => setPrivacyShieldActive(false), 0);
+      document.documentElement.classList.remove("privacy-shield-active");
       return () => window.clearTimeout(timer);
     }
 
-    const conceal = () => setPrivacyShieldActive(true);
+    let revealTimer = 0;
+    const setShield = (active: boolean) => {
+      document.documentElement.classList.toggle("privacy-shield-active", active);
+      setPrivacyShieldActive(active);
+    };
+    const conceal = () => {
+      window.clearTimeout(revealTimer);
+      setShield(true);
+    };
     const reveal = () => {
       if (document.visibilityState === "visible" && document.hasFocus()) {
-        setPrivacyShieldActive(false);
+        setShield(false);
       }
+    };
+    const scheduleReveal = (delay = 900) => {
+      window.clearTimeout(revealTimer);
+      revealTimer = window.setTimeout(reveal, delay);
     };
     const handleVisibility = () => {
       if (document.visibilityState === "hidden") {
         conceal();
       } else {
-        window.setTimeout(reveal, 120);
+        scheduleReveal();
       }
     };
+    const handlePrintScreen = (event: KeyboardEvent) => {
+      if (event.key === "PrintScreen") {
+        conceal();
+        scheduleReveal(1600);
+      }
+    };
+    const verifyFocus = () => {
+      if (document.visibilityState === "hidden" || !document.hasFocus()) {
+        conceal();
+      }
+    };
+    const handleFocus = () => scheduleReveal();
+    const handlePointerEnter = () => scheduleReveal();
 
     window.addEventListener("blur", conceal);
-    window.addEventListener("focus", reveal);
+    window.addEventListener("focus", handleFocus);
+    window.addEventListener("pagehide", conceal);
     document.addEventListener("visibilitychange", handleVisibility);
+    document.addEventListener("keydown", handlePrintScreen, true);
+    document.documentElement.addEventListener("mouseleave", conceal);
+    document.documentElement.addEventListener("mouseenter", handlePointerEnter);
+    const focusMonitor = window.setInterval(verifyFocus, 300);
 
     return () => {
+      window.clearTimeout(revealTimer);
+      window.clearInterval(focusMonitor);
       window.removeEventListener("blur", conceal);
-      window.removeEventListener("focus", reveal);
+      window.removeEventListener("focus", handleFocus);
+      window.removeEventListener("pagehide", conceal);
       document.removeEventListener("visibilitychange", handleVisibility);
+      document.removeEventListener("keydown", handlePrintScreen, true);
+      document.documentElement.removeEventListener("mouseleave", conceal);
+      document.documentElement.removeEventListener("mouseenter", handlePointerEnter);
+      document.documentElement.classList.remove("privacy-shield-active");
     };
   }, [privacyMode]);
 
@@ -410,6 +458,7 @@ export function AppSettingsProvider({ children }: AppSettingsProviderProps) {
       avatarId,
       compactMode,
       privacyMode,
+      darkMode,
       settlementReminders,
       appCurrency,
       appLanguage,
@@ -433,6 +482,7 @@ export function AppSettingsProvider({ children }: AppSettingsProviderProps) {
     defaultTopUpMethod,
     notificationPreferences,
     privacyMode,
+    darkMode,
     settlementReminders,
   ]);
 
@@ -441,6 +491,7 @@ export function AppSettingsProvider({ children }: AppSettingsProviderProps) {
     setAvatarIdState("current");
     setCompactModeState(false);
     setPrivacyModeState(true);
+    setDarkModeState(true);
     setSettlementRemindersState(true);
     setAppCurrencyState(detectedCurrency);
     setAppLanguageState(detectedLanguage);
@@ -501,6 +552,8 @@ export function AppSettingsProvider({ children }: AppSettingsProviderProps) {
         avatarId,
         compactMode,
         privacyMode,
+        darkMode,
+        themeMode: darkMode ? "dark" : "light",
         settlementReminders,
         appCurrency,
         detectedCurrency,
@@ -530,6 +583,10 @@ export function AppSettingsProvider({ children }: AppSettingsProviderProps) {
         setPrivacyMode(enabled) {
           setPrivacyModeState(enabled);
           persist({ privacyMode: enabled });
+        },
+        setDarkMode(enabled) {
+          setDarkModeState(enabled);
+          persist({ darkMode: enabled });
         },
         setSettlementReminders(enabled) {
           setSettlementRemindersState(enabled);
@@ -609,6 +666,7 @@ export function AppSettingsProvider({ children }: AppSettingsProviderProps) {
       notificationPreferences,
       persist,
       privacyMode,
+      darkMode,
       settlementReminders,
     ],
   );

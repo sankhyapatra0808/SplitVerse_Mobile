@@ -20,6 +20,7 @@ import {
   UserRound,
   ImagePlus,
   LockKeyhole,
+  Moon,
   UsersRound,
   WalletCards,
   X,
@@ -312,6 +313,7 @@ export default function AppSettings() {
     exchangeRatesLoading,
     exchangeRatesSource,
     privacyMode,
+    darkMode,
     settlementReminders,
     clearLocalAppSettings,
     convertCurrency,
@@ -328,6 +330,7 @@ export default function AppSettings() {
     setDefaultTopUpMethod,
     setNotificationPreference,
     setPrivacyMode,
+    setDarkMode,
     setSettlementReminders,
   } = useAppSettings();
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -1464,6 +1467,18 @@ export default function AppSettings() {
                 type="checkbox"
                 checked={privacyMode}
                 onChange={(event) => setPrivacyMode(event.target.checked)}
+              />
+            </label>
+            <label>
+              <Moon size={19} />
+              <span>
+                <strong>Dark mode</strong>
+                <small>Use the near-black SplitVerse workspace. Enabled by default.</small>
+              </span>
+              <input
+                type="checkbox"
+                checked={darkMode}
+                onChange={(event) => setDarkMode(event.target.checked)}
               />
             </label>
             <label>

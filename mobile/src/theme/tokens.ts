@@ -8,13 +8,13 @@ export const colors = {
   muted: "#7c828a",
   mutedSoft: "#a8acb3",
 
-  hairline: "#dee1e6",
-  hairlineSoft: "#eef0f3",
+  hairline: "#ddd7cd",
+  hairlineSoft: "#ebe5da",
 
-  canvas: "#ffffff",
-  surfaceSoft: "#f7f7f7",
-  surfaceCard: "#ffffff",
-  surfaceStrong: "#eef0f3",
+  canvas: "#fffdf9",
+  surfaceSoft: "#faf7f0",
+  surfaceCard: "#fffdf9",
+  surfaceStrong: "#ebe5da",
   surfaceDark: "#0a0b0d",
   surfaceDarkElevated: "#16181c",
 

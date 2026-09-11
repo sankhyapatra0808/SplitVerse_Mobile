@@ -519,7 +519,7 @@ export default function Profile() {
           <LinearGradient
             colors={
               theme.mode === "dark"
-                ? ["#050608", "#111318"]
+                ? [theme.background, theme.card]
                 : [theme.primary, theme.primaryActive]
             }
             style={styles.heroOverlay}

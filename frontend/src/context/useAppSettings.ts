@@ -26,6 +26,7 @@ export type AppLanguageCode =
 export type AvatarId = "current" | "initials";
 export type WalletTopUpMethod = "UPI" | "Card" | "Net banking";
 export type ExchangeRatesSource = "live" | "cache" | "stale-cache" | "fallback";
+export type ThemeMode = "light" | "dark";
 
 export type CurrencyOption = {
   code: CurrencyCode;
@@ -58,6 +59,8 @@ export type AppSettingsValue = {
   avatarId: AvatarId;
   compactMode: boolean;
   privacyMode: boolean;
+  darkMode: boolean;
+  themeMode: ThemeMode;
   settlementReminders: boolean;
   appCurrency: CurrencyCode;
   detectedCurrency: CurrencyCode;
@@ -79,6 +82,7 @@ export type AppSettingsValue = {
   setAvatarId: (avatarId: AvatarId) => void;
   setCompactMode: (enabled: boolean) => void;
   setPrivacyMode: (enabled: boolean) => void;
+  setDarkMode: (enabled: boolean) => void;
   setSettlementReminders: (enabled: boolean) => void;
   setAppCurrency: (currency: CurrencyCode) => void;
   setAppLanguage: (language: AppLanguageCode) => void;

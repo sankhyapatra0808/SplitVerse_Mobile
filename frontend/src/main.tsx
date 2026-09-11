@@ -8,6 +8,7 @@ import "./styles/global.css";
 import "./styles/Dashboard.css";
 import "./styles/WalletBalance.css";
 import "./styles/TransactionHistory.css";
+import "./styles/Theme.css";
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
