@@ -385,7 +385,7 @@ export default function Wallet() {
             { borderColor: theme.border, backgroundColor: theme.card },
           ]}
         >
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 18 }}>
+          <View style={styles.metricHeaderRow}>
             <Text style={styles.metricLabel}>Pending incoming</Text>
 
             <Pressable
@@ -427,7 +427,7 @@ export default function Wallet() {
             { borderColor: theme.border, backgroundColor: theme.card },
           ]}
         >
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 18 }}>
+          <View style={styles.metricHeaderRow}>
             <Text style={styles.metricLabel}>Pending outgoing</Text>
 
             <Pressable
@@ -470,9 +470,7 @@ export default function Wallet() {
             { borderColor: theme.border, backgroundColor: theme.card },
           ]}
         >
-          <View
-            style={{ flexDirection: "row", alignItems: "center", gap: 230 }}
-          >
+          <View style={styles.metricHeaderRow}>
             <Text style={styles.metricLabel}>Net position</Text>
 
             <Pressable
@@ -859,8 +857,17 @@ const styles = StyleSheet.create({
     minHeight: 90,
   },
   metricLabel: {
+    flex: 1,
+    minWidth: 0,
     color: colors.body,
     ...typography.caption,
+  },
+  metricHeaderRow: {
+    width: "100%",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: spacing.xs,
   },
   pendingInfoButton: {
     width: 20,

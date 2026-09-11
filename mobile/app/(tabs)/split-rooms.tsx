@@ -1,5 +1,5 @@
 import { LinearGradient } from "expo-linear-gradient";
-import { useLocalSearchParams } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -82,28 +82,6 @@ function getFriendName(friend: Friend) {
   return friend.name || friend.email.split("@")[0] || friend.email;
 }
 
-function getRoomPaidByEmail(room: SplitRoom) {
-  return room.paidByEmail || room.paid_by_email || room.ownerEmail || "";
-}
-
-function getRoomPaidByName(room: SplitRoom) {
-  const paidByEmail = getRoomPaidByEmail(room).trim().toLowerCase();
-
-  if (!paidByEmail) {
-    return "Host";
-  }
-
-  const paidByMember = room.members?.find(
-    (member) => member.email?.trim().toLowerCase() === paidByEmail,
-  );
-
-  if (paidByMember) {
-    return getMemberName(paidByMember);
-  }
-
-  return paidByEmail.split("@")[0] || "Host";
-}
-
 function getItemPlaceholder(category?: string | null) {
   switch (category) {
     case "restaurant":
@@ -127,6 +105,15 @@ function getItemPlaceholder(category?: string | null) {
     default:
       return "Shared item";
   }
+}
+
+function getIndiaRoomName() {
+  return new Intl.DateTimeFormat("en-GB", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    timeZone: "Asia/Kolkata",
+  }).format(new Date());
 }
 
 function isItemCollected(item: SplitRoomItem) {
@@ -253,48 +240,6 @@ function buildOptimisticRoom({
   };
 }
 
-function addOptimisticRoomItem({
-  room,
-  title,
-  amount,
-  assignedMemberId,
-}: {
-  room: SplitRoom;
-  title: string;
-  amount: number;
-  assignedMemberId: string;
-}): SplitRoom {
-  const assignedMember = room.members.find(
-    (member) => member.id === assignedMemberId,
-  );
-
-  const assignedToMe = Boolean(assignedMember?.isMe);
-
-  const item: SplitRoomItem = {
-    id: `optimistic-item-${Date.now()}`,
-    room_id: room.id,
-    assigned_member_id: assignedMemberId,
-    assignedMemberId,
-    title,
-    amount,
-    collected_at: assignedToMe ? new Date().toISOString() : null,
-    isCollected: assignedToMe,
-    created_at: new Date().toISOString(),
-  };
-
-  const nextTotal = Number(room.totalAmount || 0) + amount;
-  const nextCollected =
-    Number(room.collectedAmount || 0) + (assignedToMe ? amount : 0);
-
-  return {
-    ...room,
-    items: [item, ...(room.items ?? [])],
-    totalAmount: nextTotal,
-    collectedAmount: nextCollected,
-    outstandingAmount: Math.max(0, nextTotal - nextCollected),
-  };
-}
-
 function updateOptimisticRoomItem({
   room,
   itemId,
@@ -351,6 +296,7 @@ function removeOptimisticRoomItem(room: SplitRoom, itemId: string): SplitRoom {
 }
 
 export default function SplitRooms() {
+  const router = useRouter();
   const { user, dbUser } = useAuth();
   const { avatarId, formatCurrency, theme } = useAppSettings();
   const { width: windowWidth, height: windowHeight } = useWindowDimensions();
@@ -368,7 +314,7 @@ export default function SplitRooms() {
   const [selectedRoomId, setSelectedRoomId] = useState("");
   const selectedRoomIdRef = useRef("");
 
-  const [roomName, setRoomName] = useState("");
+  const [, setRoomName] = useState("");
   const [roomCategory, setRoomCategory] = useState("restaurant");
   const [roomPaidByEmail, setRoomPaidByEmail] = useState("");
   const [selectedFriendEmails, setSelectedFriendEmails] = useState<string[]>(
@@ -380,6 +326,11 @@ export default function SplitRooms() {
   const [itemTitle, setItemTitle] = useState("");
   const [itemAmount, setItemAmount] = useState("");
   const [assignedMemberId, setAssignedMemberId] = useState("");
+  const [itemPaidByMemberId, setItemPaidByMemberId] = useState("");
+  const [splitMode, setSplitMode] = useState<"manual" | "automatic">(
+    "manual",
+  );
+  const [automaticMemberIds, setAutomaticMemberIds] = useState<string[]>([]);
 
   const [editingItemId, setEditingItemId] = useState("");
   const [editItemTitle, setEditItemTitle] = useState("");
@@ -392,6 +343,9 @@ export default function SplitRooms() {
   const friendSelectorRef = useRef<View>(null);
   const paidBySelectorRef = useRef<View>(null);
   const [assignMemberModalOpen, setAssignMemberModalOpen] = useState(false);
+  const [itemPayerModalOpen, setItemPayerModalOpen] = useState(false);
+  const [automaticMembersModalOpen, setAutomaticMembersModalOpen] =
+    useState(false);
   const [editItemModalOpen, setEditItemModalOpen] = useState(false);
 
   const [loading, setLoading] = useState(true);
@@ -547,6 +501,29 @@ export default function SplitRooms() {
     [assignedMemberId, sortedMembers],
   );
 
+  const selectedItemPayer = useMemo(
+    () => sortedMembers.find((member) => member.id === itemPaidByMemberId),
+    [itemPaidByMemberId, sortedMembers],
+  );
+
+  const automaticSharePreview = useMemo(() => {
+    const amount = Number(itemAmount);
+    if (!Number.isFinite(amount) || amount <= 0 || automaticMemberIds.length === 0) {
+      return [];
+    }
+    const totalCents = Math.round(amount * 100);
+    const baseCents = Math.floor(totalCents / automaticMemberIds.length);
+    const remainder = totalCents - baseCents * automaticMemberIds.length;
+
+    return automaticMemberIds.map((memberId, index) => ({
+      memberId,
+      name: getMemberName(
+        sortedMembers.find((member) => member.id === memberId),
+      ),
+      amount: (baseCents + (index < remainder ? 1 : 0)) / 100,
+    }));
+  }, [automaticMemberIds, itemAmount, sortedMembers]);
+
   const filteredFriends = useMemo(() => {
     const search = friendSearch.trim().toLowerCase();
 
@@ -584,13 +561,6 @@ export default function SplitRooms() {
       })),
     ].filter((item) => Boolean(item.email));
   }, [friends, selectedFriendEmails, selfEmail]);
-
-  const paidByLabel = useMemo(() => {
-    const selected = paidByOptions.find(
-      (item) => item.email === roomPaidByEmail,
-    );
-    return selected?.name || "Me";
-  }, [paidByOptions, roomPaidByEmail]);
 
   const itemPlaceholder = getItemPlaceholder(selectedRoom?.category);
 
@@ -726,13 +696,32 @@ export default function SplitRooms() {
   useEffect(() => {
     if (!selectedRoom || sortedMembers.length === 0) {
       setAssignedMemberId("");
+      setItemPaidByMemberId("");
+      setAutomaticMemberIds([]);
       return;
     }
 
     if (!sortedMembers.some((member) => member.id === assignedMemberId)) {
       setAssignedMemberId(sortedMembers[0].id);
     }
-  }, [assignedMemberId, selectedRoom, sortedMembers]);
+    if (!sortedMembers.some((member) => member.id === itemPaidByMemberId)) {
+      const selfMember = sortedMembers.find((member) => member.isMe);
+      setItemPaidByMemberId(selfMember?.id || sortedMembers[0].id);
+    }
+    setAutomaticMemberIds((current) =>
+      current.filter((memberId) =>
+        sortedMembers.some((member) => member.id === memberId),
+      ),
+    );
+  }, [assignedMemberId, itemPaidByMemberId, selectedRoom, sortedMembers]);
+
+  function toggleAutomaticMember(memberId: string) {
+    setAutomaticMemberIds((current) =>
+      current.includes(memberId)
+        ? current.filter((id) => id !== memberId)
+        : [...current, memberId],
+    );
+  }
 
   function toggleSelectedFriend(email: string) {
     setSelectedFriendEmails((previous) =>
@@ -753,14 +742,9 @@ export default function SplitRooms() {
   }
 
   async function handleCreateRoom() {
-    const nextRoomName = roomName.trim();
+    const nextRoomName = getIndiaRoomName();
     const nextFriendEmails = selectedFriendEmails;
-    const nextPaidByEmail = roomPaidByEmail || selfEmail;
-
-    if (!nextRoomName) {
-      Alert.alert("Room name required", "Enter a name for this split room.");
-      return;
-    }
+    const nextPaidByEmail = selfEmail;
 
     if (nextFriendEmails.length === 0) {
       Alert.alert(
@@ -789,10 +773,8 @@ export default function SplitRooms() {
       resetCreateForm();
 
       const response = await createSplitRoom({
-        name: nextRoomName,
-        category: roomCategory,
+        dailyRoom: true,
         members: nextFriendEmails,
-        paidByEmail: nextPaidByEmail,
       });
 
       await loadSplitRoomData(response.room.id, true);
@@ -845,57 +827,58 @@ export default function SplitRooms() {
       return;
     }
 
-    if (!assignedMemberId) {
+    if (!itemPaidByMemberId) {
+      Alert.alert("Choose payer", "Choose who paid for this item.");
+      return;
+    }
+
+    if (splitMode === "manual" && !assignedMemberId) {
       Alert.alert("Choose member", "Choose who this item is assigned to.");
       return;
     }
 
-    const previousRooms = rooms;
+    if (splitMode === "automatic" && automaticMemberIds.length === 0) {
+      Alert.alert(
+        "Choose members",
+        "Select at least one member for the automatic split.",
+      );
+      return;
+    }
+
     const previousTitle = itemTitle;
     const previousAmount = itemAmount;
-    const previousAssignedMemberId = assignedMemberId;
     const assignedMember = sortedMembers.find(
       (member) => member.id === assignedMemberId,
     );
 
     try {
       setSavingItem(true);
-
-      setRooms((previous) =>
-        previous.map((room) =>
-          room.id === selectedRoom.id
-            ? addOptimisticRoomItem({
-                room,
-                title: nextTitle,
-                amount: nextAmount,
-                assignedMemberId,
-              })
-            : room,
-        ),
-      );
-
       setItemTitle("");
       setItemAmount("");
 
       await createSplitRoomItem(selectedRoom.id, {
         title: nextTitle,
         amount: nextAmount,
-        assignedMemberId,
+        paidByMemberId: itemPaidByMemberId,
+        splitMode,
+        ...(splitMode === "automatic"
+          ? { assignedMemberIds: automaticMemberIds }
+          : { assignedMemberId }),
       });
 
       await loadSplitRoomData(selectedRoom.id, true);
 
       Alert.alert(
-        assignedMember?.isMe ? "Expense added" : "Due added",
-        assignedMember?.isMe
-          ? "This item was added as your expense."
-          : "This item was assigned as a due.",
+        splitMode === "automatic" ? "Item split equally" : "Item added",
+        splitMode === "automatic"
+          ? `The amount was divided between ${automaticMemberIds.length} selected members.`
+          : assignedMember?.isMe
+            ? "This item was added as your expense."
+            : "This item was assigned as a due.",
       );
     } catch (error) {
-      setRooms(previousRooms);
       setItemTitle(previousTitle);
       setItemAmount(previousAmount);
-      setAssignedMemberId(previousAssignedMemberId);
 
       showErrorAlert(error, {
         title: "Could not add item",
@@ -1728,15 +1711,6 @@ export default function SplitRooms() {
                       <Text style={styles.roomMeta} numberOfLines={1}>
                         {room.isOwner ? "Owner" : ""}
                       </Text>
-
-                      <View style={styles.roomAmountBox}>
-                        <AmountText
-                          amount={outstanding}
-                          size="sm"
-                          tone={outstanding > 0 ? "danger" : "success"}
-                        />
-                        <Text style={styles.roomDueText}>due</Text>
-                      </View>
                     </View>
 
                     {room.isOwner ? (
@@ -1806,6 +1780,122 @@ export default function SplitRooms() {
                 <EmptyState title="Room is closed" />
               ) : (
                 <>
+                  <View style={styles.splitModeRow}>
+                    {(["manual", "automatic"] as const).map((mode) => (
+                      <Pressable
+                        key={mode}
+                        style={[
+                          styles.splitModeButton,
+                          { borderColor: theme.border, backgroundColor: theme.surface },
+                          splitMode === mode && {
+                            borderColor: theme.primary,
+                            backgroundColor: theme.primarySoft,
+                          },
+                        ]}
+                        onPress={() => {
+                          setSplitMode(mode);
+                          setAssignMemberModalOpen(false);
+                          setItemPayerModalOpen(false);
+                          setAutomaticMembersModalOpen(false);
+                        }}
+                      >
+                        <Text
+                          style={[
+                            styles.splitModeText,
+                            splitMode === mode && { color: theme.primary },
+                          ]}
+                        >
+                          {mode === "manual" ? "Manual splitting" : "Automatic splitting"}
+                        </Text>
+                      </Pressable>
+                    ))}
+                  </View>
+
+                  <View style={styles.dropdownWrap}>
+                    <Pressable
+                      style={[
+                        styles.selector,
+                        { borderColor: theme.border, backgroundColor: theme.surface },
+                      ]}
+                      onPress={() => {
+                        setItemPayerModalOpen((open) => !open);
+                        setAssignMemberModalOpen(false);
+                        setAutomaticMembersModalOpen(false);
+                      }}
+                      disabled={savingItem || sortedMembers.length === 0}
+                    >
+                      <View style={styles.selectorCopy}>
+                        <Text style={styles.selectorLabel}>Paid by</Text>
+                        <Text style={styles.selectorValue} numberOfLines={1}>
+                          {selectedItemPayer
+                            ? getMemberName(selectedItemPayer)
+                            : "Choose payer"}
+                        </Text>
+                      </View>
+                      <Ionicons
+                        name={itemPayerModalOpen ? "chevron-up" : "chevron-down"}
+                        size={18}
+                        color={theme.body}
+                      />
+                    </Pressable>
+
+                    {itemPayerModalOpen ? (
+                      <View
+                        style={[
+                          styles.dropdownMenu,
+                          { borderColor: theme.border, backgroundColor: theme.card },
+                        ]}
+                      >
+                        <ScrollView style={styles.dropdownScroll} nestedScrollEnabled>
+                          {sortedMembers.map((member) => {
+                            const selected = member.id === itemPaidByMemberId;
+                            return (
+                              <Pressable
+                                key={member.id}
+                                style={[
+                                  styles.dropdownOption,
+                                  { borderColor: theme.border, backgroundColor: theme.surface },
+                                  selected && {
+                                    borderColor: theme.primary,
+                                    backgroundColor: theme.primarySoft,
+                                  },
+                                ]}
+                                onPress={() => {
+                                  setItemPaidByMemberId(member.id);
+                                  setItemPayerModalOpen(false);
+                                }}
+                              >
+                                <Avatar
+                                  name={getMemberName(member)}
+                                  email={member.email}
+                                  imageUrl={
+                                    member.display_photo_url ||
+                                    member.profile_photo_url ||
+                                    member.photo_url
+                                  }
+                                  size={36}
+                                />
+                                <View style={styles.optionCopy}>
+                                  <Text style={styles.optionTitle} numberOfLines={1}>
+                                    {getMemberName(member)}
+                                  </Text>
+                                  <Text style={styles.optionSubtext} numberOfLines={1}>
+                                    {member.email}
+                                  </Text>
+                                </View>
+                                <Ionicons
+                                  name={selected ? "checkmark-circle" : "ellipse-outline"}
+                                  size={19}
+                                  color={selected ? theme.primary : theme.muted}
+                                />
+                              </Pressable>
+                            );
+                          })}
+                        </ScrollView>
+                      </View>
+                    ) : null}
+                  </View>
+
                   <AppTextInput
                     label="Item"
                     value={itemTitle}
@@ -1814,6 +1904,87 @@ export default function SplitRooms() {
                     editable={!savingItem}
                     style={styles.input65}
                   />
+
+                  {splitMode === "automatic" ? (
+                    <View style={styles.dropdownWrap}>
+                      <Pressable
+                        style={[
+                          styles.selector,
+                          { borderColor: theme.border, backgroundColor: theme.surface },
+                        ]}
+                        onPress={() => {
+                          setAutomaticMembersModalOpen((open) => !open);
+                          setAssignMemberModalOpen(false);
+                          setItemPayerModalOpen(false);
+                        }}
+                        disabled={savingItem || sortedMembers.length === 0}
+                      >
+                        <View style={styles.selectorCopy}>
+                          <Text style={styles.selectorLabel}>Split between</Text>
+                          <Text style={styles.selectorValue} numberOfLines={1}>
+                            {automaticMemberIds.length > 0
+                              ? `${automaticMemberIds.length} members selected`
+                              : "Select members"}
+                          </Text>
+                        </View>
+                        <Ionicons
+                          name={automaticMembersModalOpen ? "chevron-up" : "chevron-down"}
+                          size={18}
+                          color={theme.body}
+                        />
+                      </Pressable>
+
+                      {automaticMembersModalOpen ? (
+                        <View
+                          style={[
+                            styles.dropdownMenu,
+                            { borderColor: theme.border, backgroundColor: theme.card },
+                          ]}
+                        >
+                          <ScrollView style={styles.dropdownScroll} nestedScrollEnabled>
+                            {sortedMembers.map((member) => {
+                              const selected = automaticMemberIds.includes(member.id);
+                              return (
+                                <Pressable
+                                  key={member.id}
+                                  style={[
+                                    styles.dropdownOption,
+                                    { borderColor: theme.border, backgroundColor: theme.surface },
+                                    selected && {
+                                      borderColor: theme.primary,
+                                      backgroundColor: theme.primarySoft,
+                                    },
+                                  ]}
+                                  onPress={() => toggleAutomaticMember(member.id)}
+                                >
+                                  <Avatar
+                                    name={getMemberName(member)}
+                                    email={member.email}
+                                    imageUrl={
+                                      member.display_photo_url ||
+                                      member.profile_photo_url ||
+                                      member.photo_url
+                                    }
+                                    size={36}
+                                  />
+                                  <View style={styles.optionCopy}>
+                                    <Text style={styles.optionTitle} numberOfLines={1}>
+                                      {getMemberName(member)}
+                                    </Text>
+                                  </View>
+                                  <Ionicons
+                                    name={selected ? "checkmark-circle" : "ellipse-outline"}
+                                    size={19}
+                                    color={selected ? theme.primary : theme.muted}
+                                  />
+                                </Pressable>
+                              );
+                            })}
+                          </ScrollView>
+                        </View>
+                      ) : null}
+                    </View>
+                  ) : null}
 
                   <AppTextInput
                     label="Amount"
@@ -1825,7 +1996,27 @@ export default function SplitRooms() {
                     style={styles.input65}
                   />
 
-                  <View style={styles.dropdownWrap}>
+                  {splitMode === "automatic" && automaticSharePreview.length > 0 ? (
+                    <View
+                      style={[
+                        styles.equalSharePreview,
+                        { borderColor: theme.border, backgroundColor: theme.surface },
+                      ]}
+                    >
+                      <Text style={styles.selectorLabel}>Amount per person</Text>
+                      {automaticSharePreview.map((share) => (
+                        <View key={share.memberId} style={styles.sharePersonRow}>
+                          <Text style={styles.sharePersonName}>{share.name}</Text>
+                          <AmountText amount={share.amount} size="sm" tone="primary" />
+                        </View>
+                      ))}
+                      <Text style={styles.equalShareHint}>
+                        Split total: {formatCurrency(Number(itemAmount) || 0)}
+                      </Text>
+                    </View>
+                  ) : null}
+
+                  {splitMode === "manual" ? <View style={styles.dropdownWrap}>
                     <Pressable
                       style={[
                         styles.selector,
@@ -1937,7 +2128,7 @@ export default function SplitRooms() {
                         </ScrollView>
                       </View>
                     ) : null}
-                  </View>
+                  </View> : null}
 
                   <AppButton
                     title={savingItem ? "Adding item" : "Add item"}
@@ -1951,6 +2142,8 @@ export default function SplitRooms() {
                     loading={savingItem}
                     onPress={() => {
                       setAssignMemberModalOpen(false);
+                      setItemPayerModalOpen(false);
+                      setAutomaticMembersModalOpen(false);
                       void handleAddItem();
                     }}
                   />
@@ -2053,9 +2246,9 @@ export default function SplitRooms() {
                       },
                     ]}
                   >
-                    <Text style={styles.summaryLabel}>Paid by</Text>
+                    <Text style={styles.summaryLabel}>Items</Text>
                     <Text style={styles.summaryValue} numberOfLines={1}>
-                      {getRoomPaidByName(selectedRoom)}
+                      {selectedRoom.items.length}
                     </Text>
                   </View>
                 </View>
@@ -2233,7 +2426,12 @@ export default function SplitRooms() {
                   styles.payableMetric,
                   { borderColor: theme.border, backgroundColor: theme.surface },
                 ]}
-                onPress={() => setNetSettlementInfoDialog("payable")}
+                onPress={() =>
+                  router.push({
+                    pathname: "/(tabs)/settlement-details",
+                    params: { kind: "payable" },
+                  })
+                }
               >
                 <Text style={styles.netMetricLabel}>Payable</Text>
                 <AmountText
@@ -2249,7 +2447,12 @@ export default function SplitRooms() {
                   styles.receivableMetric,
                   { borderColor: theme.border, backgroundColor: theme.surface },
                 ]}
-                onPress={() => setNetSettlementInfoDialog("receivable")}
+                onPress={() =>
+                  router.push({
+                    pathname: "/(tabs)/settlement-details",
+                    params: { kind: "receivable" },
+                  })
+                }
               >
                 <Text style={styles.netMetricLabel}>Receivable</Text>
                 <AmountText
@@ -2335,20 +2538,11 @@ export default function SplitRooms() {
                     { color: modalMutedColor },
                   ]}
                 >
-                  Add friends, choose who paid, and start splitting items
-                  fairly.
+                  Select friends for today&apos;s room. The room name is created
+                  automatically from today&apos;s date.
                 </Text>
 
                 <View style={styles.createRoomFormFields}>
-                  <AppTextInput
-                    label="Room name"
-                    value={roomName}
-                    onChangeText={setRoomName}
-                    placeholder="Dinner with friends"
-                    editable={!savingRoom}
-                    style={styles.roomNameInput}
-                  />
-
                   <View
                     ref={friendSelectorRef}
                     collapsable={false}
@@ -2384,49 +2578,6 @@ export default function SplitRooms() {
 
                       <Ionicons
                         name={friendModalOpen ? "chevron-up" : "chevron-down"}
-                        size={18}
-                        color={theme.body}
-                      />
-                    </Pressable>
-                  </View>
-
-                  <View
-                    ref={paidBySelectorRef}
-                    collapsable={false}
-                    pointerEvents={friendModalOpen ? "none" : "auto"}
-                    style={[
-                      styles.dropdownWrap,
-                      friendModalOpen && styles.createRoomLowerContentHidden,
-                      paidByModalOpen && styles.createRoomFloatingDropdownWrap,
-                    ]}
-                  >
-                    <Pressable
-                      style={[
-                        styles.selector,
-                        {
-                          borderColor: theme.border,
-                          backgroundColor: theme.surface,
-                        },
-                      ]}
-                      onPress={() => {
-                        if (paidByModalOpen) {
-                          closeCreateDropdowns();
-                          return;
-                        }
-
-                        openCreateRoomDropdown("paidBy");
-                      }}
-                      disabled={savingRoom}
-                    >
-                      <View style={styles.selectorCopy}>
-                        <Text style={styles.selectorLabel}>Paid by</Text>
-                        <Text style={styles.selectorValue} numberOfLines={1}>
-                          {paidByLabel}
-                        </Text>
-                      </View>
-
-                      <Ionicons
-                        name={paidByModalOpen ? "chevron-up" : "chevron-down"}
                         size={18}
                         color={theme.body}
                       />
@@ -3358,6 +3509,51 @@ const styles = StyleSheet.create({
   addItemCard: {
     gap: spacing.base,
     marginHorizontal: spacing.base,
+  },
+  splitModeRow: {
+    flexDirection: "row",
+    gap: spacing.sm,
+  },
+  splitModeButton: {
+    flex: 1,
+    minHeight: 44,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderRadius: radius.pill,
+    paddingHorizontal: spacing.sm,
+  },
+  splitModeText: {
+    color: colors.body,
+    fontSize: 12,
+    fontWeight: "700",
+    textAlign: "center",
+  },
+  equalSharePreview: {
+    gap: spacing.xs,
+    borderWidth: 1,
+    borderRadius: radius.lg,
+    padding: spacing.sm,
+  },
+  equalShareValue: {
+    color: colors.ink,
+    ...typography.titleMd,
+  },
+  sharePersonRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: spacing.sm,
+  },
+  sharePersonName: {
+    flex: 1,
+    minWidth: 0,
+    color: colors.ink,
+    ...typography.bodySm,
+  },
+  equalShareHint: {
+    color: colors.body,
+    ...typography.caption,
   },
   detailsCard: {
     gap: spacing.base,

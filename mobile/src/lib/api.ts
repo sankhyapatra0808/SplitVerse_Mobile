@@ -541,6 +541,13 @@ export type SplitRoomItem = {
   room_id?: string;
   assigned_member_id: string;
   assignedMemberId?: string;
+  paid_by_member_id?: string | null;
+  paid_by_user_id?: string | null;
+  paidByMemberId?: string | null;
+  paidByUserId?: string | null;
+  paidByName?: string | null;
+  paidByEmail?: string | null;
+  splitGroupId?: string | null;
   title: string;
   amount: number;
   settled_amount?: number;
@@ -573,10 +580,11 @@ export type SplitRoom = {
 };
 
 export type CreateSplitRoomPayload = {
-  name: string;
-  category: string;
+  name?: string;
+  category?: string;
   members: string[];
   paidByEmail?: string;
+  dailyRoom?: boolean;
 };
 
 export type TransactionStatus =
@@ -667,7 +675,10 @@ export async function createSplitRoom(payload: CreateSplitRoomPayload) {
 export type CreateSplitRoomItemPayload = {
   title: string;
   amount: number;
-  assignedMemberId: string;
+  paidByMemberId: string;
+  splitMode?: "manual" | "automatic";
+  assignedMemberId?: string;
+  assignedMemberIds?: string[];
 };
 
 export type UpdateSplitRoomItemPayload = {
@@ -679,7 +690,11 @@ export async function createSplitRoomItem(
   roomId: string,
   payload: CreateSplitRoomItemPayload,
 ) {
-  return apiFetch<{ message: string; item: SplitRoomItem }>(
+  return apiFetch<{
+    message: string;
+    item: SplitRoomItem;
+    items?: SplitRoomItem[];
+  }>(
     `/api/split-rooms/${roomId}/items`,
     {
       method: "POST",
@@ -764,9 +779,18 @@ export type NetSettlementBreakdown = {
   roomName: string;
   title: string;
   direction: string;
+  debtorUserId: string;
+  creditorUserId: string;
   amount: number;
   originalAmount: number;
   settledAmount: number;
+  offsetAdjustments: {
+    itemId: string;
+    roomId: string;
+    roomName: string;
+    title: string;
+    amount: number;
+  }[];
   createdAt: string;
 };
 

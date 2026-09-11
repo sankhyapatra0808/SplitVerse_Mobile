@@ -341,7 +341,7 @@ export function AppSettingsProvider({ children }: { children: ReactNode }) {
   const [settingsLoaded, setSettingsLoaded] = useState(false);
   const [avatarId, setAvatarIdState] = useState<AvatarId>("current");
   const [compactMode, setCompactModeState] = useState(false);
-  const [privacyMode, setPrivacyModeState] = useState(false);
+  const [privacyMode, setPrivacyModeState] = useState(true);
   const defaultDarkMode = true;
   const [darkMode, setDarkModeState] = useState(defaultDarkMode);
   const [settlementReminders, setSettlementRemindersState] = useState(true);
@@ -385,7 +385,7 @@ export function AppSettingsProvider({ children }: { children: ReactNode }) {
             : "current",
         );
         setCompactModeState(storedSettings.compactMode ?? false);
-        setPrivacyModeState(storedSettings.privacyMode ?? false);
+        setPrivacyModeState(storedSettings.privacyMode ?? true);
         setDarkModeState(storedSettings.darkMode ?? defaultDarkMode);
         setSettlementRemindersState(storedSettings.settlementReminders ?? true);
         setAppCurrencyState(
@@ -528,7 +528,7 @@ export function AppSettingsProvider({ children }: { children: ReactNode }) {
     await SecureStore.deleteItemAsync(settingsStorageKey);
     setAvatarIdState("current");
     setCompactModeState(false);
-    setPrivacyModeState(false);
+    setPrivacyModeState(true);
     setDarkModeState(defaultDarkMode);
     setSettlementRemindersState(true);
     setAppCurrencyState(detectedCurrency);
@@ -602,7 +602,6 @@ export function AppSettingsProvider({ children }: { children: ReactNode }) {
       currency: CurrencyCode,
       options: CurrencyFormatOptions = {},
     ) {
-      if (privacyMode) return translateUiText("Hidden", appLanguage);
       const numericAmount = Number.isFinite(amount) ? amount : 0;
       const sign = options.signed
         ? numericAmount > 0

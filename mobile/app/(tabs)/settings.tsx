@@ -908,7 +908,7 @@ export default function Settings() {
         />
         <SettingSwitch
           title="Privacy mode"
-          description="Hide money values when sharing your screen."
+          description="Block screenshots, screen recordings, and screen sharing while using SplitVerse."
           value={privacyMode}
           onValueChange={setPrivacyMode}
         />
