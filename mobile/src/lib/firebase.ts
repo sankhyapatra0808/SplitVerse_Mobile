@@ -1,6 +1,6 @@
-import * as AsyncStoragePackage from "@react-native-async-storage/async-storage";
+import AsyncStorage, * as AsyncStoragePackage from "@react-native-async-storage/async-storage";
 import { getApp, getApps, initializeApp } from "firebase/app";
-import { getAuth, initializeAuth, type Auth } from "firebase/auth";
+import { getAuth, initializeAuth, type Auth, type Persistence } from "firebase/auth";
 import * as FirebaseAuth from "firebase/auth";
 
 const firebaseConfig = {
@@ -15,15 +15,25 @@ const firebaseConfig = {
 export const firebaseApp =
   getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
 
-const getReactNativePersistence = (FirebaseAuth as any)
-  .getReactNativePersistence;
+type AsyncStorageValue = typeof AsyncStorage;
+type AsyncStorageCompatModule = typeof AsyncStoragePackage & {
+  createAsyncStorage?: (name: string) => AsyncStorageValue;
+  default?: AsyncStorageValue;
+};
+type FirebaseAuthCompatModule = typeof FirebaseAuth & {
+  getReactNativePersistence?: (storage: AsyncStorageValue) => Persistence;
+};
 
-const createAsyncStorage = (AsyncStoragePackage as any).createAsyncStorage;
+const getReactNativePersistence = (
+  FirebaseAuth as FirebaseAuthCompatModule
+).getReactNativePersistence;
+const asyncStoragePackage = AsyncStoragePackage as AsyncStorageCompatModule;
+const createAsyncStorage = asyncStoragePackage.createAsyncStorage;
 
 const asyncStorage =
   typeof createAsyncStorage === "function"
     ? createAsyncStorage("splitverse-auth")
-    : ((AsyncStoragePackage as any).default ?? AsyncStoragePackage);
+    : (asyncStoragePackage.default ?? AsyncStorage);
 
 let authInstance: Auth;
 

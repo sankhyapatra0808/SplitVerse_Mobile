@@ -5,7 +5,6 @@ import {
   ImageBackground,
   Pressable,
   StyleSheet,
-  ToastAndroid,
   View,
 } from "react-native";
 import AmountText from "../../src/components/AmountText";
@@ -22,10 +21,8 @@ import {
   getWalletSummary,
   createRazorpayWalletOrder,
   verifyRazorpayWalletPayment,
-  type PendingWalletSettlement,
   type WalletSummaryResponse,
   type WalletTopUpItem,
-  type WalletTransactionItem,
 } from "../../src/lib/api";
 import { showErrorAlert } from "../../src/lib/errors";
 import { useRefreshOnReturn } from "../../src/hooks/useRefreshOnReturn";
@@ -35,28 +32,6 @@ import RazorpayCheckout from "react-native-razorpay";
 import { useAppSettings } from "../../src/context/useAppSettings";
 import { useAuth } from "../../src/context/AuthContext";
 import Ionicons from "@expo/vector-icons/build/Ionicons";
-
-function getTransactionTitle(transaction: WalletTransactionItem) {
-  if (transaction.description) return transaction.description;
-  return transaction.type === "credit" ? "Wallet credit" : "Wallet debit";
-}
-
-function getSettlementPerson(settlement: PendingWalletSettlement) {
-  if (settlement.direction === "incoming") {
-    return settlement.fromName || settlement.fromEmail || "Friend";
-  }
-
-  return settlement.toName || settlement.toEmail || "Friend";
-}
-
-function getSettlementTitle(settlement: PendingWalletSettlement) {
-  if (settlement.title) return settlement.title;
-  if (settlement.roomName) return settlement.roomName;
-
-  return settlement.direction === "incoming"
-    ? `${getSettlementPerson(settlement)} owes you`
-    : `You owe ${getSettlementPerson(settlement)}`;
-}
 
 let walletCache: {
   walletData: WalletSummaryResponse | null;
@@ -81,7 +56,6 @@ export default function Wallet() {
 
   const [loading, setLoading] = useState(!walletCache);
   const [refreshingSilent, setRefreshingSilent] = useState(false);
-  const [settlementsSheetOpen, setSettlementsSheetOpen] = useState(false);
   const [topUpsSheetOpen, setTopUpsSheetOpen] = useState(false);
 
   const photoUrl =
@@ -100,29 +74,10 @@ export default function Wallet() {
   const pendingOutgoing = summary?.pendingOutgoing ?? 0;
   const netPosition = summary?.netPosition ?? 0;
 
-  const recentTransactions = walletData?.recentWalletTransactions ?? [];
-  const pendingSettlements = walletData?.pendingSettlements ?? [];
-
   const [topUpSheetOpen, setTopUpSheetOpen] = useState(false);
   const [topUpAmount, setTopUpAmount] = useState("");
   const [creatingTopUpOrder, setCreatingTopUpOrder] = useState(false);
   const [topUpError, setTopUpError] = useState("");
-
-  const incomingSettlements = useMemo(
-    () =>
-      pendingSettlements.filter(
-        (settlement) => settlement.direction === "incoming",
-      ),
-    [pendingSettlements],
-  );
-
-  const outgoingSettlements = useMemo(
-    () =>
-      pendingSettlements.filter(
-        (settlement) => settlement.direction === "outgoing",
-      ),
-    [pendingSettlements],
-  );
 
   const latestTopUps = topUps.slice(0, 5);
 
@@ -181,9 +136,11 @@ export default function Wallet() {
     void loadWallet(Boolean(walletCache));
   }, [loadWallet]);
 
-  useRefreshOnReturn(() => {
-    void loadWallet(true);
-  }, [loadWallet]);
+  useRefreshOnReturn(
+    useCallback(() => {
+      void loadWallet(true);
+    }, [loadWallet]),
+  );
 
   function handleTopUpPress() {
     setTopUpAmount("");

@@ -87,12 +87,6 @@ function getTodayIsoDate() {
   return `${year}-${month}-${day}`;
 }
 
-function formatMoney(value?: number | null) {
-  return `₹${Number(value || 0).toLocaleString("en-IN", {
-    maximumFractionDigits: 2,
-  })}`;
-}
-
 function getDateKey(date: Date) {
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, "0");
@@ -219,11 +213,6 @@ export default function Dashboard() {
     summary?.metrics?.todayExpense ??
     0;
 
-  const monthlySpend =
-    summary?.monthlySpend?.currentMonthTotal ??
-    summary?.monthlySpend?.graphTotal ??
-    0;
-
   const payable =
     summary?.walletHealth?.payable ?? summary?.metrics?.pendingPayment ?? 0;
 
@@ -232,7 +221,7 @@ export default function Dashboard() {
   const netPosition =
     summary?.walletHealth?.netPosition ?? receivable - payable;
 
-  const friendCount = friendsSummary?.friends.length ?? 0;
+  const friendCount = friendsSummary?.friends?.length ?? 0;
   const roomCount = rooms.length;
   const expenseActionColor = theme.mode === "dark" ? "#F59E0B" : "#2563EB";
   const modalTextColor = theme.mode === "dark" ? "#F8FAFC" : "#111827";
@@ -261,9 +250,10 @@ export default function Dashboard() {
     ? `Total ${selectedGraphPoint.label}: ${formatCurrency(selectedGraphPoint.amount)}`
     : `Total: ${formatCurrency(graphTotal)}`;
 
-  useEffect(() => {
+  const handleGraphModeChange = useCallback((mode: SpendGraphMode) => {
+    setGraphMode(mode);
     setSelectedGraphIndex(null);
-  }, [graphMode]);
+  }, []);
 
   const loadDashboardData = useCallback(async (silent = false) => {
     try {
@@ -316,12 +306,12 @@ export default function Dashboard() {
       dashboardCache = {
         summary: dashboardData,
         friendsSummary: friendsData,
-        rooms: roomsData.rooms,
+        rooms: roomsData.rooms ?? [],
         transactions: displayTransactions,
       };
       setSummary(dashboardData);
       setFriendsSummary(friendsData);
-      setRooms(roomsData.rooms);
+      setRooms(roomsData.rooms ?? []);
       setTransactions(displayTransactions);
       setHasUnreadNotifications(
         Boolean(
@@ -346,9 +336,11 @@ export default function Dashboard() {
     void loadDashboardData(Boolean(dashboardCache));
   }, [loadDashboardData]);
 
-  useRefreshOnReturn(() => {
-    void loadDashboardData(true);
-  }, [loadDashboardData]);
+  useRefreshOnReturn(
+    useCallback(() => {
+      void loadDashboardData(true);
+    }, [loadDashboardData]),
+  );
 
   useEffect(() => {
     const appStateSubscription = AppState.addEventListener(
@@ -663,7 +655,7 @@ export default function Dashboard() {
           }
           totalLabel={graphSummaryLabel}
           mode={graphMode}
-          onModeChange={setGraphMode}
+          onModeChange={handleGraphModeChange}
           data={graphData}
           selectedIndex={selectedGraphIndex}
           onSelectPoint={(_, index) => setSelectedGraphIndex(index)}
@@ -712,7 +704,7 @@ export default function Dashboard() {
                     <Text
                       style={[styles.modalEyebrow, { color: modalMutedColor }]}
                     >
-                      TODAY'S EXPENSE
+                      TODAY’S EXPENSE
                     </Text>
                     <Text
                       style={[styles.modalTitle, { color: modalTextColor }]}
@@ -742,7 +734,7 @@ export default function Dashboard() {
                 <Text
                   style={[styles.modalDescription, { color: modalMutedColor }]}
                 >
-                  This updates today's total, your spending graph, and
+                  This updates today’s total, your spending graph, and
                   transaction history.
                 </Text>
 

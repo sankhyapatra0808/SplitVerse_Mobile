@@ -438,7 +438,7 @@ export function AppSettingsProvider({ children }: { children: ReactNode }) {
     return () => {
       active = false;
     };
-  }, []);
+  }, [defaultDarkMode]);
 
   useEffect(() => {
     let active = true;
@@ -539,7 +539,7 @@ export function AppSettingsProvider({ children }: { children: ReactNode }) {
     setDefaultTopUpMethodState("UPI");
     setConfirmBeforeWalletPaymentState(true);
     setNotificationPreferencesState(defaultNotificationPreferences);
-  }, [detectedCurrency, detectedLanguage]);
+  }, [defaultDarkMode, detectedCurrency, detectedLanguage]);
 
   const currenciesWithLiveRates = useMemo<CurrencyOption[]>(
     () =>

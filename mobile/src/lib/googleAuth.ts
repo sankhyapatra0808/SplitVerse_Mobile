@@ -30,8 +30,11 @@ export async function signInWithGoogleAndGetIdToken() {
 
     const result = await GoogleSignin.signIn();
 
-    const idToken =
-      (result as any).idToken || (result as any).data?.idToken || "";
+    const tokenResult = result as {
+      idToken?: string | null;
+      data?: { idToken?: string | null } | null;
+    };
+    const idToken = tokenResult.idToken || tokenResult.data?.idToken || "";
 
     if (!idToken) {
       throw new Error(

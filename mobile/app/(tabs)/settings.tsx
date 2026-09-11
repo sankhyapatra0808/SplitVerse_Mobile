@@ -194,7 +194,6 @@ export default function Settings() {
   const emailChanged =
     identityEmail.trim().toLowerCase() !== originalIdentityEmail &&
     /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(identityEmail.trim());
-  const walletBalance = Number(dbUser?.wallet_balance || 0);
   const convertedAmount = convertCurrency(
     converterAmount,
     converterFrom,
@@ -1245,37 +1244,6 @@ export default function Settings() {
         />
       </SheetModal>
     </Screen>
-  );
-}
-
-type ChipProps = {
-  label: string;
-  active: boolean;
-  onPress: () => void;
-};
-
-function Chip({ label, active, onPress }: ChipProps) {
-  const { theme } = useAppSettings();
-  return (
-    <Pressable
-      style={[
-        styles.chip,
-        {
-          borderColor: active ? theme.primary : theme.border,
-          backgroundColor: active ? theme.primary : theme.surface,
-        },
-      ]}
-      onPress={onPress}
-    >
-      <Text
-        style={[
-          styles.chipText,
-          { color: active ? theme.onPrimary : theme.text },
-        ]}
-      >
-        {label}
-      </Text>
-    </Pressable>
   );
 }
 

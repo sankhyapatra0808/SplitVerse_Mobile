@@ -66,12 +66,6 @@ type CreateRoomDropdownAnchor = {
   height: number;
 };
 
-function formatMoney(value?: number | null) {
-  return `₹${Number(value || 0).toLocaleString("en-IN", {
-    maximumFractionDigits: 2,
-  })}`;
-}
-
 function getMemberName(member?: SplitRoomMember) {
   if (!member) return "Member";
   if (member.isMe) return "Me";
@@ -404,7 +398,7 @@ export default function SplitRooms() {
   const [savingRoom, setSavingRoom] = useState(false);
   const [savingItem, setSavingItem] = useState(false);
   const [updatingItemId, setUpdatingItemId] = useState("");
-  const [deletingItemId, setDeletingItemId] = useState("");
+  const [, setDeletingItemId] = useState("");
 
   const [memberBalanceTarget, setMemberBalanceTarget] =
     useState<SplitRoomBalance | null>(null);
@@ -416,8 +410,8 @@ export default function SplitRooms() {
 
   const [roomActionsOpen, setRoomActionsOpen] = useState(false);
   const [deletingRoomId, setDeletingRoomId] = useState("");
-  const [finalizingRoomId, setFinalizingRoomId] = useState("");
-  const [archivingRoomId, setArchivingRoomId] = useState("");
+  const [, setFinalizingRoomId] = useState("");
+  const [, setArchivingRoomId] = useState("");
   const [collectingMemberId, setCollectingMemberId] = useState("");
   const [removingMemberId, setRemovingMemberId] = useState("");
   const [remindingRoomId, setRemindingRoomId] = useState("");
@@ -478,8 +472,6 @@ export default function SplitRooms() {
     });
   }, [selectedRoom]);
 
-  const selectedRoomItems = selectedRoom?.items ?? [];
-
   const selectedMemberBalances = useMemo(() => {
     if (!selectedRoom) {
       return [];
@@ -504,28 +496,6 @@ export default function SplitRooms() {
       return String(left.name ?? "").localeCompare(String(right.name ?? ""));
     });
   }, [selectedRoom]);
-
-  const selectedRoomMyPendingItems = useMemo(() => {
-    if (!selectedRoom) {
-      return [];
-    }
-
-    const me = selectedRoom.members.find((member) => member.isMe);
-
-    if (!me) {
-      return [];
-    }
-
-    return selectedRoom.items.filter(
-      (item) =>
-        getItemAssignedMemberId(item) === me.id && !isItemCollected(item),
-    );
-  }, [selectedRoom]);
-
-  const selectedRoomMyPendingTotal = selectedRoomMyPendingItems.reduce(
-    (sum, item) => sum + Number(item.amount || 0),
-    0,
-  );
 
   const selectedRoomHasMemberPendingDues = selectedMemberBalances.some(
     (balance) => !balance.isMe && getBalancePendingAmount(balance) > 0,
@@ -673,9 +643,11 @@ export default function SplitRooms() {
     void loadSplitRoomData();
   }, [loadSplitRoomData]);
 
-  useRefreshOnReturn(() => {
-    void loadSplitRoomData(undefined, true);
-  }, [loadSplitRoomData]);
+  useRefreshOnReturn(
+    useCallback(() => {
+      void loadSplitRoomData(undefined, true);
+    }, [loadSplitRoomData]),
+  );
 
   useEffect(() => {
     if (!roomPaidByEmail && selfEmail) {
@@ -935,6 +907,8 @@ export default function SplitRooms() {
     }
   }
 
+  // Dormant action kept for existing room-management behavior.
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   function openEditItem(item: SplitRoomItem) {
     if (isItemCollected(item)) {
       Alert.alert("Item locked", "Collected items cannot be edited.");
@@ -1006,6 +980,8 @@ export default function SplitRooms() {
     }
   }
 
+  // Dormant action kept for existing room-management behavior.
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   function requestDeleteItem(item: SplitRoomItem) {
     if (isItemCollected(item)) {
       Alert.alert("Item locked", "Collected items cannot be deleted.");
@@ -1390,6 +1366,8 @@ export default function SplitRooms() {
     }
   }
 
+  // Dormant action kept for existing room-management behavior.
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   function requestFinalizeRoom(
     room: SplitRoom | null | undefined = selectedRoom,
   ) {
@@ -1451,6 +1429,8 @@ export default function SplitRooms() {
     }
   }
 
+  // Dormant action kept for existing room-management behavior.
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   function requestArchiveRoom() {
     if (!selectedRoom) return;
 

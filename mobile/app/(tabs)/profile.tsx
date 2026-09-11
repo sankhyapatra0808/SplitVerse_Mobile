@@ -149,7 +149,7 @@ export default function Profile() {
   const [sendingTarget, setSendingTarget] = useState("");
   const [acceptingRequestId, setAcceptingRequestId] = useState("");
   const [deletingRequestId, setDeletingRequestId] = useState("");
-  const [activityLoadingId, setActivityLoadingId] = useState("");
+  const [, setActivityLoadingId] = useState("");
   const [transactions, setTransactions] = useState<TransactionItem[]>(
     profileCache?.transactions ?? [],
   );
@@ -323,9 +323,11 @@ export default function Profile() {
     void loadProfileData(Boolean(profileCache));
   }, [loadProfileData]);
 
-  useRefreshOnReturn(() => {
-    void loadProfileData(true);
-  }, [loadProfileData]);
+  useRefreshOnReturn(
+    useCallback(() => {
+      void loadProfileData(true);
+    }, [loadProfileData]),
+  );
 
   async function handleSendRequest(
     identifier: string,
@@ -406,6 +408,8 @@ export default function Profile() {
     }
   }
 
+  // Retained for the friend-activity flow; currently no visible control calls it.
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   async function handleOpenActivity(friendId: string) {
     try {
       setActivityLoadingId(friendId);

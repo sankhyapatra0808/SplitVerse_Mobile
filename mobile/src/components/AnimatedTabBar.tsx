@@ -11,7 +11,6 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAppSettings } from "../context/useAppSettings";
-import { fontFamilies } from "../theme/fonts";
 import { radius, spacing } from "../theme/tokens";
 import Text from "./LocalizedText";
 
