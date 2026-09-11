@@ -1,4 +1,128 @@
 /* Shared Split Rooms page styles */
+.daily-room-name-preview {
+  display: grid;
+  gap: 4px;
+  padding: 14px;
+  border: 1px solid var(--dash-hairline-soft);
+  border-radius: 16px;
+  background: var(--dash-surface-soft);
+}
+
+.daily-room-name-preview span,
+.automatic-share-preview > span {
+  color: var(--dash-muted);
+  font-size: 13px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.daily-room-name-preview strong {
+  color: var(--dash-ink);
+  font-size: 22px;
+  font-weight: 500;
+}
+
+.daily-room-name-preview small {
+  color: var(--dash-body);
+  font-size: 13px;
+}
+
+.split-mode-switch {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  padding: 5px;
+  border: 1px solid var(--dash-hairline-soft);
+  border-radius: 16px;
+  background: var(--dash-surface-soft);
+}
+
+.split-rooms-grid .assignment-grid .split-mode-switch button {
+  grid-column: auto;
+  min-height: 40px;
+  border: 0;
+  border-radius: 12px;
+  color: var(--dash-body);
+  background: transparent;
+  cursor: pointer;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.split-rooms-grid .assignment-grid .split-mode-switch button.active {
+  color: #ffffff;
+  background: var(--dash-primary);
+}
+
+.assign-payer,
+.automatic-member-picker,
+.automatic-share-preview {
+  grid-column: 1 / -1;
+}
+
+.automatic-member-picker {
+  min-width: 0;
+  margin: 0;
+  padding: 12px;
+  border: 1px solid var(--dash-hairline-soft);
+  border-radius: 16px;
+}
+
+.automatic-member-picker legend {
+  padding: 0 6px;
+  color: var(--dash-muted);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.automatic-member-picker > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.automatic-member-picker label {
+  min-height: 38px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 12px;
+  border: 1px solid var(--dash-hairline-soft);
+  border-radius: 999px;
+  background: var(--dash-canvas);
+  cursor: pointer;
+}
+
+.automatic-member-picker input {
+  width: 17px;
+  height: 17px;
+  accent-color: var(--dash-primary);
+}
+
+.automatic-share-preview {
+  display: grid;
+  gap: 8px;
+  padding: 14px;
+  border: 1px solid var(--dash-hairline-soft);
+  border-radius: 16px;
+  background: var(--dash-surface-soft);
+}
+
+.automatic-share-preview > div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.automatic-share-preview em {
+  color: var(--dash-primary);
+  font-style: normal;
+  font-weight: 800;
+}
+
 .split-rooms-grid {
   gap: 18px;
   align-items: start;

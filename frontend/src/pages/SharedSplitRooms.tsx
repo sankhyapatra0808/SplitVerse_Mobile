@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import {
   CalendarDays,
   CheckCircle2,
@@ -44,19 +44,6 @@ import LoadingSkeleton from "../components/LoadingSkeleton";
 import { withTopProgress } from "../utils/topProgress";
 import DashboardLayout from "./dashboard/DashboardLayout";
 import "../styles/SharedSplitRooms.css";
-
-const categoryOptions = [
-  { label: "Restaurant", value: "restaurant" },
-  { label: "Groceries", value: "groceries" },
-  { label: "Trip", value: "trip" },
-  { label: "Flatmates", value: "flatmates" },
-  { label: "Rent", value: "rent" },
-  { label: "Utilities", value: "utilities" },
-  { label: "Subscription", value: "subscription" },
-  { label: "Fuel", value: "fuel" },
-  { label: "Shopping", value: "shopping" },
-  { label: "Other", value: "other" },
-];
 
 function getMemberName(member: SplitRoom["members"][number]) {
   if (member.isMe) {
@@ -157,6 +144,19 @@ function roundMoney(amount: number) {
   return Math.round((amount + Number.EPSILON) * 100) / 100;
 }
 
+function getIndiaRoomName(date = new Date()) {
+  const parts = new Intl.DateTimeFormat("en-GB", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    timeZone: "Asia/Kolkata",
+  }).formatToParts(date);
+  const value = (type: Intl.DateTimeFormatPartTypes) =>
+    parts.find((part) => part.type === type)?.value || "";
+
+  return `${value("day")}/${value("month")}/${value("year")}`;
+}
+
 export default function SharedSplitRooms() {
   const {
     appCurrency,
@@ -165,11 +165,11 @@ export default function SharedSplitRooms() {
     formatCurrency,
   } = useAppSettings();
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const roomIdFromNotification = searchParams.get("roomId") || "";
   const [rooms, setRooms] = useState<SplitRoom[]>([]);
   const [selectedRoomId, setSelectedRoomId] = useState("");
-  const [roomName, setRoomName] = useState("");
   const [friends, setFriends] = useState<Friend[]>([]);
   const [selectedFriendEmails, setSelectedFriendEmails] = useState<string[]>(
     [],
@@ -177,10 +177,12 @@ export default function SharedSplitRooms() {
   const [friendSearch, setFriendSearch] = useState("");
   const [friendPickerOpen, setFriendPickerOpen] = useState(false);
   const [roomCategory, setRoomCategory] = useState("restaurant");
-  const [roomPaidByEmail, setRoomPaidByEmail] = useState("");
   const [itemTitle, setItemTitle] = useState("");
   const [itemAmount, setItemAmount] = useState("");
   const [assignedMemberId, setAssignedMemberId] = useState("");
+  const [itemPaidByMemberId, setItemPaidByMemberId] = useState("");
+  const [splitMode, setSplitMode] = useState<"manual" | "automatic">("manual");
+  const [automaticMemberIds, setAutomaticMemberIds] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [savingRoom, setSavingRoom] = useState(false);
   const [savingItem, setSavingItem] = useState(false);
@@ -265,32 +267,6 @@ export default function SharedSplitRooms() {
       })),
     [sortedMembers],
   );
-  const paidByOptions = useMemo<DropdownOption[]>(() => {
-    const selfEmail = user?.email || "";
-    const selectedFriends = friends.filter((friend) =>
-      selectedFriendEmails.includes(friend.email),
-    );
-
-    return [
-      { value: selfEmail, label: selfEmail ? "Me" : "Me (current user)" },
-      ...selectedFriends.map((friend) => ({
-        value: friend.email,
-        label: friend.name || friend.email,
-      })),
-    ].filter((option, index, options) =>
-      option.value && options.findIndex((item) => item.value === option.value) === index,
-    );
-  }, [friends, selectedFriendEmails, user?.email]);
-
-  useEffect(() => {
-    if (paidByOptions.length === 0) {
-      return;
-    }
-
-    if (!roomPaidByEmail || !paidByOptions.some((option) => option.value === roomPaidByEmail)) {
-      setRoomPaidByEmail(String(paidByOptions[0].value));
-    }
-  }, [paidByOptions, roomPaidByEmail]);
   const selectedRoomPendingDues = useMemo(
     () =>
       selectedRoom
@@ -336,6 +312,29 @@ export default function SharedSplitRooms() {
       ),
     [incomingNetSettlements],
   );
+  const automaticSharePreview = useMemo(() => {
+    const selectedAmount = Number(itemAmount);
+
+    if (
+      !Number.isFinite(selectedAmount) ||
+      selectedAmount <= 0 ||
+      automaticMemberIds.length === 0
+    ) {
+      return [];
+    }
+
+    const totalCents = Math.round(selectedAmount * 100);
+    const baseCents = Math.floor(totalCents / automaticMemberIds.length);
+    const remainder = totalCents - baseCents * automaticMemberIds.length;
+
+    return automaticMemberIds.map((memberId, index) => ({
+      memberId,
+      name: getMemberName(
+        sortedMembers.find((member) => member.id === memberId)!,
+      ),
+      amount: (baseCents + (index < remainder ? 1 : 0)) / 100,
+    }));
+  }, [automaticMemberIds, itemAmount, sortedMembers]);
   const visibleNetSettlements = useMemo(
     () =>
       netSettlementInfoDialog === "payable"
@@ -554,7 +553,9 @@ export default function SharedSplitRooms() {
   }, [roomIdFromNotification]);
 
   useEffect(() => {
-    setExpandedMemberActionId("");
+    const timer = window.setTimeout(() => setExpandedMemberActionId(""), 0);
+
+    return () => window.clearTimeout(timer);
   }, [selectedRoomId]);
 
   useEffect(() => {
@@ -627,6 +628,36 @@ export default function SharedSplitRooms() {
       return () => window.clearTimeout(timer);
     }
   }, [assignedMemberId, sortedMembers]);
+
+  useEffect(() => {
+    const selfMember = sortedMembers.find((member) => member.isMe);
+    const fallbackMemberId = selfMember?.id || sortedMembers[0]?.id || "";
+    const timer = window.setTimeout(() => {
+      if (!sortedMembers.some((member) => member.id === itemPaidByMemberId)) {
+        setItemPaidByMemberId(fallbackMemberId);
+      }
+
+      setAutomaticMemberIds((current) => {
+        const validIds = current.filter((memberId) =>
+          sortedMembers.some((member) => member.id === memberId),
+        );
+
+        return validIds.length > 0
+          ? validIds
+          : sortedMembers.map((member) => member.id);
+      });
+    }, 0);
+
+    return () => window.clearTimeout(timer);
+  }, [itemPaidByMemberId, sortedMembers]);
+
+  function toggleAutomaticMember(memberId: string) {
+    setAutomaticMemberIds((current) =>
+      current.includes(memberId)
+        ? current.filter((id) => id !== memberId)
+        : [...current, memberId],
+    );
+  }
 
   function toggleSelectedFriend(email: string) {
     setSelectedFriendEmails((prev) =>
@@ -1207,11 +1238,6 @@ export default function SharedSplitRooms() {
     setMessage("");
     setError("");
 
-    if (!roomName.trim()) {
-      setError("Room name is required.");
-      return;
-    }
-
     if (selectedFriendEmails.length === 0) {
       setError("Select at least one friend for this room.");
       return;
@@ -1219,10 +1245,10 @@ export default function SharedSplitRooms() {
 
     const previousRooms = rooms;
     const previousSelectedRoomId = selectedRoomId;
-    const nextRoomName = roomName.trim();
+    const nextRoomName = getIndiaRoomName();
     const nextRoomCategory = roomCategory;
     const nextFriendEmails = selectedFriendEmails;
-    const nextPaidByEmail = roomPaidByEmail || user?.email || "";
+    const nextPaidByEmail = user?.email || "";
     const optimisticRoom = createOptimisticRoom({
       name: nextRoomName,
       category: nextRoomCategory,
@@ -1234,20 +1260,16 @@ export default function SharedSplitRooms() {
       setSavingRoom(true);
       setRooms((prev) => [optimisticRoom, ...prev]);
       setSelectedRoomId(optimisticRoom.id);
-      setRoomName("");
       setSelectedFriendEmails([]);
       setFriendSearch("");
       setFriendPickerOpen(false);
       setRoomCategory("restaurant");
-      setRoomPaidByEmail(user?.email || "");
       setMessage("Room created instantly. Saving...");
 
       await withTopProgress(async () => {
         const response = await createSplitRoom({
-          name: nextRoomName,
-          category: nextRoomCategory,
           members: nextFriendEmails,
-          paidByEmail: nextPaidByEmail,
+          dailyRoom: true,
         });
 
         setMessage("Room created and added to your active rooms.");
@@ -1256,10 +1278,8 @@ export default function SharedSplitRooms() {
     } catch (createError) {
       setRooms(previousRooms);
       setSelectedRoomId(previousSelectedRoomId);
-      setRoomName(nextRoomName);
       setSelectedFriendEmails(nextFriendEmails);
       setRoomCategory(nextRoomCategory);
-      setRoomPaidByEmail(nextPaidByEmail);
       setError(
         createError instanceof Error
           ? createError.message
@@ -1309,8 +1329,18 @@ export default function SharedSplitRooms() {
       return;
     }
 
-    if (!assignedMemberId) {
+    if (!itemPaidByMemberId) {
+      setError("Choose who paid for this item.");
+      return;
+    }
+
+    if (splitMode === "manual" && !assignedMemberId) {
       setError("Choose who this item is assigned to.");
+      return;
+    }
+
+    if (splitMode === "automatic" && automaticMemberIds.length === 0) {
+      setError("Select at least one member for the automatic split.");
       return;
     }
 
@@ -1324,36 +1354,51 @@ export default function SharedSplitRooms() {
 
     try {
       setSavingItem(true);
-      setRooms((prev) =>
-        prev.map((room) =>
-          room.id === selectedRoom.id
-            ? addOptimisticRoomItem({
-                room,
-                title: itemTitle.trim(),
-                amount: numericAmount,
-                assignedMemberId,
-              })
-            : room,
-        ),
-      );
+      if (splitMode === "manual") {
+        setRooms((prev) =>
+          prev.map((room) =>
+            room.id === selectedRoom.id
+              ? addOptimisticRoomItem({
+                  room,
+                  title: itemTitle.trim(),
+                  amount: numericAmount,
+                  assignedMemberId,
+                })
+              : room,
+          ),
+        );
+      }
       setItemTitle("");
       setItemAmount("");
-      setMessage(assignedMember?.isMe ? "Expense item added" : "Due added");
+      setMessage(
+        splitMode === "automatic"
+          ? "Splitting item equally..."
+          : assignedMember?.isMe
+            ? "Expense item added"
+            : "Due added",
+      );
 
       await withTopProgress(async () => {
         await createSplitRoomItem(selectedRoom.id, {
           title: previousItemTitle.trim(),
           amount: numericAmount,
-          assignedMemberId,
+          paidByMemberId: itemPaidByMemberId,
+          splitMode,
+          ...(splitMode === "automatic"
+            ? { assignedMemberIds: automaticMemberIds }
+            : { assignedMemberId }),
         });
 
         setMessage(
-          assignedMember?.isMe
-            ? "Expense item added"
-            : "Expense item added as a due",
+          splitMode === "automatic"
+            ? `Item split equally between ${automaticMemberIds.length} members.`
+            : assignedMember?.isMe
+              ? "Expense item added"
+              : "Expense item added as a due",
         );
         refreshSplitRoomDataInBackground(selectedRoom.id, {
-          pendingDuesChanged: !assignedMember?.isMe,
+          pendingDuesChanged:
+            splitMode === "automatic" || !assignedMember?.isMe,
         });
       });
     } catch (itemError) {
@@ -1769,16 +1814,11 @@ export default function SharedSplitRooms() {
             </div>
 
             <form className="dashboard-form" onSubmit={handleCreateRoom}>
-              <label>
-                <span>Room name</span>
-                <input
-                  type="text"
-                  placeholder="Weekend dinner"
-                  value={roomName}
-                  onChange={(event) => setRoomName(event.target.value)}
-                  disabled={savingRoom}
-                />
-              </label>
+              <div className="daily-room-name-preview">
+                <span>Today&apos;s room</span>
+                <strong>{getIndiaRoomName()}</strong>
+                <small>Only one room can be created each day.</small>
+              </div>
               <label className="friend-picker-label">
                 <span>Friends</span>
 
@@ -1861,34 +1901,12 @@ export default function SharedSplitRooms() {
                 )}
               </label>
 
-              <div className="split-room-meta-row">
-                <label>
-                  <span>Paid by</span>
-                  <Dropdown
-                    ariaLabel="Who paid the bill"
-                    value={roomPaidByEmail || paidByOptions[0]?.value || ""}
-                    options={paidByOptions.length > 0 ? paidByOptions : [{ value: "", label: "Choose friends first" }]}
-                    onChange={(value) => setRoomPaidByEmail(String(value))}
-                    disabled={savingRoom || paidByOptions.length === 0}
-                  />
-                </label>
-                <label>
-                  <span>Category</span>
-                  <Dropdown
-                    ariaLabel="Room category"
-                    value={roomCategory}
-                    options={categoryOptions}
-                    onChange={setRoomCategory}
-                    disabled={savingRoom}
-                  />
-                </label>
-              </div>
               <button
                 className="dashboard-primary-button"
                 type="submit"
                 disabled={savingRoom}
               >
-                {savingRoom ? "Creating room" : "Create room"}
+                {savingRoom ? "Creating today's room" : "Create today's room"}
               </button>
             </form>
           </article>
@@ -1934,11 +1952,9 @@ export default function SharedSplitRooms() {
                       <span className="room-row-meta">
                         {room.memberCount} members
                         {room.isOwner ? " - Owner" : ""}
-                        {room.paidByName || room.paidByEmail ? ` - Paid by ${room.paidByName || room.paidByEmail}` : ""}
                         {room.isFinalized ? " - Finalized" : room.isArchived ? " - Archived" : ""}
                       </span>
                     </div>
-                    <em className="room-row-due">{formatCurrency(room.outstandingAmount)}{" "}due</em>
                   </button>
                   {room.isOwner && (
                     <div className="room-row-actions">
@@ -2175,6 +2191,30 @@ export default function SharedSplitRooms() {
           )}
 
           <form className="assignment-grid" onSubmit={handleAddItem}>
+            <div className="split-mode-switch" role="group" aria-label="Splitting method">
+              {(["manual", "automatic"] as const).map((mode) => (
+                <button
+                  className={splitMode === mode ? "active" : ""}
+                  type="button"
+                  key={mode}
+                  onClick={() => setSplitMode(mode)}
+                  disabled={savingItem || selectedRoomClosed}
+                >
+                  {mode === "manual" ? "Manual splitting" : "Automatic splitting"}
+                </button>
+              ))}
+            </div>
+            <label className="assign-payer">
+              <span>Paid by</span>
+              <Dropdown
+                ariaLabel="Who paid for this item"
+                value={itemPaidByMemberId}
+                options={memberOptions}
+                onChange={setItemPaidByMemberId}
+                placeholder="Choose payer"
+                disabled={savingItem || sortedMembers.length === 0 || !selectedRoom?.isOwner || selectedRoomClosed}
+              />
+            </label>
             <label className="assign-rooms">
               <span>Room</span>
               <Dropdown
@@ -2195,6 +2235,24 @@ export default function SharedSplitRooms() {
                 disabled={savingItem || !selectedRoom || !selectedRoom.isOwner || selectedRoomClosed}
               />
             </label>
+            {splitMode === "automatic" && (
+              <fieldset className="automatic-member-picker">
+                <legend>Split between friends</legend>
+                <div>
+                  {sortedMembers.map((member) => (
+                    <label key={member.id}>
+                      <input
+                        type="checkbox"
+                        checked={automaticMemberIds.includes(member.id)}
+                        onChange={() => toggleAutomaticMember(member.id)}
+                        disabled={savingItem || selectedRoomClosed}
+                      />
+                      <span>{getMemberName(member)}</span>
+                    </label>
+                  ))}
+                </div>
+              </fieldset>
+            )}
             <label>
               <span>Amount ({activeCurrency.symbol} {appCurrency})</span>
               <input
@@ -2207,17 +2265,30 @@ export default function SharedSplitRooms() {
                 disabled={savingItem || !selectedRoom || !selectedRoom.isOwner || selectedRoomClosed}
               />
             </label>
-            <label className="assign-category">
-              <span>Assign to</span>
-              <Dropdown
-                ariaLabel="Assigned member"
-                value={assignedMemberId}
-                options={memberOptions}
-                onChange={setAssignedMemberId}
-                placeholder="No members yet"
-                disabled={savingItem || sortedMembers.length === 0 || !selectedRoom?.isOwner || selectedRoomClosed}
-              />
-            </label>
+            {splitMode === "automatic" && automaticSharePreview.length > 0 && (
+              <div className="automatic-share-preview">
+                <span>Amount each person will pay</span>
+                {automaticSharePreview.map((share) => (
+                  <div key={share.memberId}>
+                    <strong>{share.name}</strong>
+                    <em>{formatCurrency(share.amount)}</em>
+                  </div>
+                ))}
+              </div>
+            )}
+            {splitMode === "manual" && (
+              <label className="assign-category">
+                <span>Assign to</span>
+                <Dropdown
+                  ariaLabel="Assigned member"
+                  value={assignedMemberId}
+                  options={memberOptions}
+                  onChange={setAssignedMemberId}
+                  placeholder="No members yet"
+                  disabled={savingItem || sortedMembers.length === 0 || !selectedRoom?.isOwner || selectedRoomClosed}
+                />
+              </label>
+            )}
             <button type="submit" disabled={savingItem || !selectedRoom || !selectedRoom.isOwner || selectedRoomClosed}>
               {savingItem ? "Adding item" : selectedRoomClosed ? "Room closed" : selectedRoom?.isOwner ? "Add item" : "Owner only"}
             </button>
@@ -2300,7 +2371,7 @@ export default function SharedSplitRooms() {
               <button
                 className="net-settlement-metric payable"
                 type="button"
-                onClick={() => setNetSettlementInfoDialog("payable")}
+                onClick={() => navigate("/settlements/payable")}
               >
                 <span>Payable</span>
                 <strong>{formatCurrency(netSettlementOutgoingTotal)}</strong>
@@ -2309,7 +2380,7 @@ export default function SharedSplitRooms() {
               <button
                 className="net-settlement-metric receivable"
                 type="button"
-                onClick={() => setNetSettlementInfoDialog("receivable")}
+                onClick={() => navigate("/settlements/receivable")}
               >
                 <span>Receivable</span>
                 <strong>{formatCurrency(netSettlementIncomingTotal)}</strong>
@@ -2879,6 +2950,14 @@ export default function SharedSplitRooms() {
                 const canManageItem =
                   Boolean(selectedRoom.isOwner) && !item.isCollected;
                 const isEditing = editingItemId === item.id;
+                const paidByMember = selectedRoom.members.find(
+                  (member) =>
+                    member.id === (item.paidByMemberId || item.paid_by_member_id),
+                );
+                const paidByLabel =
+                  item.paidByName ||
+                  item.paidByEmail ||
+                  (paidByMember ? getMemberName(paidByMember) : "Room payer");
 
                 return (
                   <div
@@ -2973,6 +3052,7 @@ export default function SharedSplitRooms() {
                               item.assigned_member_id,
                             )}`}
                           </strong>
+                          <small>{`Paid by ${paidByLabel}`}</small>
                         </div>
                         <em>{formatCurrency(item.amount)}</em>
                         <span

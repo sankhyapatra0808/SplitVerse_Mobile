@@ -72,7 +72,7 @@ try {
     }
   }
 
-  for (const route of ["/", "/settings", "/split-rooms"]) {
+  for (const route of ["/", "/settings", "/split-rooms", "/settlements/payable"]) {
     const routeResponse = await fetch(`${baseUrl}${route}`);
 
     if (!routeResponse.ok) {

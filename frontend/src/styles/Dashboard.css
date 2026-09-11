@@ -160,8 +160,7 @@
 
 
 .dashboard-topbar {
-  position: sticky;
-  top: 0;
+  position: static;
   z-index: 10;
   min-height: 86px;
   display: flex;
@@ -1678,8 +1677,10 @@
 .profile-panel-section {
   min-height: 0;
   display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
   align-content: start;
   gap: 12px;
+  overflow: hidden;
 }
 
 
@@ -1690,8 +1691,14 @@
 
 
 .profile-notification-list {
+  min-height: 0;
   display: grid;
+  align-content: start;
   gap: 9px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding-right: 4px;
+  scrollbar-gutter: stable;
 }
 
 
@@ -2615,7 +2622,7 @@
   display: none;
 }
 
-/* Keep dashboard topbar fixed while scrolling */
+/* The topbar belongs to the page flow and scrolls away with its content. */
 .dashboard-content {
   position: relative;
   min-width: 0;
@@ -2623,9 +2630,8 @@
 }
 
 .dashboard-topbar {
-  position: sticky;
-  top: 14px;
-  z-index: 70;
+  position: static;
+  z-index: auto;
   backdrop-filter: blur(18px);
   -webkit-backdrop-filter: blur(18px);
 }

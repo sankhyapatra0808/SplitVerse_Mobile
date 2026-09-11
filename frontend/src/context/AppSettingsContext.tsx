@@ -259,8 +259,9 @@ export function AppSettingsProvider({ children }: AppSettingsProviderProps) {
     storedSettings.compactMode ?? false,
   );
   const [privacyMode, setPrivacyModeState] = useState(
-    storedSettings.privacyMode ?? false,
+    storedSettings.privacyMode ?? true,
   );
+  const [privacyShieldActive, setPrivacyShieldActive] = useState(false);
   const [settlementReminders, setSettlementRemindersState] = useState(
     storedSettings.settlementReminders ?? true,
   );
@@ -316,6 +317,45 @@ export function AppSettingsProvider({ children }: AppSettingsProviderProps) {
   const [exchangeRatesError, setExchangeRatesError] = useState("");
 
   useEffect(() => observeUiTranslations(appLanguage), [appLanguage]);
+
+  useEffect(() => {
+    document.body.classList.toggle("splitverse-privacy-enabled", privacyMode);
+
+    return () => {
+      document.body.classList.remove("splitverse-privacy-enabled");
+    };
+  }, [privacyMode]);
+
+  useEffect(() => {
+    if (!privacyMode) {
+      const timer = window.setTimeout(() => setPrivacyShieldActive(false), 0);
+      return () => window.clearTimeout(timer);
+    }
+
+    const conceal = () => setPrivacyShieldActive(true);
+    const reveal = () => {
+      if (document.visibilityState === "visible" && document.hasFocus()) {
+        setPrivacyShieldActive(false);
+      }
+    };
+    const handleVisibility = () => {
+      if (document.visibilityState === "hidden") {
+        conceal();
+      } else {
+        window.setTimeout(reveal, 120);
+      }
+    };
+
+    window.addEventListener("blur", conceal);
+    window.addEventListener("focus", reveal);
+    document.addEventListener("visibilitychange", handleVisibility);
+
+    return () => {
+      window.removeEventListener("blur", conceal);
+      window.removeEventListener("focus", reveal);
+      document.removeEventListener("visibilitychange", handleVisibility);
+    };
+  }, [privacyMode]);
 
   useEffect(() => {
     let active = true;
@@ -400,7 +440,7 @@ export function AppSettingsProvider({ children }: AppSettingsProviderProps) {
     window.localStorage.removeItem(settingsStorageKey);
     setAvatarIdState("current");
     setCompactModeState(false);
-    setPrivacyModeState(false);
+    setPrivacyModeState(true);
     setSettlementRemindersState(true);
     setAppCurrencyState(detectedCurrency);
     setAppLanguageState(detectedLanguage);
@@ -439,10 +479,6 @@ export function AppSettingsProvider({ children }: AppSettingsProviderProps) {
         currency: CurrencyCode,
         options: CurrencyFormatOptions = {},
       ) {
-        if (privacyMode) {
-          return "Hidden";
-        }
-
         const numericAmount = Number.isFinite(amount) ? amount : 0;
         const sign = options.signed
           ? numericAmount > 0
@@ -580,6 +616,9 @@ export function AppSettingsProvider({ children }: AppSettingsProviderProps) {
   return (
     <AppSettingsContext.Provider value={value}>
       {children}
+      {privacyMode && privacyShieldActive && (
+        <div className="privacy-screen-shield" role="presentation" aria-hidden="true" />
+      )}
     </AppSettingsContext.Provider>
   );
 }

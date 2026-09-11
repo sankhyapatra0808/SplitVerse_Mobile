@@ -548,7 +548,7 @@
 }
 
 .dashboard-loader-topbar {
-  position: sticky;
+  position: static;
   top: 14px;
   z-index: 70;
   backdrop-filter: blur(18px);

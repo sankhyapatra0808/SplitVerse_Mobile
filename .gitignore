@@ -23,13 +23,13 @@ mobile/*.p12
 mobile/*.mobileprovision
 
 # Server build/runtime output
-server/dist/
-server/uploads/*
-!server/uploads/.gitkeep
+backend/server/dist/
+backend/server/uploads/*
+!backend/server/uploads/.gitkeep
 
 # Web build output
-dist/
-build/
+frontend/dist/
+frontend/build/
 
 # Logs, caches, and editor files
 *.log

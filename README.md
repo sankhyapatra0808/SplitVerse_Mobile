@@ -1,4 +1,29 @@
-# SplitVerse Mobile App
+# SplitVerse
+
+## Project folders
+
+- `frontend/` — Vite website
+- `backend/server/` — API and database migrations
+- `mobile/` — Expo 54 app
+
+Install all packages once from the project root:
+
+```bash
+npm run install:all
+```
+
+Run each project from the root:
+
+```bash
+npm run dev:frontend
+npm run dev:backend
+npm run dev:mobile
+```
+
+Build the website and backend together with `npm run build`. Apply database
+migrations with `npm run migrate`.
+
+## SplitVerse Mobile App
 
 Open the SplitVerse website: **[https://split-verse.vercel.app/](https://split-verse.vercel.app/)**
 

@@ -89,6 +89,23 @@ body {
   margin: 0;
 }
 
+.privacy-screen-shield {
+  position: fixed;
+  inset: 0;
+  z-index: 2147483647;
+  background: #000000;
+}
+
+@media print {
+  body.splitverse-privacy-enabled::after {
+    content: "";
+    position: fixed;
+    inset: 0;
+    z-index: 2147483647;
+    background: #000000;
+  }
+}
+
 h1,
 h2 {
   font-family: var(--heading);

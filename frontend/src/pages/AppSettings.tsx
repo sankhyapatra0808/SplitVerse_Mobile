@@ -1458,7 +1458,7 @@ export default function AppSettings() {
               <EyeOff size={19} />
               <span>
                 <strong>Privacy mode</strong>
-                <small>Hide money values when sharing your screen.</small>
+                <small>Keep amounts visible, but cover SplitVerse when the tab loses focus or is hidden.</small>
               </span>
               <input
                 type="checkbox"
