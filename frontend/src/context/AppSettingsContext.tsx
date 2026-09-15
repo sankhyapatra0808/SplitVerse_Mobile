@@ -344,63 +344,117 @@ export function AppSettingsProvider({ children }: AppSettingsProviderProps) {
     }
 
     let revealTimer = 0;
+    let blurTimer = 0;
+    let focusLossShieldLatched = false;
+
     const setShield = (active: boolean) => {
       document.documentElement.classList.toggle("privacy-shield-active", active);
       setPrivacyShieldActive(active);
     };
+
     const conceal = () => {
       window.clearTimeout(revealTimer);
       setShield(true);
     };
-    const reveal = () => {
-      if (document.visibilityState === "visible" && document.hasFocus()) {
-        setShield(false);
-      }
-    };
-    const scheduleReveal = (delay = 900) => {
+
+    const reveal = (delay = 120) => {
       window.clearTimeout(revealTimer);
-      revealTimer = window.setTimeout(reveal, delay);
+      revealTimer = window.setTimeout(() => {
+        if (document.visibilityState === "visible") {
+          setShield(false);
+        }
+      }, delay);
     };
+
     const handleVisibility = () => {
       if (document.visibilityState === "hidden") {
         conceal();
       } else {
-        scheduleReveal();
+        reveal();
       }
     };
+
     const handlePrintScreen = (event: KeyboardEvent) => {
       if (event.key === "PrintScreen") {
         conceal();
-        scheduleReveal(1600);
+        reveal(1600);
       }
     };
-    const verifyFocus = () => {
-      if (document.visibilityState === "hidden" || !document.hasFocus()) {
-        conceal();
-      }
-    };
-    const handleFocus = () => scheduleReveal();
-    const handlePointerEnter = () => scheduleReveal();
 
-    window.addEventListener("blur", conceal);
-    window.addEventListener("focus", handleFocus);
-    window.addEventListener("pagehide", conceal);
+    // Preserve the original best-effort protection when the browser window
+    // loses focus, but avoid blacking the page for the normal docked Chrome
+    // DevTools/Inspect case.
+    const looksLikeDockedDevTools = () => {
+      const widthGap = Math.max(0, window.outerWidth - window.innerWidth);
+      const heightGap = Math.max(0, window.outerHeight - window.innerHeight);
+      return widthGap > 240 || heightGap > 240;
+    };
+
+    const handleWindowBlur = () => {
+      window.clearTimeout(blurTimer);
+      blurTimer = window.setTimeout(() => {
+        if (document.visibilityState === "hidden") {
+          conceal();
+          return;
+        }
+
+        if (looksLikeDockedDevTools()) {
+          return;
+        }
+
+        // Keep a focus-loss shield latched. Screen-share pickers (including
+        // Google Meet's tab/window picker) can briefly blur and then refocus
+        // this page even though capture has already started. Clearing the
+        // shield merely on `focus` would expose the page again.
+        focusLossShieldLatched = true;
+        conceal();
+      }, 120);
+    };
+
+    const handleWindowFocus = () => {
+      window.clearTimeout(blurTimer);
+      // Deliberately do not reveal here. A screen-share picker can return
+      // focus to the captured page without any real user interaction.
+      if (!focusLossShieldLatched && document.visibilityState === "visible") {
+        reveal();
+      }
+    };
+
+    const handleUserInteraction = (event: Event) => {
+      if (event instanceof KeyboardEvent && event.key === "PrintScreen") {
+        return;
+      }
+
+      if (focusLossShieldLatched && document.visibilityState === "visible") {
+        focusLossShieldLatched = false;
+        reveal(40);
+      }
+    };
+
+    if (document.visibilityState === "hidden") {
+      conceal();
+    } else {
+      setShield(false);
+    }
+
     document.addEventListener("visibilitychange", handleVisibility);
     document.addEventListener("keydown", handlePrintScreen, true);
-    document.documentElement.addEventListener("mouseleave", conceal);
-    document.documentElement.addEventListener("mouseenter", handlePointerEnter);
-    const focusMonitor = window.setInterval(verifyFocus, 300);
+    document.addEventListener("pointerdown", handleUserInteraction, true);
+    document.addEventListener("keydown", handleUserInteraction, true);
+    window.addEventListener("blur", handleWindowBlur);
+    window.addEventListener("focus", handleWindowFocus);
+    window.addEventListener("pagehide", conceal);
 
     return () => {
       window.clearTimeout(revealTimer);
-      window.clearInterval(focusMonitor);
-      window.removeEventListener("blur", conceal);
-      window.removeEventListener("focus", handleFocus);
-      window.removeEventListener("pagehide", conceal);
+      window.clearTimeout(blurTimer);
       document.removeEventListener("visibilitychange", handleVisibility);
       document.removeEventListener("keydown", handlePrintScreen, true);
-      document.documentElement.removeEventListener("mouseleave", conceal);
-      document.documentElement.removeEventListener("mouseenter", handlePointerEnter);
+      document.removeEventListener("pointerdown", handleUserInteraction, true);
+      document.removeEventListener("keydown", handleUserInteraction, true);
+      window.removeEventListener("blur", handleWindowBlur);
+      window.removeEventListener("focus", handleWindowFocus);
+      window.removeEventListener("pagehide", conceal);
       document.documentElement.classList.remove("privacy-shield-active");
     };
   }, [privacyMode]);

@@ -1461,7 +1461,7 @@ export default function AppSettings() {
               <EyeOff size={19} />
               <span>
                 <strong>Privacy mode</strong>
-                <small>Keep amounts visible, but cover SplitVerse when the tab loses focus or is hidden.</small>
+                <small>Keep amounts visible, but cover SplitVerse when you switch away from its browser tab.</small>
               </span>
               <input
                 type="checkbox"
