@@ -113,6 +113,12 @@ const netSettlementPaymentSchema = z
   })
   .strict();
 
+const netSettlementIncomingActionSchema = z
+  .object({
+    fromUserId: z.string().trim().uuid("Invalid settlement sender"),
+  })
+  .strict();
+
 const reminderActionSchema = z
   .object({
     mutedHours: z.number().int().min(1).max(168).optional(),
@@ -400,6 +406,18 @@ async function ensureNetSettlementTables() {
 
     CREATE INDEX IF NOT EXISTS split_room_reminder_preferences_user_room_idx
       ON split_room_reminder_preferences (user_id, room_id);
+
+
+    CREATE TABLE IF NOT EXISTS net_settlement_reminders (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      sender_user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      recipient_user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      amount NUMERIC(12, 2) NOT NULL CHECK (amount > 0),
+      created_at TIMESTAMP DEFAULT NOW()
+    );
+
+    CREATE INDEX IF NOT EXISTS net_settlement_reminders_recipient_idx
+      ON net_settlement_reminders (recipient_user_id, created_at DESC);
   `);
 }
 
@@ -1086,6 +1104,36 @@ async function applyWalletSettlement(
       method: "wallet",
       createdByUserId,
       walletTransactionId,
+    });
+
+    touchedItemIds.push(line.item_id);
+    remaining = roundMoneyValue(remaining - amount);
+  }
+
+  return touchedItemIds;
+}
+
+async function applyManualNetSettlement(
+  client: Queryable,
+  lines: NetDebtLineRow[],
+  amountToSettle: number,
+  createdByUserId: string,
+) {
+  let remaining = roundMoneyValue(amountToSettle);
+  const touchedItemIds: string[] = [];
+
+  for (const line of lines) {
+    if (remaining <= 0.009) break;
+    if (line.pending_amount <= 0.009) continue;
+
+    const amount = roundMoneyValue(Math.min(remaining, line.pending_amount));
+    if (amount <= 0.009) continue;
+
+    await insertItemSettlement(client, {
+      itemId: line.item_id,
+      amount,
+      method: "manual",
+      createdByUserId,
     });
 
     touchedItemIds.push(line.item_id);
@@ -1823,6 +1871,15 @@ router.post(
         collectedItems.map((item) => item.room_id),
       );
 
+      await client.query(
+        `
+        DELETE FROM net_settlement_reminders
+        WHERE sender_user_id = $1
+        AND recipient_user_id = $2;
+        `,
+        [receiver.id, payer.id],
+      );
+
       await client.query("COMMIT");
 
       sendLiveUpdate([payer.id, receiver.id], {
@@ -1853,6 +1910,339 @@ router.post(
       return res.status(500).json({
         message: "Failed to pay adjusted settlement",
       });
+    } finally {
+      client.release();
+    }
+  },
+);
+
+router.get(
+  "/net-settlements/reminders",
+  verifyFirebaseToken,
+  async (req: AuthRequest, res) => {
+    try {
+      await ensureNetSettlementTablesOnce();
+
+      const firebaseUser = req.user;
+      if (!firebaseUser) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+
+      const dbUser = await getCurrentUser(firebaseUser.uid);
+      if (!dbUser) {
+        return res.status(404).json({ message: "User not found in database" });
+      }
+
+      const result = await db.query<{
+        id: string;
+        sender_user_id: string;
+        sender_name: string | null;
+        sender_email: string;
+        amount: number;
+        created_at: string;
+      }>(
+        `
+        SELECT
+          reminder.id,
+          reminder.sender_user_id,
+          sender.name AS sender_name,
+          sender.email AS sender_email,
+          reminder.amount::float,
+          reminder.created_at
+        FROM net_settlement_reminders reminder
+        INNER JOIN users sender
+          ON sender.id = reminder.sender_user_id
+        WHERE reminder.recipient_user_id = $1
+        ORDER BY reminder.created_at DESC
+        LIMIT 50;
+        `,
+        [dbUser.id],
+      );
+
+      return res.json({
+        reminders: result.rows.map((row) => ({
+          id: row.id,
+          senderUserId: row.sender_user_id,
+          senderName: row.sender_name,
+          senderEmail: row.sender_email,
+          amount: roundMoneyValue(Number(row.amount)),
+          createdAt: row.created_at,
+        })),
+      });
+    } catch (error) {
+      console.error("Load net settlement reminders failed:", error);
+      return res.status(500).json({ message: "Failed to load settlement reminders" });
+    }
+  },
+);
+
+router.post(
+  "/net-settlements/remind",
+  verifyFirebaseToken,
+  async (req: AuthRequest, res) => {
+    try {
+      await ensureSplitRoomTablesOnce();
+      await ensureNetSettlementTablesOnce();
+
+      const firebaseUser = req.user;
+      if (!firebaseUser) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+
+      const dbUser = await getCurrentUser(firebaseUser.uid);
+      if (!dbUser) {
+        return res.status(404).json({ message: "User not found in database" });
+      }
+
+      const { fromUserId } = parseRequestBody(
+        netSettlementIncomingActionSchema,
+        req.body,
+      );
+
+      if (fromUserId === dbUser.id) {
+        return res.status(400).json({ message: "You cannot remind yourself" });
+      }
+
+      const debtorResult = await db.query<DbUserRow>(
+        `SELECT id, name, email FROM users WHERE id = $1;`,
+        [fromUserId],
+      );
+      const debtor = debtorResult.rows[0];
+      if (!debtor) {
+        return res.status(404).json({ message: "Settlement sender not found" });
+      }
+
+      await applyAutomaticNetOffsetsForUserInTransaction(dbUser.id);
+      const pairDebtLines = await loadPairDebtLines(db, fromUserId, dbUser.id);
+      const debtorOwesCurrent = pairDebtLines.filter(
+        (line) =>
+          line.debtor_user_id === fromUserId &&
+          line.creditor_user_id === dbUser.id,
+      );
+      const currentOwesDebtor = pairDebtLines.filter(
+        (line) =>
+          line.debtor_user_id === dbUser.id &&
+          line.creditor_user_id === fromUserId,
+      );
+      const debtorOwesTotal = roundMoneyValue(
+        debtorOwesCurrent.reduce((sum, line) => sum + line.pending_amount, 0),
+      );
+      const currentOwesTotal = roundMoneyValue(
+        currentOwesDebtor.reduce((sum, line) => sum + line.pending_amount, 0),
+      );
+      const netAmount = roundMoneyValue(debtorOwesTotal - currentOwesTotal);
+
+      if (netAmount <= 0) {
+        return res.status(400).json({
+          message: "This person has no receivable due to remind after adjustment",
+        });
+      }
+
+      await db.query(
+        `
+        DELETE FROM net_settlement_reminders
+        WHERE sender_user_id = $1
+        AND recipient_user_id = $2;
+
+        INSERT INTO net_settlement_reminders (
+          sender_user_id,
+          recipient_user_id,
+          amount
+        )
+        VALUES ($1, $2, $3);
+        `,
+        [dbUser.id, fromUserId, netAmount],
+      );
+
+      sendLiveUpdate([fromUserId], {
+        type: "split-room",
+        reason: "payment-reminder",
+      });
+
+      return res.json({
+        message: `Reminder sent for ₹${netAmount.toFixed(2)}`,
+        amount: netAmount,
+      });
+    } catch (error) {
+      if (sendValidationError(res, error)) return;
+
+      console.error("Send net settlement reminder failed:", error);
+      return res.status(500).json({ message: "Failed to send settlement reminder" });
+    }
+  },
+);
+
+router.post(
+  "/net-settlements/collect",
+  verifyFirebaseToken,
+  async (req: AuthRequest, res) => {
+    const client = await db.connect();
+
+    try {
+      await ensureSplitRoomTablesOnce();
+      await ensureNetSettlementTablesOnce();
+
+      const firebaseUser = req.user;
+      if (!firebaseUser) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+
+      const { fromUserId } = parseRequestBody(
+        netSettlementIncomingActionSchema,
+        req.body,
+      );
+
+      await client.query("BEGIN");
+
+      const currentResult = await client.query<DbUserRow>(
+        `SELECT id, name, email FROM users WHERE firebase_uid = $1 FOR UPDATE;`,
+        [firebaseUser.uid],
+      );
+      const currentUser = currentResult.rows[0];
+      if (!currentUser) {
+        await client.query("ROLLBACK");
+        return res.status(404).json({ message: "User not found in database" });
+      }
+
+      if (fromUserId === currentUser.id) {
+        await client.query("ROLLBACK");
+        return res.status(400).json({ message: "You cannot collect from yourself" });
+      }
+
+      const debtorResult = await client.query<DbUserRow>(
+        `SELECT id, name, email FROM users WHERE id = $1 FOR UPDATE;`,
+        [fromUserId],
+      );
+      const debtor = debtorResult.rows[0];
+      if (!debtor) {
+        await client.query("ROLLBACK");
+        return res.status(404).json({ message: "Settlement sender not found" });
+      }
+
+      const [leftLockId, rightLockId] = [currentUser.id, debtor.id].sort();
+      await client.query("SELECT pg_advisory_xact_lock(hashtext($1::text));", [
+        `${leftLockId}:${rightLockId}`,
+      ]);
+
+      const pairDebtLines = await loadPairDebtLines(
+        client,
+        debtor.id,
+        currentUser.id,
+        { forUpdate: true },
+      );
+      const debtorOwesCurrent = pairDebtLines.filter(
+        (line) =>
+          line.debtor_user_id === debtor.id &&
+          line.creditor_user_id === currentUser.id,
+      );
+      const currentOwesDebtor = pairDebtLines.filter(
+        (line) =>
+          line.debtor_user_id === currentUser.id &&
+          line.creditor_user_id === debtor.id,
+      );
+      const debtorOwesTotal = roundMoneyValue(
+        debtorOwesCurrent.reduce((sum, line) => sum + line.pending_amount, 0),
+      );
+      const currentOwesTotal = roundMoneyValue(
+        currentOwesDebtor.reduce((sum, line) => sum + line.pending_amount, 0),
+      );
+      const netAmount = roundMoneyValue(debtorOwesTotal - currentOwesTotal);
+
+      if (netAmount <= 0) {
+        await client.query("ROLLBACK");
+        return res.status(400).json({
+          message: "This person has no receivable due after adjustment",
+        });
+      }
+
+      const touchedItemIds: string[] = [];
+      const offsetAmount = roundMoneyValue(
+        Math.min(debtorOwesTotal, currentOwesTotal),
+      );
+
+      if (offsetAmount > 0) {
+        touchedItemIds.push(
+          ...(await applyOffsetSettlements(
+            client,
+            debtorOwesCurrent,
+            currentOwesDebtor,
+            offsetAmount,
+            currentUser.id,
+          )),
+        );
+      }
+
+      const expenseResult = await client.query<{ id: string }>(
+        `
+        INSERT INTO expenses (
+          user_id,
+          title,
+          category,
+          amount,
+          expense_date
+        )
+        VALUES (
+          $1,
+          $2,
+          'Shared room',
+          $3,
+          (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Kolkata')::date
+        )
+        RETURNING id;
+        `,
+        [
+          debtor.id,
+          `Adjusted split settlement to ${getPersonLabel(currentUser.name, currentUser.email)}`,
+          netAmount,
+        ],
+      );
+
+      touchedItemIds.push(
+        ...(await applyManualNetSettlement(
+          client,
+          debtorOwesCurrent,
+          netAmount,
+          currentUser.id,
+        )),
+      );
+
+      const collectedItems = await markFullySettledItemsCollected(
+        client,
+        touchedItemIds,
+      );
+      await refreshRoomPaymentStatuses(
+        client,
+        collectedItems.map((item) => item.room_id),
+      );
+
+      await client.query(
+        `
+        DELETE FROM net_settlement_reminders
+        WHERE sender_user_id = $1
+        AND recipient_user_id = $2;
+        `,
+        [currentUser.id, debtor.id],
+      );
+
+      await client.query("COMMIT");
+
+      sendLiveUpdate([currentUser.id, debtor.id], {
+        type: "money",
+        reason: "net-settlement-collected",
+      });
+
+      return res.json({
+        message: "Adjusted receivable marked as collected",
+        amount: netAmount,
+        updatedCount: touchedItemIds.length,
+        expenseId: expenseResult.rows[0]?.id,
+      });
+    } catch (error) {
+      await client.query("ROLLBACK").catch(() => undefined);
+      if (sendValidationError(res, error)) return;
+
+      console.error("Collect net settlement failed:", error);
+      return res.status(500).json({ message: "Failed to mark settlement collected" });
     } finally {
       client.release();
     }
