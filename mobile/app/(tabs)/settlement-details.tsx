@@ -1,7 +1,7 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
-import { useLocalSearchParams, useRouter } from "expo-router";
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { Alert, Pressable, StyleSheet, View } from "react-native";
+import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Alert, BackHandler, Pressable, StyleSheet, View } from "react-native";
 import AmountText from "../../src/components/AmountText";
 import AppButton from "../../src/components/AppButton";
 import AppCard from "../../src/components/AppCard";
@@ -13,8 +13,10 @@ import Text from "../../src/components/LocalizedText";
 import { useAuth } from "../../src/context/AuthContext";
 import { useAppSettings } from "../../src/context/useAppSettings";
 import {
+  collectNetSettlement,
   getNetSettlements,
   payNetSettlement,
+  remindNetSettlement,
   type NetSettlement,
 } from "../../src/lib/api";
 import { showErrorAlert } from "../../src/lib/errors";
@@ -23,33 +25,55 @@ import { colors, radius, spacing, typography } from "../../src/theme/tokens";
 export default function SettlementDetails() {
   const router = useRouter();
   const { dbUser } = useAuth();
-  const { kind } = useLocalSearchParams<{ kind?: string | string[] }>();
+  const { kind, roomId } = useLocalSearchParams<{
+    kind?: string | string[];
+    roomId?: string | string[];
+  }>();
   const { formatCurrency, theme } = useAppSettings();
   const direction = (Array.isArray(kind) ? kind[0] : kind) === "receivable"
     ? "receivable"
     : "payable";
+  const sourceRoomId = Array.isArray(roomId) ? roomId[0] : roomId;
   const [settlements, setSettlements] = useState<NetSettlement[]>([]);
+  const [loadedDirection, setLoadedDirection] = useState<
+    "payable" | "receivable" | null
+  >(null);
   const [loading, setLoading] = useState(true);
   const [paymentTarget, setPaymentTarget] = useState<NetSettlement | null>(null);
   const [walletPin, setWalletPin] = useState("");
   const [paying, setPaying] = useState(false);
+  const [remindingUserIds, setRemindingUserIds] = useState<string[]>([]);
+  const [collectingUserIds, setCollectingUserIds] = useState<string[]>([]);
+  const requestIdRef = useRef(0);
 
   const load = useCallback(async () => {
+    const requestId = ++requestIdRef.current;
+
+    setLoading(true);
+    setSettlements([]);
+    setLoadedDirection(null);
+
     try {
-      setLoading(true);
       const response = await getNetSettlements();
-      setSettlements(
-        response.settlements.filter((settlement) =>
-          direction === "payable" ? settlement.isOutgoing : settlement.isIncoming,
-        ),
+      if (requestId !== requestIdRef.current) return;
+
+      const nextSettlements = response.settlements.filter((settlement) =>
+        direction === "payable" ? settlement.isOutgoing : settlement.isIncoming,
       );
+
+      setSettlements(nextSettlements);
+      setLoadedDirection(direction);
     } catch (error) {
+      if (requestId !== requestIdRef.current) return;
+
       showErrorAlert(error, {
         title: "Could not load settlement details",
         fallbackMessage: "Pull down to try again.",
       });
     } finally {
-      setLoading(false);
+      if (requestId === requestIdRef.current) {
+        setLoading(false);
+      }
     }
   }, [direction]);
 
@@ -57,9 +81,37 @@ export default function SettlementDetails() {
     void load();
   }, [load]);
 
+  const visibleSettlements = loadedDirection === direction ? settlements : [];
+
   const total = useMemo(
-    () => settlements.reduce((sum, settlement) => sum + settlement.amount, 0),
-    [settlements],
+    () => visibleSettlements.reduce((sum, settlement) => sum + settlement.amount, 0),
+    [visibleSettlements],
+  );
+
+  const handleBackToRoom = useCallback(() => {
+    if (sourceRoomId) {
+      router.replace({
+        pathname: "/(tabs)/split-rooms",
+        params: { roomId: sourceRoomId },
+      });
+      return;
+    }
+
+    router.replace("/(tabs)/split-rooms");
+  }, [router, sourceRoomId]);
+
+  useFocusEffect(
+    useCallback(() => {
+      const subscription = BackHandler.addEventListener(
+        "hardwareBackPress",
+        () => {
+          handleBackToRoom();
+          return true;
+        },
+      );
+
+      return () => subscription.remove();
+    }, [handleBackToRoom]),
   );
 
   async function handlePay() {
@@ -88,6 +140,92 @@ export default function SettlementDetails() {
     }
   }
 
+  async function handleRemind(settlement: NetSettlement) {
+    try {
+      setRemindingUserIds((current) =>
+        current.includes(settlement.fromUserId)
+          ? current
+          : [...current, settlement.fromUserId],
+      );
+      const response = await remindNetSettlement({
+        fromUserId: settlement.fromUserId,
+      });
+
+      Alert.alert(
+        "Reminder sent",
+        response.message ||
+          `A reminder was sent for ${formatCurrency(settlement.amount)}.`,
+      );
+    } catch (error) {
+      showErrorAlert(error, {
+        title: "Could not send reminder",
+        fallbackMessage:
+          "The individual settlement reminder could not be sent. Please try again.",
+      });
+    } finally {
+      setRemindingUserIds((current) =>
+        current.filter((userId) => userId !== settlement.fromUserId),
+      );
+    }
+  }
+
+  function requestRemind(settlement: NetSettlement) {
+    const person = settlement.fromName || settlement.fromEmail;
+    Alert.alert(
+      "Send reminder",
+      `Remind ${person} about their ${formatCurrency(settlement.amount)} due?`,
+      [
+        { text: "Cancel", style: "cancel" },
+        { text: "Send", onPress: () => void handleRemind(settlement) },
+      ],
+    );
+  }
+
+  async function handleManualCollect(settlement: NetSettlement) {
+    try {
+      setCollectingUserIds((current) =>
+        current.includes(settlement.fromUserId)
+          ? current
+          : [...current, settlement.fromUserId],
+      );
+      const response = await collectNetSettlement({
+        fromUserId: settlement.fromUserId,
+      });
+
+      await load();
+      Alert.alert(
+        "Manual collect complete",
+        response.message ||
+          `${formatCurrency(settlement.amount)} was marked as collected.`,
+      );
+    } catch (error) {
+      showErrorAlert(error, {
+        title: "Could not mark amount collected",
+        fallbackMessage:
+          "This adjusted receivable was not marked as collected. Please try again.",
+      });
+    } finally {
+      setCollectingUserIds((current) =>
+        current.filter((userId) => userId !== settlement.fromUserId),
+      );
+    }
+  }
+
+  function requestManualCollect(settlement: NetSettlement) {
+    const person = settlement.fromName || settlement.fromEmail;
+    Alert.alert(
+      "Manual collect",
+      `Mark ${formatCurrency(settlement.amount)} from ${person} as collected? Use this only when the payment was completed outside the app.`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Collect",
+          onPress: () => void handleManualCollect(settlement),
+        },
+      ],
+    );
+  }
+
   return (
     <Screen
       refreshing={loading}
@@ -100,7 +238,7 @@ export default function SettlementDetails() {
           accessibilityRole="button"
           accessibilityLabel="Back to rooms"
           style={[styles.backButton, { backgroundColor: theme.surfaceStrong }]}
-          onPress={() => router.back()}
+          onPress={handleBackToRoom}
         >
           <Ionicons name="arrow-back" size={22} color={theme.text} />
         </Pressable>
@@ -124,10 +262,10 @@ export default function SettlementDetails() {
         </Text>
       </AppCard>
 
-      {settlements.length === 0 ? (
+      {visibleSettlements.length === 0 ? (
         <EmptyState title={`No ${direction} settlements`} />
       ) : (
-        settlements.map((settlement) => {
+        visibleSettlements.map((settlement) => {
           const person = direction === "payable"
             ? settlement.toName || settlement.toEmail
             : settlement.fromName || settlement.fromEmail;
@@ -181,7 +319,7 @@ export default function SettlementDetails() {
                             ]}
                           >
                             <View style={styles.offsetCopy}>
-                              <Text style={styles.offsetTitle} numberOfLines={1}>
+                              <Text style={styles.offsetTitle}>
                                 Deducted against {adjustment.title}
                               </Text>
                               <Text style={styles.helper} numberOfLines={1}>
@@ -223,8 +361,37 @@ export default function SettlementDetails() {
               </View>
 
               {direction === "payable" ? (
-                <AppButton title="Pay net amount" onPress={() => setPaymentTarget(settlement)} />
-              ) : null}
+                <AppButton
+                  title="Pay net amount"
+                  onPress={() => setPaymentTarget(settlement)}
+                />
+              ) : (
+                <View style={styles.receivableActions}>
+                  <AppButton
+                    title={
+                      remindingUserIds.includes(settlement.fromUserId)
+                        ? "Sending reminder"
+                        : "Remind"
+                    }
+                    variant="secondary"
+                    style={styles.receivableActionButton}
+                    loading={remindingUserIds.includes(settlement.fromUserId)}
+                    disabled={collectingUserIds.includes(settlement.fromUserId)}
+                    onPress={() => requestRemind(settlement)}
+                  />
+                  <AppButton
+                    title={
+                      collectingUserIds.includes(settlement.fromUserId)
+                        ? "Collecting"
+                        : "Manual collect"
+                    }
+                    style={styles.receivableActionButton}
+                    loading={collectingUserIds.includes(settlement.fromUserId)}
+                    disabled={remindingUserIds.includes(settlement.fromUserId)}
+                    onPress={() => requestManualCollect(settlement)}
+                  />
+                </View>
+              )}
             </AppCard>
           );
         })
@@ -289,10 +456,12 @@ const styles = StyleSheet.create({
   lineAmount: { alignItems: "flex-end", minWidth: 78 },
   sign: { fontSize: 18, fontWeight: "800" },
   effectLabel: { color: colors.body, ...typography.caption },
-  offsetRow: { flexDirection: "row", alignItems: "center", gap: spacing.xs, marginTop: spacing.xs, borderRadius: radius.md, padding: spacing.xs },
+  offsetRow: { flexDirection: "row", alignItems: "flex-start", gap: spacing.xs, marginTop: spacing.xs, borderRadius: radius.md, padding: spacing.xs },
   offsetCopy: { flex: 1, minWidth: 0 },
-  offsetTitle: { color: colors.ink, ...typography.caption },
+  offsetTitle: { flexShrink: 1, color: colors.ink, ...typography.caption },
   offsetAmount: { fontSize: 12, fontWeight: "800" },
   formulaRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: spacing.sm, borderRadius: radius.lg, padding: spacing.sm },
   formulaLabel: { flex: 1, color: colors.ink, ...typography.bodySm },
+  receivableActions: { flexDirection: "row", gap: spacing.sm },
+  receivableActionButton: { flex: 1 },
 });

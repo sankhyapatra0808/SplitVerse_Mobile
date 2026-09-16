@@ -842,6 +842,41 @@ export async function payNetSettlement(payload: {
   });
 }
 
+export async function remindNetSettlement(payload: { fromUserId: string }) {
+  return apiFetch<{ message: string; amount?: number }>(
+    "/api/split-rooms/net-settlements/remind",
+    {
+      method: "POST",
+      body: JSON.stringify(payload),
+    },
+  );
+}
+
+export async function collectNetSettlement(payload: { fromUserId: string }) {
+  return apiFetch<{ message: string; amount?: number; updatedCount?: number }>(
+    "/api/split-rooms/net-settlements/collect",
+    {
+      method: "POST",
+      body: JSON.stringify(payload),
+    },
+  );
+}
+
+export type NetSettlementReminder = {
+  id: string;
+  senderUserId: string;
+  senderName: string | null;
+  senderEmail: string;
+  amount: number;
+  createdAt: string;
+};
+
+export async function getNetSettlementReminders() {
+  return apiFetch<{ reminders: NetSettlementReminder[] }>(
+    "/api/split-rooms/net-settlements/reminders",
+  );
+}
+
 // wallet api
 export type WalletTopUpMethod = "UPI" | "Card" | "Net banking";
 

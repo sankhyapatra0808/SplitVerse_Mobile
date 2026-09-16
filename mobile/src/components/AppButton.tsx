@@ -1,8 +1,9 @@
-import { memo, useMemo } from "react";
+import { memo, useMemo, type ReactNode } from "react";
 import {
   ActivityIndicator,
   Pressable,
   StyleSheet,
+  View,
   type PressableProps,
   type StyleProp,
   type ViewStyle,
@@ -15,6 +16,7 @@ type AppButtonProps = Omit<PressableProps, "style"> & {
   title: string;
   loading?: boolean;
   variant?: "primary" | "secondary" | "danger";
+  leftIcon?: ReactNode;
   style?: StyleProp<ViewStyle>;
 };
 
@@ -22,6 +24,7 @@ function AppButton({
   title,
   loading = false,
   variant = "primary",
+  leftIcon,
   disabled,
   style,
   accessibilityLabel,
@@ -32,8 +35,27 @@ function AppButton({
 }: AppButtonProps) {
   const { theme } = useAppSettings();
   const isDisabled = Boolean(disabled || loading);
+  const visuallyDisabled = Boolean(disabled && !loading);
   const primary = variant === "primary";
   const danger = variant === "danger";
+
+  const backgroundColor = visuallyDisabled
+    ? theme.surfaceStrong
+    : primary
+      ? theme.primary
+      : danger
+        ? theme.danger
+        : theme.surfaceStrong;
+
+  const borderColor = visuallyDisabled
+    ? theme.borderSoft
+    : primary
+      ? theme.primary
+      : danger
+        ? theme.danger
+        : theme.borderSoft;
+
+  const contentColor = primary || danger ? theme.onPrimary : theme.primary;
 
   const resolvedRipple = useMemo(
     () =>
@@ -42,10 +64,16 @@ function AppButton({
           ? theme.primaryActive
           : danger
             ? "rgba(255,255,255,0.20)"
-            : theme.borderSoft,
+            : theme.primarySoft,
         borderless: false,
       },
-    [androidRipple, danger, primary, theme.borderSoft, theme.primaryActive],
+    [
+      androidRipple,
+      danger,
+      primary,
+      theme.primaryActive,
+      theme.primarySoft,
+    ],
   );
 
   return (
@@ -62,41 +90,33 @@ function AppButton({
       android_ripple={resolvedRipple}
       style={({ pressed }) => [
         styles.button,
+        style,
         {
-          backgroundColor: isDisabled
-            ? theme.surfaceStrong
-            : primary
-              ? theme.primary
-              : danger
-                ? theme.danger
-                : theme.surfaceStrong,
-          borderColor: primary
-            ? theme.primary
-            : danger
-              ? theme.danger
-              : theme.borderSoft,
-          opacity: isDisabled ? 0.72 : 1,
+          backgroundColor,
+          borderColor,
+          opacity: visuallyDisabled ? 0.72 : 1,
           transform: [{ scale: pressed && !isDisabled ? 0.985 : 1 }],
         },
-        style,
       ]}
     >
       {loading ? (
         <ActivityIndicator
           accessibilityLabel={`${title} in progress`}
-          color={primary || danger ? theme.onPrimary : theme.text}
+          color={contentColor}
         />
       ) : (
-        <Text
-          style={[
-            styles.text,
-            {
-              color: primary || danger ? theme.onPrimary : theme.primary,
-            },
-          ]}
-        >
-          {title}
-        </Text>
+        <>
+          {leftIcon ? <View style={styles.leftIcon}>{leftIcon}</View> : null}
+          <Text
+            style={[
+              styles.text,
+              leftIcon ? styles.textWithIcon : null,
+              { color: contentColor },
+            ]}
+          >
+            {title}
+          </Text>
+        </>
       )}
     </Pressable>
   );
@@ -115,11 +135,19 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     overflow: "hidden",
   },
+  leftIcon: {
+    marginRight: spacing.xs,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   text: {
     ...typography.button,
     width: "100%",
     textAlign: "center",
     textAlignVertical: "center",
     includeFontPadding: false,
+  },
+  textWithIcon: {
+    width: "auto",
   },
 });

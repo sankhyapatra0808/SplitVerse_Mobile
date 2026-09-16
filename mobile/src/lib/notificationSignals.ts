@@ -1,9 +1,14 @@
 import * as SecureStore from "expo-secure-store";
-import type { FriendRequest, SplitRoom, WalletSummaryResponse } from "./api";
+import type {
+  FriendRequest,
+  NetSettlementReminder,
+  SplitRoom,
+  WalletSummaryResponse,
+} from "./api";
 
 const SEEN_NOTIFICATIONS_KEY = "splitverse-seen-notification-signature";
 
-export type NotificationKind = "friend" | "wallet" | "room";
+export type NotificationKind = "friend" | "wallet" | "room" | "settlement";
 
 export type LiveNotificationItem = {
   id: string;
@@ -11,7 +16,11 @@ export type LiveNotificationItem = {
   detail: string;
   amount?: number;
   kind: NotificationKind;
-  route: "/(tabs)/profile" | "/(tabs)/wallet" | "/(tabs)/split-rooms";
+  route:
+    | "/(tabs)/profile"
+    | "/(tabs)/wallet"
+    | "/(tabs)/split-rooms"
+    | "/(tabs)/settlement-details";
   params?: Record<string, string>;
 };
 
@@ -79,6 +88,27 @@ export function buildRoomNotifications(
         },
       };
     });
+}
+
+export function buildSettlementReminderNotifications(
+  reminders: NetSettlementReminder[] = [],
+): LiveNotificationItem[] {
+  return reminders.map((reminder) => {
+    const sender =
+      reminder.senderName?.trim() ||
+      reminder.senderEmail?.split("@")[0] ||
+      "Someone";
+
+    return {
+      id: `settlement-reminder-${reminder.id}`,
+      title: "Payment reminder",
+      detail: `${sender} reminded you about your ₹${Number(reminder.amount || 0).toFixed(2)} due.`,
+      amount: Number(reminder.amount || 0),
+      kind: "settlement" as const,
+      route: "/(tabs)/settlement-details" as const,
+      params: { kind: "payable" },
+    };
+  });
 }
 
 export function buildWalletNotifications(

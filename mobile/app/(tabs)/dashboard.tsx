@@ -3,7 +3,6 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import { router } from "expo-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  ActivityIndicator,
   Alert,
   AppState,
   ImageBackground,
@@ -16,6 +15,7 @@ import {
   StyleSheet,
   View,
 } from "react-native";
+import AppButton from "../../src/components/AppButton";
 import AppTextInput from "../../src/components/AppTextInput";
 import Avatar from "../../src/components/Avatar";
 import Screen from "../../src/components/Screen";
@@ -759,37 +759,19 @@ export default function Dashboard() {
                   />
                 </View>
 
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel="Add expense"
-                  disabled={savingExpense}
-                  style={({ pressed }) => [
-                    styles.expenseSubmitButton,
-                    {
-                      backgroundColor: expenseActionColor,
-                      opacity: pressed && !savingExpense ? 0.86 : 1,
-                    },
-                  ]}
+                <AppButton
+                  title={savingExpense ? "Adding expense" : "Add expense"}
+                  loading={savingExpense}
+                  style={styles.expenseSubmitButton}
+                  leftIcon={
+                    <Ionicons
+                      name="add-circle-outline"
+                      size={21}
+                      color={theme.onPrimary}
+                    />
+                  }
                   onPress={handleCreateExpense}
-                >
-                  {savingExpense ? (
-                    <>
-                      <ActivityIndicator size="small" color="#fff" />
-                      <Text style={styles.expenseSubmitText}>
-                        Adding expense
-                      </Text>
-                    </>
-                  ) : (
-                    <>
-                      <Ionicons
-                        name="add-circle-outline"
-                        size={21}
-                        color="#fff"
-                      />
-                      <Text style={styles.expenseSubmitText}>Add expense</Text>
-                    </>
-                  )}
-                </Pressable>
+                />
               </View>
             </ScrollView>
           </KeyboardAvoidingView>
@@ -1053,11 +1035,5 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     gap: spacing.sm,
-  },
-  expenseSubmitText: {
-    color: "#fff",
-    fontSize: 15,
-    fontWeight: "700",
-    lineHeight: 20,
   },
 });

@@ -37,13 +37,10 @@ import {
   getSplitRooms,
   payNetSettlement,
   updateSplitRoomItem,
-  collectSplitRoomMemberDues,
   removeSplitRoomMember,
-  sendSplitRoomReminder,
   archiveSplitRoom,
   deleteSplitRoom,
   finalizeSplitRoom,
-  type SplitRoomBalance,
   type Friend,
   type NetSettlement,
   type NetSettlementsResponse,
@@ -122,76 +119,6 @@ function isItemCollected(item: SplitRoomItem) {
 
 function getItemAssignedMemberId(item: SplitRoomItem) {
   return item.assignedMemberId || item.assigned_member_id;
-}
-
-function getBalanceAssignedAmount(balance: SplitRoomBalance) {
-  return Number(
-    balance.amount ?? balance.assignedTotal ?? balance.totalAssigned ?? 0,
-  );
-}
-
-function getBalanceCollectedAmount(balance: SplitRoomBalance) {
-  return Number(
-    balance.collectedAmount ??
-      balance.collectedTotal ??
-      balance.paidTotal ??
-      balance.totalPaid ??
-      0,
-  );
-}
-
-function getBalancePendingAmount(balance: SplitRoomBalance) {
-  return Number(
-    balance.outstandingAmount ??
-      balance.pendingTotal ??
-      balance.totalPending ??
-      0,
-  );
-}
-
-function getBalanceItemCount(balance: SplitRoomBalance) {
-  return Number(balance.itemCount ?? 0);
-}
-
-function buildFallbackBalances(room: SplitRoom): SplitRoomBalance[] {
-  return room.members.map((member) => {
-    const memberItems = room.items.filter(
-      (item) => getItemAssignedMemberId(item) === member.id,
-    );
-
-    const amount = memberItems.reduce(
-      (sum, item) => sum + Number(item.amount || 0),
-      0,
-    );
-
-    const collectedAmount = memberItems
-      .filter((item) => isItemCollected(item))
-      .reduce((sum, item) => sum + Number(item.amount || 0), 0);
-
-    const outstandingAmount = member.isMe
-      ? 0
-      : memberItems
-          .filter((item) => !isItemCollected(item))
-          .reduce((sum, item) => sum + Number(item.amount || 0), 0);
-
-    return {
-      memberId: member.id,
-      name: getMemberName(member),
-      detail: member.isMe
-        ? "Your spend"
-        : outstandingAmount > 0
-          ? "Dues pending"
-          : collectedAmount > 0
-            ? "Collected"
-            : "No dues yet",
-      amount,
-      collectedAmount,
-      outstandingAmount,
-      isMe: member.isMe,
-      isCollected: !member.isMe && amount > 0 && outstandingAmount === 0,
-      itemCount: memberItems.length,
-    };
-  });
 }
 
 function buildOptimisticRoom({
@@ -300,10 +227,8 @@ export default function SplitRooms() {
   const { user, dbUser } = useAuth();
   const { avatarId, formatCurrency, theme } = useAppSettings();
   const { width: windowWidth, height: windowHeight } = useWindowDimensions();
-  const { roomId, memberId, openDue } = useLocalSearchParams<{
+  const { roomId } = useLocalSearchParams<{
     roomId?: string | string[];
-    memberId?: string | string[];
-    openDue?: string | string[];
   }>();
 
   const [rooms, setRooms] = useState<SplitRoom[]>([]);
@@ -354,21 +279,12 @@ export default function SplitRooms() {
   const [updatingItemId, setUpdatingItemId] = useState("");
   const [, setDeletingItemId] = useState("");
 
-  const [memberBalanceTarget, setMemberBalanceTarget] =
-    useState<SplitRoomBalance | null>(null);
-  const handledDueLinkRef = useRef("");
-  const pendingDueLinkRef = useRef<{
-    roomId: string;
-    memberId?: string;
-  } | null>(null);
 
   const [roomActionsOpen, setRoomActionsOpen] = useState(false);
   const [deletingRoomId, setDeletingRoomId] = useState("");
   const [, setFinalizingRoomId] = useState("");
   const [, setArchivingRoomId] = useState("");
-  const [collectingMemberId, setCollectingMemberId] = useState("");
   const [removingMemberId, setRemovingMemberId] = useState("");
-  const [remindingRoomId, setRemindingRoomId] = useState("");
 
   const [netSettlements, setNetSettlements] =
     useState<NetSettlementsResponse | null>(null);
@@ -425,35 +341,6 @@ export default function SplitRooms() {
       return getMemberName(left).localeCompare(getMemberName(right));
     });
   }, [selectedRoom]);
-
-  const selectedMemberBalances = useMemo(() => {
-    if (!selectedRoom) {
-      return [];
-    }
-
-    const balances =
-      selectedRoom.balances && selectedRoom.balances.length > 0
-        ? selectedRoom.balances
-        : buildFallbackBalances(selectedRoom);
-
-    return [...balances].sort((left, right) => {
-      const leftMember = selectedRoom.members.find(
-        (member) => member.id === left.memberId,
-      );
-      const rightMember = selectedRoom.members.find(
-        (member) => member.id === right.memberId,
-      );
-
-      if (leftMember?.isMe) return -1;
-      if (rightMember?.isMe) return 1;
-
-      return String(left.name ?? "").localeCompare(String(right.name ?? ""));
-    });
-  }, [selectedRoom]);
-
-  const selectedRoomHasMemberPendingDues = selectedMemberBalances.some(
-    (balance) => !balance.isMe && getBalancePendingAmount(balance) > 0,
-  );
 
   const allNetSettlements = netSettlements?.settlements ?? [];
 
@@ -626,63 +513,19 @@ export default function SplitRooms() {
   }, [roomPaidByEmail, selfEmail]);
 
   useEffect(() => {
-    setMemberBalanceTarget(null);
     setRoomActionsOpen(false);
   }, [selectedRoomId]);
 
   useEffect(() => {
     const requestedRoomId = Array.isArray(roomId) ? roomId[0] : roomId;
-    const requestedMemberId = Array.isArray(memberId) ? memberId[0] : memberId;
-    const shouldOpenDue =
-      (Array.isArray(openDue) ? openDue[0] : openDue) === "1";
-
-    if (!requestedRoomId || !shouldOpenDue || rooms.length === 0) {
-      return;
-    }
-
-    const linkSignature = `${requestedRoomId}:${requestedMemberId || ""}`;
-    if (handledDueLinkRef.current === linkSignature) {
-      return;
-    }
+    if (!requestedRoomId || rooms.length === 0) return;
 
     const targetRoom = rooms.find((room) => room.id === requestedRoomId);
-    if (!targetRoom) {
-      return;
-    }
+    if (!targetRoom) return;
 
-    handledDueLinkRef.current = linkSignature;
-    pendingDueLinkRef.current = {
-      roomId: requestedRoomId,
-      memberId: requestedMemberId,
-    };
     selectedRoomIdRef.current = requestedRoomId;
     setSelectedRoomId(requestedRoomId);
-  }, [memberId, openDue, roomId, rooms]);
-
-  useEffect(() => {
-    const pendingLink = pendingDueLinkRef.current;
-    if (!pendingLink || selectedRoom?.id !== pendingLink.roomId) {
-      return;
-    }
-
-    const targetBalance =
-      selectedMemberBalances.find(
-        (balance) => balance.memberId === pendingLink.memberId,
-      ) ||
-      selectedMemberBalances.find((balance) => {
-        const member = selectedRoom?.members.find(
-          (candidate) => candidate.id === balance.memberId,
-        );
-        return (
-          !balance.isMe && !member?.isMe && getBalancePendingAmount(balance) > 0
-        );
-      });
-
-    pendingDueLinkRef.current = null;
-    if (targetBalance) {
-      setMemberBalanceTarget(targetBalance);
-    }
-  }, [selectedMemberBalances, selectedRoom]);
+  }, [roomId, rooms]);
 
   useEffect(() => {
     if (
@@ -1075,12 +918,6 @@ export default function SplitRooms() {
     }
   }
 
-  function getBalanceMember(balance: SplitRoomBalance) {
-    return selectedRoom?.members.find(
-      (member) => member.id === balance.memberId,
-    );
-  }
-
   function canRemoveMember(member?: SplitRoomMember) {
     if (!selectedRoom || !member) {
       return false;
@@ -1096,112 +933,6 @@ export default function SplitRooms() {
       !member.isMe &&
       !member.isOwner &&
       assignedItemCount === 0,
-    );
-  }
-
-  async function handleCollectMemberDues(memberId: string) {
-    if (!selectedRoom) {
-      return;
-    }
-
-    try {
-      setCollectingMemberId(memberId);
-
-      const response = await collectSplitRoomMemberDues(
-        selectedRoom.id,
-        memberId,
-      );
-
-      await loadSplitRoomData(selectedRoom.id, true);
-
-      Alert.alert(
-        "Manual collect complete",
-        response.updatedCount > 0
-          ? "Dues marked as collected."
-          : "There were no pending dues for this member.",
-      );
-    } catch (error) {
-      showErrorAlert(error, {
-        title: "Could not mark dues collected",
-        fallbackMessage:
-          "The member's dues were not marked as collected. Refresh the room and try again.",
-      });
-    } finally {
-      setCollectingMemberId("");
-    }
-  }
-
-  function requestCollectMemberDues(balance: SplitRoomBalance) {
-    const member = getBalanceMember(balance);
-
-    if (!selectedRoom || !member) {
-      return;
-    }
-
-    Alert.alert(
-      "Manual collect",
-      `Mark pending dues from ${getMemberName(member)} as collected? Use this only when payment was completed outside the app.`,
-      [
-        {
-          text: "Cancel",
-          style: "cancel",
-        },
-        {
-          text: "Collect",
-          onPress: () => {
-            void handleCollectMemberDues(member.id);
-          },
-        },
-      ],
-    );
-  }
-
-  async function handleSendRoomReminder() {
-    if (!selectedRoom) {
-      return;
-    }
-
-    try {
-      setRemindingRoomId(selectedRoom.id);
-
-      const response = await sendSplitRoomReminder(selectedRoom.id);
-
-      Alert.alert(
-        "Reminder sent",
-        response.message ||
-          `Reminder sent to ${response.remindedCount || 0} member(s).`,
-      );
-    } catch (error) {
-      showErrorAlert(error, {
-        title: "Could not send reminder",
-        fallbackMessage:
-          "The room reminder could not be sent to members. Please try again later.",
-      });
-    } finally {
-      setRemindingRoomId("");
-    }
-  }
-
-  function requestSendRoomReminder() {
-    if (!selectedRoom) {
-      return;
-    }
-
-    Alert.alert(
-      "Send reminder",
-      `Send a reminder for pending dues in ${selectedRoom.name}?`,
-      [
-        {
-          text: "Cancel",
-          style: "cancel",
-        },
-        {
-          text: "Send",
-          onPress: () => {
-            void handleSendRoomReminder();
-          },
-        },
-      ],
     );
   }
 
@@ -2256,128 +1987,6 @@ export default function SplitRooms() {
             )}
           </AppCard>
 
-          <AppCard style={styles.memberBalanceCard}>
-            <View style={styles.cardHeadRow}>
-              <View style={styles.sectionHeadingBlock}>
-                <Text style={styles.cardTitle}>Members</Text>
-                <Text style={styles.sectionHeadingContext}>
-                  Member balances
-                </Text>
-              </View>
-
-              {selectedRoom?.isOwner && selectedRoomHasMemberPendingDues ? (
-                <Pressable
-                  style={[
-                    styles.reminderButton,
-                    {
-                      backgroundColor:
-                        theme.primary,
-                    },
-                  ]}
-                  onPress={requestSendRoomReminder}
-                  disabled={remindingRoomId === selectedRoom?.id}
-                >
-                  <Text
-                    style={[
-                      styles.reminderButtonText,
-                      { color: theme.onPrimary },
-                    ]}
-                  >
-                    {remindingRoomId === selectedRoom?.id
-                      ? "Sending"
-                      : "Remind"}
-                  </Text>
-                </Pressable>
-              ) : null}
-            </View>
-
-            {!selectedRoom ? (
-              <EmptyState title="No room selected" />
-            ) : selectedMemberBalances.length === 0 ? (
-              <EmptyState title="No member balances" />
-            ) : (
-              <View style={styles.memberBalanceList}>
-                {selectedMemberBalances.map((balance) => {
-                  const member = getBalanceMember(balance);
-                  const assignedAmount = getBalanceAssignedAmount(balance);
-                  const pendingAmount = getBalancePendingAmount(balance);
-
-                  return (
-                    <Pressable
-                      key={balance.memberId}
-                      style={[
-                        styles.memberBalanceRow,
-                        {
-                          borderColor: theme.border,
-                          backgroundColor: theme.surface,
-                        },
-                        pendingAmount > 0 && {
-                          borderColor: theme.primary,
-                          backgroundColor: theme.card,
-                        },
-                      ]}
-                      onPress={() => setMemberBalanceTarget(balance)}
-                    >
-                      <View style={styles.memberBalanceTop}>
-                        <Avatar
-                          name={member ? getMemberName(member) : balance.name}
-                          email={member?.email}
-                          imageUrl={
-                            member?.display_photo_url ||
-                            member?.profile_photo_url ||
-                            member?.photo_url
-                          }
-                          size={44}
-                        />
-
-                        <View style={styles.memberBalanceCopy}>
-                          <Text
-                            style={styles.memberBalanceName}
-                            numberOfLines={1}
-                          >
-                            {balance.name ||
-                              (member ? getMemberName(member) : "Member")}
-                          </Text>
-
-                          <Text
-                            style={styles.memberBalanceDetail}
-                            numberOfLines={1}
-                          >
-                            {balance.detail ||
-                              (pendingAmount > 0
-                                ? "Dues pending"
-                                : assignedAmount > 0
-                                  ? "Settled"
-                                  : "No dues yet")}
-                          </Text>
-                        </View>
-
-                        <View style={styles.memberBalanceAmountBox}>
-                          <AmountText
-                            amount={
-                              pendingAmount > 0 ? pendingAmount : assignedAmount
-                            }
-                            size="sm"
-                            tone={
-                              pendingAmount > 0
-                                ? "danger"
-                                : assignedAmount > 0
-                                  ? "success"
-                                  : "default"
-                            }
-                          />
-                          <Text style={styles.memberBalanceAmountLabel}>
-                            {pendingAmount > 0 ? "pending" : "assigned"}
-                          </Text>
-                        </View>
-                      </View>
-                    </Pressable>
-                  );
-                })}
-              </View>
-            )}
-          </AppCard>
-
           <AppCard style={styles.netSettlementCard}>
             <View style={styles.cardHeadRow}>
               <View style={styles.netSettlementHeadCopy}>
@@ -2427,7 +2036,10 @@ export default function SplitRooms() {
                 onPress={() =>
                   router.push({
                     pathname: "/(tabs)/settlement-details",
-                    params: { kind: "payable" },
+                    params: {
+                      kind: "payable",
+                      ...(selectedRoom?.id ? { roomId: selectedRoom.id } : {}),
+                    },
                   })
                 }
               >
@@ -2448,7 +2060,10 @@ export default function SplitRooms() {
                 onPress={() =>
                   router.push({
                     pathname: "/(tabs)/settlement-details",
-                    params: { kind: "receivable" },
+                    params: {
+                      kind: "receivable",
+                      ...(selectedRoom?.id ? { roomId: selectedRoom.id } : {}),
+                    },
                   })
                 }
               >
@@ -2843,198 +2458,6 @@ export default function SplitRooms() {
           ) : null}
         </View>
       </Modal>
-
-      <SheetModal
-        visible={Boolean(memberBalanceTarget)}
-        eyebrow="Member balance"
-        title={
-          memberBalanceTarget
-            ? memberBalanceTarget.name ||
-              getMemberName(getBalanceMember(memberBalanceTarget))
-            : "Member details"
-        }
-        onClose={() => setMemberBalanceTarget(null)}
-      >
-        {memberBalanceTarget ? (
-          <>
-            {(() => {
-              const balance = memberBalanceTarget;
-              const member = getBalanceMember(balance);
-              const assignedAmount = getBalanceAssignedAmount(balance);
-              const pendingAmount = getBalancePendingAmount(balance);
-              const collectedAmount = getBalanceCollectedAmount(balance);
-              const itemCount = getBalanceItemCount(balance);
-              const canCollect = Boolean(
-                selectedRoom?.isOwner &&
-                !selectedRoomClosed &&
-                !balance.isMe &&
-                pendingAmount > 0,
-              );
-
-              return (
-                <>
-                  <View
-                    style={[
-                      styles.memberSheetIdentity,
-                      {
-                        borderColor: theme.border,
-                        backgroundColor: theme.surface,
-                      },
-                    ]}
-                  >
-                    <Avatar
-                      name={member ? getMemberName(member) : balance.name}
-                      email={member?.email}
-                      imageUrl={
-                        member?.display_photo_url ||
-                        member?.profile_photo_url ||
-                        member?.photo_url
-                      }
-                      size={58}
-                    />
-
-                    <View style={styles.memberBalanceCopy}>
-                      <Text style={styles.memberBalanceName} numberOfLines={1}>
-                        {balance.name ||
-                          (member ? getMemberName(member) : "Member")}
-                      </Text>
-                      <Text
-                        style={styles.memberBalanceDetail}
-                        numberOfLines={1}
-                      >
-                        {member?.email || balance.detail || "Room member"}
-                      </Text>
-                    </View>
-                  </View>
-
-                  <View style={styles.memberBalanceStatsGrid}>
-                    <View
-                      style={[
-                        styles.memberBalanceStat,
-                        {
-                          borderColor: theme.border,
-                          backgroundColor: theme.surface,
-                        },
-                      ]}
-                    >
-                      <Text style={styles.summaryLabel}>Assigned</Text>
-                      <AmountText
-                        amount={assignedAmount}
-                        size="sm"
-                        tone="primary"
-                      />
-                    </View>
-
-                    <View
-                      style={[
-                        styles.memberBalanceStat,
-                        {
-                          borderColor: theme.border,
-                          backgroundColor: theme.surface,
-                        },
-                      ]}
-                    >
-                      <Text style={styles.summaryLabel}>Pending</Text>
-                      <AmountText
-                        amount={pendingAmount}
-                        size="sm"
-                        tone={pendingAmount > 0 ? "danger" : "success"}
-                      />
-                    </View>
-
-                    <View
-                      style={[
-                        styles.memberBalanceStat,
-                        {
-                          borderColor: theme.border,
-                          backgroundColor: theme.surface,
-                        },
-                      ]}
-                    >
-                      <Text style={styles.summaryLabel}>Collected</Text>
-                      <AmountText
-                        amount={collectedAmount}
-                        size="sm"
-                        tone="success"
-                      />
-                    </View>
-
-                    <View
-                      style={[
-                        styles.memberBalanceStat,
-                        {
-                          borderColor: theme.border,
-                          backgroundColor: theme.surface,
-                        },
-                      ]}
-                    >
-                      <Text style={styles.summaryLabel}>Items</Text>
-                      <Text style={styles.summaryValue}>{itemCount}</Text>
-                    </View>
-                  </View>
-
-                  {canCollect ? (
-                    <AppButton
-                      title={
-                        collectingMemberId === balance.memberId
-                          ? "Collecting"
-                          : "Manual collect"
-                      }
-                      style={[
-                        styles.createRoomItemSubmitWrap,
-                        {
-                          borderColor: theme.primary,
-                          backgroundColor: theme.primary,
-                        },
-                      ]}
-                      loading={collectingMemberId === balance.memberId}
-                      onPress={() => requestCollectMemberDues(balance)}
-                    />
-                  ) : null}
-
-                  {canCollect ? (
-                    <AppButton
-                      title={
-                        remindingRoomId === selectedRoom?.id
-                          ? "Sending reminder"
-                          : "Send reminder"
-                      }
-                      variant="secondary"
-                      loading={remindingRoomId === selectedRoom?.id}
-                      onPress={requestSendRoomReminder}
-                    />
-                  ) : null}
-
-                  {member && canRemoveMember(member) ? (
-                    <AppButton
-                      title={
-                        removingMemberId === member.id
-                          ? "Removing"
-                          : "Remove member"
-                      }
-                      variant="secondary"
-                      loading={removingMemberId === member.id}
-                      onPress={() => requestRemoveMember(member)}
-                    />
-                  ) : null}
-
-                  {!canCollect && !(member && canRemoveMember(member)) ? (
-                    <Text style={styles.memberNoActionText}>
-                      {balance.isMe
-                        ? "This is your own room activity."
-                        : selectedRoomClosed
-                          ? "Room is closed."
-                          : pendingAmount > 0
-                            ? "Only the host can manage this due."
-                            : "No pending action."}
-                    </Text>
-                  ) : null}
-                </>
-              );
-            })()}
-          </>
-        ) : null}
-      </SheetModal>
 
       <SheetModal
         visible={Boolean(netSettlementInfoDialog)}
@@ -4135,127 +3558,6 @@ const styles = StyleSheet.create({
     padding: spacing.base,
   },
 
-  memberBalanceCard: {
-    gap: spacing.base,
-    marginHorizontal: spacing.base,
-  },
-  pendingDuesCard: {
-    gap: spacing.base,
-    marginHorizontal: spacing.base,
-  },
-  reminderButton: {
-    minHeight: 38,
-    justifyContent: "center",
-    borderRadius: radius.pill,
-    paddingHorizontal: spacing.base,
-  },
-  reminderButtonText: {
-    fontSize: 12,
-    fontWeight: "700",
-  },
-  memberBalanceList: {
-    gap: spacing.sm,
-  },
-  memberBalanceRow: {
-    gap: spacing.sm,
-    borderWidth: 1,
-    borderColor: colors.hairlineSoft,
-    borderRadius: radius.xl,
-    backgroundColor: colors.surfaceSoft,
-    padding: spacing.sm,
-  },
-  memberBalanceRowPending: {
-    borderColor: colors.hairline,
-  },
-  memberBalanceRowExpanded: {
-    backgroundColor: colors.canvas,
-    borderColor: colors.primary,
-  },
-  memberBalanceTop: {
-    minHeight: 58,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.sm,
-  },
-  memberBalanceCopy: {
-    flex: 1,
-    minWidth: 0,
-    gap: 2,
-  },
-  memberBalanceName: {
-    color: colors.ink,
-    ...typography.titleSm,
-  },
-  memberBalanceDetail: {
-    color: colors.body,
-    ...typography.bodySm,
-  },
-  memberBalanceAmountBox: {
-    alignItems: "flex-end",
-    gap: 2,
-  },
-  memberBalanceAmountLabel: {
-    color: colors.body,
-    ...typography.caption,
-  },
-  memberBalanceExpanded: {
-    gap: spacing.sm,
-    borderTopWidth: 1,
-    borderTopColor: colors.hairlineSoft,
-    paddingTop: spacing.sm,
-  },
-  memberBalanceStatsGrid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: spacing.sm,
-  },
-  memberBalanceStat: {
-    width: "48%",
-    minHeight: 74,
-    justifyContent: "space-between",
-    borderWidth: 1,
-    borderColor: colors.hairlineSoft,
-    borderRadius: radius.lg,
-    backgroundColor: colors.surfaceSoft,
-    padding: spacing.sm,
-  },
-  memberBalanceActions: {
-    gap: spacing.sm,
-  },
-  memberActionButton: {
-    minHeight: 42,
-  },
-  memberNoActionText: {
-    color: colors.body,
-    ...typography.bodySm,
-  },
-  myDueList: {
-    gap: spacing.sm,
-  },
-  myDueRow: {
-    minHeight: 64,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: spacing.sm,
-    borderWidth: 1,
-    borderColor: colors.hairlineSoft,
-    borderRadius: radius.lg,
-    backgroundColor: colors.surfaceSoft,
-    padding: spacing.sm,
-  },
-
-  memberSheetIdentity: {
-    minHeight: 76,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.sm,
-    borderWidth: 1,
-    borderColor: colors.hairlineSoft,
-    borderRadius: radius.xl,
-    backgroundColor: colors.surfaceSoft,
-    padding: spacing.sm,
-  },
   cardText: {
     color: colors.body,
     ...typography.bodySm,

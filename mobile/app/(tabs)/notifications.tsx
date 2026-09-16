@@ -13,6 +13,7 @@ import { useAuth } from "../../src/context/AuthContext";
 import { useAppSettings } from "../../src/context/useAppSettings";
 import {
   getFriendsSummary,
+  getNetSettlementReminders,
   getSplitRooms,
   getWalletSummary,
   type WalletSummaryResponse,
@@ -20,6 +21,7 @@ import {
 import {
   buildFriendNotifications,
   buildRoomNotifications,
+  buildSettlementReminderNotifications,
   buildWalletNotifications,
   getNotificationSignature,
   markNotificationSignatureSeen,
@@ -62,15 +64,17 @@ export default function Notifications() {
   const loadNotifications = useCallback(async (silent = false) => {
     try {
       if (!silent && !notificationCache) setLoading(true);
-      const [friendsData, roomsData, walletData] = await Promise.all([
+      const [friendsData, roomsData, walletData, reminderData] = await Promise.all([
         getFriendsSummary(),
         getSplitRooms(),
         getWalletSummary(),
+        getNetSettlementReminders(),
       ]);
 
       const nextItems: LiveNotificationItem[] = [
         ...buildFriendNotifications(friendsData.receivedRequests ?? []),
         ...buildRoomNotifications(roomsData.rooms ?? []),
+        ...buildSettlementReminderNotifications(reminderData.reminders ?? []),
         ...buildWalletNotifications(walletData),
       ];
 

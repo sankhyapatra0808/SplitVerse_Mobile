@@ -12,6 +12,7 @@ import { normalizeAppError } from "../lib/errors";
 import { useAuth } from "./AuthContext";
 import {
   getFriendsSummary,
+  getNetSettlementReminders,
   getSplitRooms,
   getWalletSummary,
   type WalletSummaryResponse,
@@ -19,6 +20,7 @@ import {
 import {
   buildFriendNotifications,
   buildRoomNotifications,
+  buildSettlementReminderNotifications,
   buildWalletNotifications,
   getNotificationSignature,
   type LiveNotificationItem,
@@ -84,15 +86,17 @@ export default function LiveNotificationsProvider({
     refreshInProgressRef.current = true;
 
     try {
-      const [friendsData, roomsData, walletData] = await Promise.all([
+      const [friendsData, roomsData, walletData, reminderData] = await Promise.all([
         getFriendsSummary(),
         getSplitRooms(),
         getWalletSummary(),
+        getNetSettlementReminders(),
       ]);
 
       const items: LiveNotificationItem[] = [
         ...buildFriendNotifications(friendsData.receivedRequests ?? []),
         ...buildRoomNotifications(roomsData.rooms ?? []),
+        ...buildSettlementReminderNotifications(reminderData.reminders ?? []),
         ...buildWalletNotifications(walletData as WalletSummaryResponse),
       ];
 
