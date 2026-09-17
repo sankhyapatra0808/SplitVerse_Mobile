@@ -671,6 +671,16 @@ export async function createSplitRoom(payload: CreateSplitRoomPayload) {
   });
 }
 
+export async function addSplitRoomMembers(roomId: string, emails: string[]) {
+  return apiFetch<{ message: string; addedCount: number }>(
+    `/api/split-rooms/${roomId}/members`,
+    {
+      method: "POST",
+      body: JSON.stringify({ emails }),
+    },
+  );
+}
+
 // ITEM SPLIT ROOM API
 export type CreateSplitRoomItemPayload = {
   title: string;
@@ -820,6 +830,59 @@ export type NetSettlementsResponse = {
 
 export async function getNetSettlements() {
   return apiFetch<NetSettlementsResponse>("/api/split-rooms/net-settlements");
+}
+
+export type NetSettlementHistoryEvent = {
+  id: string;
+  amount: number;
+  method: "wallet" | "manual" | "offset";
+  createdAt: string;
+  counterItemId: string | null;
+  counterItemTitle: string | null;
+  counterRoomId: string | null;
+  counterRoomName: string | null;
+};
+
+export type NetSettlementHistoryEntry = {
+  itemId: string;
+  roomId: string;
+  roomName: string;
+  title: string;
+  originalAmount: number;
+  settledAmount: number;
+  pendingAmount: number;
+  status: "pending" | "settled";
+  debtorUserId: string;
+  debtorName: string | null;
+  debtorEmail: string;
+  creditorUserId: string;
+  creditorName: string | null;
+  creditorEmail: string;
+  direction: "payable" | "receivable";
+  createdAt: string;
+  settlements: NetSettlementHistoryEvent[];
+};
+
+export type NetSettlementHistoryResponse = {
+  person: {
+    id: string;
+    name: string | null;
+    email: string;
+  };
+  summary: {
+    lifetimePayable: number;
+    lifetimeReceivable: number;
+    pendingPayable: number;
+    pendingReceivable: number;
+    currency: "INR";
+  };
+  entries: NetSettlementHistoryEntry[];
+};
+
+export async function getNetSettlementHistory(otherUserId: string) {
+  return apiFetch<NetSettlementHistoryResponse>(
+    `/api/split-rooms/net-settlements/history/${encodeURIComponent(otherUserId)}`,
+  );
 }
 
 export async function payNetSettlement(payload: {

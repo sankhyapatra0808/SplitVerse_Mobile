@@ -81,7 +81,10 @@ export default function SettlementDetails() {
     void load();
   }, [load]);
 
-  const visibleSettlements = loadedDirection === direction ? settlements : [];
+  const visibleSettlements = useMemo(
+    () => (loadedDirection === direction ? settlements : []),
+    [direction, loadedDirection, settlements],
+  );
 
   const total = useMemo(
     () => visibleSettlements.reduce((sum, settlement) => sum + settlement.amount, 0),
@@ -359,6 +362,23 @@ export default function SettlementDetails() {
                   tone={direction === "payable" ? "danger" : "success"}
                 />
               </View>
+
+              <AppButton
+                title="See full settlement"
+                variant="secondary"
+                onPress={() =>
+                  router.push({
+                    pathname: "/settlement-history",
+                    params: {
+                      otherUserId:
+                        direction === "payable"
+                          ? settlement.toUserId
+                          : settlement.fromUserId,
+                      kind: direction,
+                    },
+                  })
+                }
+              />
 
               {direction === "payable" ? (
                 <AppButton
