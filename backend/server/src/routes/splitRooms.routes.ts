@@ -49,6 +49,15 @@ const createSplitRoomSchema = z
   })
   .strict();
 
+const addSplitRoomMembersSchema = z
+  .object({
+    emails: z
+      .array(z.string().trim().email("Choose a valid friend").max(254))
+      .min(1, "Choose at least one friend")
+      .max(20, "You can add up to 20 friends at once"),
+  })
+  .strict();
+
 const createSplitRoomItemSchema = z
   .object({
     title: safeTextSchema("Item name", 120),
@@ -2443,6 +2452,191 @@ router.post("/", verifyFirebaseToken, async (req: AuthRequest, res) => {
     client.release();
   }
 });
+
+router.post(
+  "/:roomId/members",
+  verifyFirebaseToken,
+  async (req: AuthRequest, res) => {
+    const client = await db.connect();
+
+    try {
+      await ensureSplitRoomTablesOnce();
+
+      const firebaseUser = req.user;
+
+      if (!firebaseUser) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+
+      const dbUser = await getCurrentUser(firebaseUser.uid);
+
+      if (!dbUser) {
+        return res.status(404).json({ message: "User not found in database" });
+      }
+
+      const roomId = getRouteParam(req, "roomId");
+      const { emails } = parseRequestBody(addSplitRoomMembersSchema, req.body);
+
+      if (!roomId) {
+        return res.status(400).json({ message: "Room id is required" });
+      }
+
+      const normalizedEmails = [
+        ...new Set(
+          emails
+            .map((email) => email.trim().toLowerCase())
+            .filter((email) => email && email !== dbUser.email.toLowerCase()),
+        ),
+      ];
+
+      if (normalizedEmails.length === 0) {
+        return res.json({
+          message: "Room members are already up to date",
+          addedCount: 0,
+        });
+      }
+
+      await client.query("BEGIN");
+
+      const roomResult = await client.query<{
+        id: string;
+        archived_at: string | null;
+        finalized_at: string | null;
+      }>(
+        `
+        SELECT id, archived_at, finalized_at
+        FROM split_rooms
+        WHERE id = $1
+        AND owner_user_id = $2
+        FOR UPDATE;
+        `,
+        [roomId, dbUser.id],
+      );
+
+      const room = roomResult.rows[0];
+
+      if (!room) {
+        await client.query("ROLLBACK");
+        return res.status(404).json({
+          message: "Room not found or you do not own this room",
+        });
+      }
+
+      if (room.archived_at || room.finalized_at) {
+        await client.query("ROLLBACK");
+        return res.status(400).json({
+          message: "This room is closed, so members cannot be added.",
+        });
+      }
+
+      const friendsResult = await client.query<DbUserRow>(
+        `
+        SELECT candidate.id, candidate.name, candidate.email
+        FROM users candidate
+        INNER JOIN friendships friendship
+          ON friendship.user_one_id = LEAST($1::uuid, candidate.id)
+          AND friendship.user_two_id = GREATEST($1::uuid, candidate.id)
+        WHERE LOWER(candidate.email) = ANY($2::text[]);
+        `,
+        [dbUser.id, normalizedEmails],
+      );
+
+      const friendsByEmail = new Map(
+        friendsResult.rows.map(
+          (friend) => [friend.email.toLowerCase(), friend] as const,
+        ),
+      );
+
+      const unavailableEmails = normalizedEmails.filter(
+        (email) => !friendsByEmail.has(email),
+      );
+
+      if (unavailableEmails.length > 0) {
+        await client.query("ROLLBACK");
+        return res.status(400).json({
+          message: "Only current SplitVerse friends can be added to a room.",
+        });
+      }
+
+      const existingMembersResult = await client.query<{
+        email: string | null;
+      }>(
+        `
+        SELECT email
+        FROM split_room_members
+        WHERE room_id = $1;
+        `,
+        [roomId],
+      );
+
+      const existingEmails = new Set(
+        existingMembersResult.rows
+          .map((row) => row.email?.toLowerCase())
+          .filter((email): email is string => Boolean(email)),
+      );
+
+      const newFriends = normalizedEmails
+        .filter((email) => !existingEmails.has(email))
+        .map((email) => friendsByEmail.get(email))
+        .filter((friend): friend is DbUserRow => Boolean(friend));
+
+      if (existingMembersResult.rows.length + newFriends.length > 21) {
+        await client.query("ROLLBACK");
+        return res.status(400).json({
+          message: "A split room can contain up to 21 people including you.",
+        });
+      }
+
+      if (newFriends.length > 0) {
+        await insertSplitRoomMembers(
+          client,
+          newFriends.map((friend) => ({
+            roomId,
+            userId: friend.id,
+            displayName: friend.name || friend.email.split("@")[0],
+            email: friend.email,
+            role: "member" as const,
+            status: "active" as const,
+          })),
+        );
+
+        await client.query(
+          `
+          UPDATE split_rooms
+          SET updated_at = NOW()
+          WHERE id = $1;
+          `,
+          [roomId],
+        );
+      }
+
+      await client.query("COMMIT");
+
+      const notifiedUserIds = await getRoomUserIds(roomId);
+      sendLiveUpdate([dbUser.id, ...notifiedUserIds], {
+        type: "split-room",
+        reason: "members-added",
+        roomId,
+      });
+
+      return res.json({
+        message:
+          newFriends.length > 0
+            ? "Room members updated"
+            : "Room members are already up to date",
+        addedCount: newFriends.length,
+      });
+    } catch (error) {
+      await client.query("ROLLBACK").catch(() => undefined);
+      if (sendValidationError(res, error)) return;
+
+      console.error("Add split room members failed:", error);
+      return res.status(500).json({ message: "Failed to update room members" });
+    } finally {
+      client.release();
+    }
+  },
+);
 
 router.post(
   "/:roomId/items",
