@@ -1644,6 +1644,235 @@ router.get(
   },
 );
 
+router.get(
+  "/net-settlements/history/:otherUserId",
+  verifyFirebaseToken,
+  async (req: AuthRequest, res) => {
+    try {
+      await ensureSplitRoomTablesOnce();
+      await ensureNetSettlementTablesOnce();
+
+      const firebaseUser = req.user;
+
+      if (!firebaseUser) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+
+      const dbUser = await getCurrentUser(firebaseUser.uid);
+
+      if (!dbUser) {
+        return res.status(404).json({ message: "User not found in database" });
+      }
+
+      const otherUserId = z
+        .string()
+        .trim()
+        .uuid("Invalid settlement user")
+        .parse(req.params.otherUserId);
+
+      if (otherUserId === dbUser.id) {
+        return res.status(400).json({ message: "Choose another user" });
+      }
+
+      const personResult = await db.query<DbUserRow>(
+        `
+        SELECT id, name, email
+        FROM users
+        WHERE id = $1;
+        `,
+        [otherUserId],
+      );
+      const person = personResult.rows[0];
+
+      if (!person) {
+        return res.status(404).json({ message: "Settlement user not found" });
+      }
+
+      const historyResult = await db.query<{
+        item_id: string;
+        room_id: string;
+        room_name: string;
+        item_title: string;
+        original_amount: number;
+        debtor_user_id: string;
+        debtor_name: string | null;
+        debtor_email: string;
+        creditor_user_id: string;
+        creditor_name: string | null;
+        creditor_email: string;
+        item_created_at: string;
+        settlements: Array<{
+          id: string;
+          amount: number;
+          method: "wallet" | "manual" | "offset";
+          createdAt: string;
+          counterItemId: string | null;
+          counterItemTitle: string | null;
+          counterRoomId: string | null;
+          counterRoomName: string | null;
+        }>;
+      }>(
+        `
+        WITH pair_items AS (
+          SELECT
+            item.id AS item_id,
+            item.room_id,
+            room.name AS room_name,
+            item.title AS item_title,
+            item.amount::float AS original_amount,
+            COALESCE(assigned_user.id, member.user_id) AS debtor_user_id,
+            COALESCE(assigned_user.name, member.display_name) AS debtor_name,
+            COALESCE(assigned_user.email, member.email) AS debtor_email,
+            paid_by_user.id AS creditor_user_id,
+            paid_by_user.name AS creditor_name,
+            paid_by_user.email AS creditor_email,
+            item.created_at AS item_created_at
+          FROM split_room_items item
+          INNER JOIN split_room_members member
+            ON member.id = item.assigned_member_id
+          INNER JOIN split_rooms room
+            ON room.id = item.room_id
+          INNER JOIN users paid_by_user
+            ON paid_by_user.id = COALESCE(
+              item.paid_by_user_id,
+              room.paid_by_user_id,
+              room.owner_user_id
+            )
+          LEFT JOIN users assigned_user
+            ON assigned_user.id = member.user_id
+            OR (
+              member.user_id IS NULL
+              AND member.email IS NOT NULL
+              AND LOWER(assigned_user.email) = LOWER(member.email)
+            )
+          WHERE COALESCE(assigned_user.id, member.user_id) IS NOT NULL
+          AND paid_by_user.id <> COALESCE(assigned_user.id, member.user_id)
+          AND (
+            (
+              COALESCE(assigned_user.id, member.user_id) = $1
+              AND paid_by_user.id = $2
+            )
+            OR
+            (
+              COALESCE(assigned_user.id, member.user_id) = $2
+              AND paid_by_user.id = $1
+            )
+          )
+        )
+        SELECT
+          pair_items.*,
+          COALESCE(settlement_details.settlements, '[]'::json) AS settlements
+        FROM pair_items
+        LEFT JOIN LATERAL (
+          SELECT JSON_AGG(
+            JSON_BUILD_OBJECT(
+              'id', settlement.id,
+              'amount', settlement.amount::float,
+              'method', settlement.method,
+              'createdAt', settlement.created_at,
+              'counterItemId', counter_item.id,
+              'counterItemTitle', counter_item.title,
+              'counterRoomId', counter_room.id,
+              'counterRoomName', counter_room.name
+            )
+            ORDER BY settlement.created_at ASC
+          ) AS settlements
+          FROM split_room_item_settlements settlement
+          LEFT JOIN split_room_items counter_item
+            ON counter_item.id = settlement.counter_item_id
+          LEFT JOIN split_rooms counter_room
+            ON counter_room.id = counter_item.room_id
+          WHERE settlement.item_id = pair_items.item_id
+        ) settlement_details ON TRUE
+        ORDER BY pair_items.item_created_at DESC;
+        `,
+        [dbUser.id, otherUserId],
+      );
+
+      const entries = historyResult.rows.map((row) => {
+        const settlements = (row.settlements ?? []).map((settlement) => ({
+          ...settlement,
+          amount: roundMoneyValue(Number(settlement.amount)),
+        }));
+        const originalAmount = roundMoneyValue(Number(row.original_amount));
+        const settledAmount = roundMoneyValue(
+          settlements.reduce((sum, settlement) => sum + settlement.amount, 0),
+        );
+        const pendingAmount = roundMoneyValue(
+          Math.max(originalAmount - settledAmount, 0),
+        );
+
+        return {
+          itemId: row.item_id,
+          roomId: row.room_id,
+          roomName: row.room_name,
+          title: row.item_title,
+          originalAmount,
+          settledAmount,
+          pendingAmount,
+          status: pendingAmount > 0.009 ? "pending" : "settled",
+          debtorUserId: row.debtor_user_id,
+          debtorName: row.debtor_name,
+          debtorEmail: row.debtor_email,
+          creditorUserId: row.creditor_user_id,
+          creditorName: row.creditor_name,
+          creditorEmail: row.creditor_email,
+          direction:
+            row.debtor_user_id === dbUser.id ? "payable" : "receivable",
+          createdAt: row.item_created_at,
+          settlements,
+        };
+      });
+
+      const lifetimePayable = roundMoneyValue(
+        entries
+          .filter((entry) => entry.direction === "payable")
+          .reduce((sum, entry) => sum + entry.originalAmount, 0),
+      );
+      const lifetimeReceivable = roundMoneyValue(
+        entries
+          .filter((entry) => entry.direction === "receivable")
+          .reduce((sum, entry) => sum + entry.originalAmount, 0),
+      );
+      const pendingPayable = roundMoneyValue(
+        entries
+          .filter((entry) => entry.direction === "payable")
+          .reduce((sum, entry) => sum + entry.pendingAmount, 0),
+      );
+      const pendingReceivable = roundMoneyValue(
+        entries
+          .filter((entry) => entry.direction === "receivable")
+          .reduce((sum, entry) => sum + entry.pendingAmount, 0),
+      );
+
+      return res.json({
+        person: {
+          id: person.id,
+          name: person.name,
+          email: person.email,
+        },
+        summary: {
+          lifetimePayable,
+          lifetimeReceivable,
+          pendingPayable,
+          pendingReceivable,
+          currency: "INR",
+        },
+        entries,
+      });
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({
+          message: error.issues[0]?.message || "Invalid settlement user",
+        });
+      }
+
+      console.error("Load settlement history failed:", error);
+      return res.status(500).json({ message: "Failed to load settlement history" });
+    }
+  },
+);
+
 router.post(
   "/net-settlements/pay",
   verifyFirebaseToken,
