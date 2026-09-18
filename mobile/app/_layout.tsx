@@ -23,6 +23,9 @@ void SplashScreen.preventAutoHideAsync().catch((error) => {
 });
 SplashScreen.setOptions({ duration: 250, fade: true });
 
+const splashStartedAt = Date.now();
+const minimumSplashDurationMs = 1400;
+
 const PRIVACY_CAPTURE_KEY = "splitverse-privacy-mode";
 
 function PrivacyScreenGuard() {
@@ -65,11 +68,18 @@ export default function RootLayout() {
 
   useEffect(() => {
     if (fontsLoaded || fontError) {
-      void SplashScreen.hideAsync().catch((error) => {
-        if (__DEV__) {
-          console.warn("Could not hide the splash screen:", error);
-        }
-      });
+      const elapsed = Date.now() - splashStartedAt;
+      const remaining = Math.max(0, minimumSplashDurationMs - elapsed);
+
+      const timeoutId = setTimeout(() => {
+        void SplashScreen.hideAsync().catch((error) => {
+          if (__DEV__) {
+            console.warn("Could not hide the splash screen:", error);
+          }
+        });
+      }, remaining);
+
+      return () => clearTimeout(timeoutId);
     }
   }, [fontError, fontsLoaded]);
 

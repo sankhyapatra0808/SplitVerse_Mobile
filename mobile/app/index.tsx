@@ -16,24 +16,18 @@ import { radius, spacing, typography } from "../src/theme/tokens";
 export default function Index() {
   const { user, initializing } = useAuth();
   const { theme } = useAppSettings();
-  const isDark = theme.mode === "dark";
 
   if (initializing) {
     return (
-      <Screen
-        scroll={false}
-        safeBackgroundColor={isDark ? "#000000" : theme.primary}
-      >
-        <LinearGradient
-          colors={
-            isDark
-              ? ["#000000", "#000000"]
-              : [theme.primary, theme.primaryActive]
-          }
-          style={styles.loadingScreen}
+      <Screen scroll={false} safeBackgroundColor={theme.background}>
+        <View
+          style={[
+            styles.loadingScreen,
+            { backgroundColor: theme.background },
+          ]}
         >
-          <ActivityIndicator color="#ffffff" />
-        </LinearGradient>
+          <ActivityIndicator color={theme.primary} />
+        </View>
       </Screen>
     );
   }
@@ -43,81 +37,65 @@ export default function Index() {
   }
 
   return (
-    <Screen
-      scroll={false}
-      safeBackgroundColor={isDark ? "#000000" : theme.primary}
-    >
+    <Screen scroll={false} safeBackgroundColor={theme.background}>
       <LinearGradient
         colors={
-          isDark
-            ? ["#000000", "#000000", "#000000"]
-            : [theme.primary, theme.primaryActive, theme.primary]
+          theme.mode === "dark"
+            ? ["#0a0b0d", "#101216", "#0a0b0d"]
+            : ["#f6f1e7", "#fffdf9", "#f6f1e7"]
         }
         style={styles.screen}
       >
-        <View style={styles.orbitOne} />
-        <View style={styles.orbitTwo} />
-        <View style={styles.orbitThree} />
-
-        <Text style={styles.brand}>SplitVerse</Text>
-
-        <View style={styles.heroCenter}>
-          <Text style={styles.title}>Splitting,{"\n"}simplified</Text>
-
-          <View style={styles.illustrationWrap}>
-            <View
-              style={[
-                styles.yellowBlob,
-                { backgroundColor: isDark ? "#979797" : "#aec0d4" },
-              ]}
+        <View
+          style={[
+            styles.heroCard,
+            {
+              backgroundColor: theme.mode === "dark" ? theme.card : theme.canvas,
+              borderColor: theme.borderSoft,
+            },
+          ]}
+        >
+          <View
+            style={[
+              styles.heroArtWrap,
+              { backgroundColor: theme.mode === "dark" ? "#f7f9fb" : "#ffffff" },
+            ]}
+          >
+            <Image
+              source={require("../assets/welcome-hero.png")}
+              style={styles.heroArt}
+              resizeMode="contain"
             />
+          </View>
+
+          <View style={styles.brandWrap}>
             <Image
               source={require("../assets/splitverse-logo.png")}
               style={styles.logo}
               resizeMode="contain"
             />
-            <View style={styles.plusBadge}>
-              <Text
-                style={[
-                  styles.plusText,
-                  { color: isDark ? "#000000" : theme.primary },
-                ]}
-              >
-                +4
-              </Text>
-            </View>
+            <Text style={[styles.brand, { color: theme.text }]}>SplitVerse</Text>
+            <Text style={[styles.subtitle, { color: theme.body }]}>
+              Split smarter. Track shared expenses, create rooms, and settle faster.
+            </Text>
           </View>
-
-          <Text style={styles.subtitle}>
-            Everything you need to split expenses fairly.
-          </Text>
         </View>
 
         <View style={styles.footer}>
           <Pressable
-            style={[
+            style={({ pressed }) => [
               styles.primaryButton,
               {
-                backgroundColor: isDark ? theme.primary : "#ffffff",
+                backgroundColor: pressed ? theme.primaryActive : theme.primary,
               },
             ]}
             onPress={() => router.replace("/(auth)/signup")}
           >
-            <Text
-              style={[
-                styles.primaryButtonText,
-                { color: isDark ? theme.onPrimary : "#111111" },
-              ]}
-            >
-              Get Started
-            </Text>
+            <Text style={[styles.primaryButtonText, { color: theme.onPrimary }]}>Get Started</Text>
           </Pressable>
 
-          <Pressable
-            style={styles.signInButton}
-            onPress={() => router.push("/(auth)/login")}
-          >
-            <Text style={styles.signInText}>I already have an account</Text>
+          <Pressable style={styles.signInButton} onPress={() => router.push("/(auth)/login")}>
+            <Text style={[styles.signInText, { color: theme.primary }]}>I already have an account</Text>
           </Pressable>
         </View>
       </LinearGradient>
@@ -126,122 +104,81 @@ export default function Index() {
 }
 
 const styles = StyleSheet.create({
-  loadingScreen: { flex: 1, alignItems: "center", justifyContent: "center" },
+  loadingScreen: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   screen: {
     flex: 1,
-    overflow: "hidden",
-    paddingHorizontal: spacing.lg,
-    paddingTop: spacing.lg,
+    paddingHorizontal: spacing.base,
+    paddingTop: spacing.base,
     paddingBottom: spacing.md,
+    justifyContent: "space-between",
+  },
+  heroCard: {
+    flex: 1,
+    borderRadius: 32,
+    borderWidth: 1,
+    overflow: "hidden",
+  },
+  heroArtWrap: {
+    margin: spacing.base,
+    marginBottom: spacing.sm,
+    borderRadius: 28,
+    overflow: "hidden",
+    minHeight: 360,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  heroArt: {
+    width: "100%",
+    height: 360,
+  },
+  brandWrap: {
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.base,
+    paddingBottom: spacing.xl,
+    alignItems: "center",
+    gap: spacing.sm,
+  },
+  logo: {
+    width: 76,
+    height: 76,
   },
   brand: {
-    marginTop: spacing.base,
+    ...typography.titleLg,
+    fontSize: 36,
+    lineHeight: 40,
     textAlign: "center",
-    color: "#ffffff",
-    fontSize: 16,
-    fontWeight: "800",
-    letterSpacing: -0.2,
-  },
-  heroCenter: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    gap: spacing.lg,
-  },
-  title: {
-    textAlign: "center",
-    color: "#ffffff",
-    fontSize: 42,
-    fontWeight: "800",
-    lineHeight: 56,
-    letterSpacing: -1.2,
-  },
-  illustrationWrap: {
-    width: 170,
-    height: 106,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  yellowBlob: {
-    position: "absolute",
-    width: 146,
-    height: 74,
-    borderRadius: 60,
-    transform: [{ rotate: "-10deg" }],
-  },
-  logo: { width: 96, height: 96, borderRadius: 16 },
-  plusBadge: {
-    position: "absolute",
-    top: 4,
-    right: 16,
-    width: 38,
-    height: 38,
-    alignItems: "center",
-    justifyContent: "center",
-    borderRadius: radius.pill,
-    backgroundColor: "#ffffff",
-    shadowColor: "#000",
-    shadowOpacity: 0.15,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 6 },
-    elevation: 5,
-  },
-  plusText: {
-    fontSize: 13,
-    fontWeight: "900",
   },
   subtitle: {
-    maxWidth: 260,
+    ...typography.body,
     textAlign: "center",
-    color: "rgba(255, 255, 255, 0.88)",
-    ...typography.bodySm,
+    maxWidth: 290,
   },
-  footer: { gap: spacing.sm },
+  footer: {
+    paddingTop: spacing.base,
+    gap: spacing.sm,
+  },
   primaryButton: {
     minHeight: 58,
+    borderRadius: radius.pill,
     alignItems: "center",
     justifyContent: "center",
-    borderRadius: radius.pill,
+    paddingHorizontal: spacing.lg,
   },
-  primaryButtonText: { fontSize: 14, fontWeight: "800" },
+  primaryButtonText: {
+    ...typography.button,
+    fontSize: 17,
+  },
   signInButton: {
     minHeight: 42,
     alignItems: "center",
     justifyContent: "center",
   },
   signInText: {
-    color: "rgba(255, 255, 255, 0.88)",
-    fontSize: 13,
+    ...typography.bodySm,
     fontWeight: "700",
-  },
-  orbitOne: {
-    position: "absolute",
-    top: 112,
-    left: -32,
-    width: 420,
-    height: 420,
-    borderRadius: 420,
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.16)",
-  },
-  orbitTwo: {
-    position: "absolute",
-    top: 150,
-    left: 12,
-    width: 330,
-    height: 330,
-    borderRadius: 330,
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.13)",
-  },
-  orbitThree: {
-    position: "absolute",
-    top: 192,
-    left: 54,
-    width: 246,
-    height: 246,
-    borderRadius: 246,
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.10)",
   },
 });
