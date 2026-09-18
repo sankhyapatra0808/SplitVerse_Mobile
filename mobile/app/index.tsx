@@ -1,5 +1,4 @@
 import { Redirect, router } from "expo-router";
-import { LinearGradient } from "expo-linear-gradient";
 import {
   ActivityIndicator,
   Image,
@@ -21,10 +20,7 @@ export default function Index() {
     return (
       <Screen scroll={false} safeBackgroundColor={theme.background}>
         <View
-          style={[
-            styles.loadingScreen,
-            { backgroundColor: theme.background },
-          ]}
+          style={[styles.loadingScreen, { backgroundColor: theme.background }]}
         >
           <ActivityIndicator color={theme.primary} />
         </View>
@@ -38,67 +34,81 @@ export default function Index() {
 
   return (
     <Screen scroll={false} safeBackgroundColor={theme.background}>
-      <LinearGradient
-        colors={
-          theme.mode === "dark"
-            ? ["#0a0b0d", "#101216", "#0a0b0d"]
-            : ["#f6f1e7", "#fffdf9", "#f6f1e7"]
-        }
-        style={styles.screen}
-      >
+      <View style={[styles.screen, { backgroundColor: theme.background }]}>
         <View
           style={[
-            styles.heroCard,
+            styles.frame,
             {
-              backgroundColor: theme.mode === "dark" ? theme.card : theme.canvas,
+              backgroundColor:
+                theme.mode === "dark" ? theme.background : theme.canvas,
               borderColor: theme.borderSoft,
             },
           ]}
         >
-          <View
-            style={[
-              styles.heroArtWrap,
-              { backgroundColor: theme.mode === "dark" ? "#f7f9fb" : "#ffffff" },
-            ]}
-          >
+          <View style={styles.topBar}>
+            <Text style={[styles.topBarTitle, { color: theme.text }]}>
+              SplitVerse
+            </Text>
+          </View>
+
+          <View style={styles.heroSection}>
             <Image
               source={require("../assets/welcome-hero.png")}
-              style={styles.heroArt}
+              style={styles.heroImage}
               resizeMode="contain"
             />
           </View>
 
-          <View style={styles.brandWrap}>
+          <View style={styles.infoStrip}>
             <Image
               source={require("../assets/splitverse-logo.png")}
               style={styles.logo}
               resizeMode="contain"
             />
-            <Text style={[styles.brand, { color: theme.text }]}>SplitVerse</Text>
-            <Text style={[styles.subtitle, { color: theme.body }]}>
-              Split smarter. Track shared expenses, create rooms, and settle faster.
-            </Text>
+            <Text style={[styles.bigS, { color: theme.text }]}>S</Text>
+            <View style={styles.infoTextWrap}>
+              <Text style={[styles.tagline, { color: theme.body }]}>
+                plit smarter.
+              </Text>
+              <Text style={[styles.tagline, { color: theme.body }]}>
+                plit wiser.
+              </Text>
+              <Text style={[styles.tagline, { color: theme.body }]}>
+                ettle faster.
+              </Text>
+            </View>
+          </View>
+
+          <View style={styles.footerSection}>
+            <Pressable
+              style={({ pressed }) => [
+                styles.primaryButton,
+                {
+                  backgroundColor: pressed
+                    ? theme.primaryActive
+                    : theme.primary,
+                },
+              ]}
+              onPress={() => router.replace("/(auth)/signup")}
+            >
+              <Text
+                style={[styles.primaryButtonText, { color: theme.onPrimary }]}
+              >
+                Get Started
+              </Text>
+            </Pressable>
+
+            <Pressable
+              style={styles.signInButton}
+              onPress={() => router.push("/(auth)/login")}
+            >
+              <Text style={[styles.signInText, { color: theme.body }]}>
+                I already have an account
+              </Text>
+            </Pressable>
           </View>
         </View>
-
-        <View style={styles.footer}>
-          <Pressable
-            style={({ pressed }) => [
-              styles.primaryButton,
-              {
-                backgroundColor: pressed ? theme.primaryActive : theme.primary,
-              },
-            ]}
-            onPress={() => router.replace("/(auth)/signup")}
-          >
-            <Text style={[styles.primaryButtonText, { color: theme.onPrimary }]}>Get Started</Text>
-          </Pressable>
-
-          <Pressable style={styles.signInButton} onPress={() => router.push("/(auth)/login")}>
-            <Text style={[styles.signInText, { color: theme.primary }]}>I already have an account</Text>
-          </Pressable>
-        </View>
-      </LinearGradient>
+      </View>
     </Screen>
   );
 }
@@ -111,55 +121,79 @@ const styles = StyleSheet.create({
   },
   screen: {
     flex: 1,
-    paddingHorizontal: spacing.base,
-    paddingTop: spacing.base,
-    paddingBottom: spacing.md,
-    justifyContent: "space-between",
   },
-  heroCard: {
+  frame: {
     flex: 1,
-    borderRadius: 32,
-    borderWidth: 1,
-    overflow: "hidden",
   },
-  heroArtWrap: {
-    margin: spacing.base,
-    marginBottom: spacing.sm,
-    borderRadius: 28,
-    overflow: "hidden",
-    minHeight: 360,
+  topBar: {
+    minHeight: 72,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: spacing.base,
+    paddingTop: 70,
+  },
+  topBarTitle: {
+    fontSize: 34,
+    lineHeight: 40,
+    fontWeight: "700",
+    letterSpacing: -0.5,
+  },
+  heroSection: {
+    flex: 1,
     justifyContent: "center",
     alignItems: "center",
+    paddingHorizontal: spacing.base,
+    paddingVertical: spacing.sm,
   },
-  heroArt: {
+  heroImage: {
     width: "100%",
-    height: 360,
+    height: "100%",
+    maxHeight: 420,
   },
-  brandWrap: {
-    paddingHorizontal: spacing.lg,
-    paddingTop: spacing.base,
-    paddingBottom: spacing.xl,
+
+  bigS: {
+    fontSize: 72,
+    lineHeight: 76,
+    fontWeight: "700",
+  },
+
+  taglineBlock: {
+    justifyContent: "center",
+  },
+
+  tagline: {
+    ...typography.bodySm,
+    fontSize: 17,
+    lineHeight: 23,
+  },
+
+  infoStrip: {
+    flexDirection: "row",
     alignItems: "center",
-    gap: spacing.sm,
+    justifyContent: "center",
+    gap: spacing.base,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.base,
   },
   logo: {
-    width: 76,
-    height: 76,
+    width: 66,
+    height: 66,
+    borderRadius: 15,
   },
-  brand: {
-    ...typography.titleLg,
-    fontSize: 36,
-    lineHeight: 40,
+  infoTextWrap: {
+    alignItems: "center",
+  },
+  brandTitle: {
+    ...typography.titleMd,
+    fontSize: 28,
+    lineHeight: 32,
+    marginBottom: 4,
     textAlign: "center",
   },
-  subtitle: {
-    ...typography.body,
-    textAlign: "center",
-    maxWidth: 290,
-  },
-  footer: {
-    paddingTop: spacing.base,
-    gap: spacing.sm,
+  footerSection: {
+    paddingHorizontal: spacing.base,
+    paddingVertical: spacing.base,
+    gap: 6,
   },
   primaryButton: {
     minHeight: 58,
@@ -170,15 +204,14 @@ const styles = StyleSheet.create({
   },
   primaryButtonText: {
     ...typography.button,
-    fontSize: 17,
+    fontSize: 18,
   },
   signInButton: {
-    minHeight: 42,
+    minHeight: 36,
     alignItems: "center",
     justifyContent: "center",
   },
   signInText: {
     ...typography.bodySm,
-    fontWeight: "700",
   },
 });
