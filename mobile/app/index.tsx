@@ -76,7 +76,7 @@ export default function Index() {
   const getStartedButtonRect = mapSourceRectToCover(
     {
       x: 179,
-      y: 1510,
+      y: 1490,
       width: 583,
       height: 102,
     },
@@ -87,7 +87,7 @@ export default function Index() {
   const signInButtonRect = mapSourceRectToCover(
     {
       x: 350,
-      y: 1621,
+      y: 1590,
       width: 240,
       height: 56,
     },
