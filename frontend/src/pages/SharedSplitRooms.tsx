@@ -3,20 +3,17 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import {
   CalendarDays,
   CheckCircle2,
-  ChevronDown,
   Pencil,
   Plus,
   ReceiptText,
   Trash2,
-  UserMinus,
   WalletCards,
   X,
-  UsersRound,
 } from "lucide-react";
 
 import {
+  addSplitRoomMembers,
   archiveSplitRoom,
-  collectSplitRoomMemberDues,
   createSplitRoom,
   createSplitRoomItem,
   deleteSplitRoom,
@@ -28,8 +25,6 @@ import {
   finalizeSplitRoom,
   payNetSettlement,
   paySplitRoomDue,
-  removeSplitRoomMember,
-  sendSplitRoomReminder,
   updateSplitRoomItem,
   type Friend,
   type NetSettlement,
@@ -103,18 +98,6 @@ function renderMemberMiniAvatar(member?: SplitRoom["members"][number]) {
   );
 }
 
-function formatFriendshipAge(days: number) {
-  if (days <= 0) {
-    return "Friends today";
-  }
-
-  if (days === 1) {
-    return "Friends for 1 day";
-  }
-
-  return `Friends for ${days} days`;
-}
-
 function getItemPlaceholder(category?: string | null) {
   switch (category) {
     case "restaurant":
@@ -171,11 +154,12 @@ export default function SharedSplitRooms() {
   const [rooms, setRooms] = useState<SplitRoom[]>([]);
   const [selectedRoomId, setSelectedRoomId] = useState("");
   const [friends, setFriends] = useState<Friend[]>([]);
-  const [selectedFriendEmails, setSelectedFriendEmails] = useState<string[]>(
-    [],
-  );
   const [friendSearch, setFriendSearch] = useState("");
-  const [friendPickerOpen, setFriendPickerOpen] = useState(false);
+  const [assignmentFriendPickerMode, setAssignmentFriendPickerMode] = useState<
+    "assign" | "automatic" | null
+  >(null);
+  const [pickerSelectedValues, setPickerSelectedValues] = useState<string[]>([]);
+  const [savingPickerSelection, setSavingPickerSelection] = useState(false);
   const [roomCategory, setRoomCategory] = useState("restaurant");
   const [itemTitle, setItemTitle] = useState("");
   const [itemAmount, setItemAmount] = useState("");
@@ -192,12 +176,7 @@ export default function SharedSplitRooms() {
   const [updatingItemId, setUpdatingItemId] = useState("");
   const [deletingItemId, setDeletingItemId] = useState("");
   const [historyDialogOpen, setHistoryDialogOpen] = useState(false);
-  const [membersDialogOpen, setMembersDialogOpen] = useState(false);
-  const [removingMemberId, setRemovingMemberId] = useState("");
   const [deletingRoomId, setDeletingRoomId] = useState("");
-  const [collectingMemberId, setCollectingMemberId] = useState("");
-  const [expandedMemberActionId, setExpandedMemberActionId] = useState("");
-  const [remindingRoomId, setRemindingRoomId] = useState("");
   const [finalizingRoomId, setFinalizingRoomId] = useState("");
   const [archivingRoomId, setArchivingRoomId] = useState("");
   const [pendingDues, setPendingDues] = useState<PendingDue[]>([]);
@@ -218,7 +197,6 @@ export default function SharedSplitRooms() {
   const [paymentDialogError, setPaymentDialogError] = useState("");
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
-  const friendDropdownRef = useRef<HTMLDivElement | null>(null);
   const optimisticIdRef = useRef(0);
   const activeCurrency =
     currencies.find((currency) => currency.code === appCurrency) ?? currencies[0];
@@ -267,13 +245,24 @@ export default function SharedSplitRooms() {
       })),
     [sortedMembers],
   );
-  const selectedRoomPendingDues = useMemo(
+  const assignedMemberLabel = useMemo(
     () =>
-      selectedRoom
-        ? pendingDues.filter((due) => due.roomId === selectedRoom.id)
-        : [],
-    [pendingDues, selectedRoom],
+      sortedMembers.find((member) => member.id === assignedMemberId)
+        ? getMemberName(
+            sortedMembers.find((member) => member.id === assignedMemberId)!,
+          )
+        : "Choose friend",
+    [assignedMemberId, sortedMembers],
   );
+  const automaticMembersLabel = useMemo(() => {
+    const selectedNames = sortedMembers
+      .filter((member) => automaticMemberIds.includes(member.id))
+      .map(getMemberName);
+
+    if (selectedNames.length === 0) return "Choose friends";
+    if (selectedNames.length <= 2) return selectedNames.join(", ");
+    return `${selectedNames.length} people selected`;
+  }, [automaticMemberIds, sortedMembers]);
   const selectedRoomClosed = Boolean(selectedRoom?.isArchived || selectedRoom?.isFinalized);
   const paymentDue = useMemo(
     () => pendingDues.find((due) => due.id === paymentDueId) ?? null,
@@ -408,16 +397,6 @@ export default function SharedSplitRooms() {
       paymentEntitledItems.reduce((sum, item) => sum + Number(item.amount || 0), 0),
     [paymentEntitledItems],
   );
-  const selectedFriendNames = useMemo(
-    () =>
-      selectedFriendEmails
-        .map((email) => {
-          const friend = friends.find((item) => item.email === email);
-          return friend?.name || email.split("@")[0];
-        })
-        .join(", "),
-    [friends, selectedFriendEmails],
-  );
   const trimmedFriendSearch = friendSearch.trim();
   const filteredFriends = useMemo(() => {
     const normalizedSearch = trimmedFriendSearch.toLowerCase();
@@ -437,24 +416,7 @@ export default function SharedSplitRooms() {
     () => selectedRoom?.items ?? [],
     [selectedRoom],
   );
-  const removableMemberCount = useMemo(
-    () =>
-      selectedRoom
-        ? sortedMembers.filter((member) => {
-            const assignedItemCount = selectedRoomItems.filter(
-              (item) => item.assigned_member_id === member.id,
-            ).length;
 
-            return (
-              selectedRoom.isOwner &&
-              !member.isMe &&
-              !member.isOwner &&
-              assignedItemCount === 0
-            );
-          }).length
-        : 0,
-    [selectedRoom, selectedRoomItems, sortedMembers],
-  );
 
   const reloadSplitRoomData = async (preferredRoomId?: string) => {
     const [roomData, duesData, netData] = await Promise.all([
@@ -553,12 +515,6 @@ export default function SharedSplitRooms() {
   }, [roomIdFromNotification]);
 
   useEffect(() => {
-    const timer = window.setTimeout(() => setExpandedMemberActionId(""), 0);
-
-    return () => window.clearTimeout(timer);
-  }, [selectedRoomId]);
-
-  useEffect(() => {
     if (
       roomIdFromNotification &&
       rooms.some((room) => room.id === roomIdFromNotification)
@@ -589,27 +545,6 @@ export default function SharedSplitRooms() {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [roomIdFromNotification, selectedRoomId]);
-
-  useEffect(() => {
-    if (!friendPickerOpen) {
-      return;
-    }
-
-    const handlePointerDown = (event: PointerEvent) => {
-      if (
-        friendDropdownRef.current &&
-        !friendDropdownRef.current.contains(event.target as Node)
-      ) {
-        setFriendPickerOpen(false);
-      }
-    };
-
-    document.addEventListener("pointerdown", handlePointerDown);
-
-    return () => {
-      document.removeEventListener("pointerdown", handlePointerDown);
-    };
-  }, [friendPickerOpen]);
 
   useEffect(() => {
     const selfMember = sortedMembers.find((member) => member.isMe);
@@ -651,71 +586,132 @@ export default function SharedSplitRooms() {
     return () => window.clearTimeout(timer);
   }, [itemPaidByMemberId, sortedMembers]);
 
-  function toggleAutomaticMember(memberId: string) {
-    setAutomaticMemberIds((current) =>
-      current.includes(memberId)
-        ? current.filter((id) => id !== memberId)
-        : [...current, memberId],
-    );
+  const selfPickerValue = "__me__";
+
+  function memberToPickerValue(member: SplitRoom["members"][number]) {
+    return member.isMe ? selfPickerValue : member.email || "";
   }
 
-  function toggleSelectedFriend(email: string) {
-    setSelectedFriendEmails((prev) =>
-      prev.includes(email)
-        ? prev.filter((friendEmail) => friendEmail !== email)
-        : [...prev, email],
+  function openAssignmentFriendPicker(mode: "assign" | "automatic") {
+    if (!selectedRoom || !selectedRoom.isOwner || selectedRoomClosed) {
+      return;
+    }
+
+    const selectedValues =
+      mode === "assign"
+        ? sortedMembers
+            .filter((member) => member.id === assignedMemberId)
+            .map(memberToPickerValue)
+            .filter(Boolean)
+        : sortedMembers
+            .filter((member) => automaticMemberIds.includes(member.id))
+            .map(memberToPickerValue)
+            .filter(Boolean);
+
+    setPickerSelectedValues(selectedValues);
+    setFriendSearch("");
+    setAssignmentFriendPickerMode(mode);
+  }
+
+  function togglePickerValue(value: string) {
+    setPickerSelectedValues((current) => {
+      if (assignmentFriendPickerMode === "assign") {
+        return [value];
+      }
+
+      return current.includes(value)
+        ? current.filter((item) => item !== value)
+        : [...current, value];
+    });
+  }
+
+  async function applyAssignmentFriendSelection() {
+    if (!selectedRoom || !assignmentFriendPickerMode) {
+      return;
+    }
+
+    if (pickerSelectedValues.length === 0) {
+      setError(
+        assignmentFriendPickerMode === "assign"
+          ? "Choose one person to assign this item to."
+          : "Choose at least one person for the automatic split.",
+      );
+      return;
+    }
+
+    const friendEmails = pickerSelectedValues.filter(
+      (value) => value !== selfPickerValue,
     );
+    const existingEmails = new Set(
+      selectedRoom.members
+        .map((member) => member.email?.toLowerCase())
+        .filter((email): email is string => Boolean(email)),
+    );
+    const emailsToAdd = friendEmails.filter(
+      (email) => !existingEmails.has(email.toLowerCase()),
+    );
+
+    try {
+      setSavingPickerSelection(true);
+      setError("");
+      setMessage("");
+
+      await withTopProgress(async () => {
+        if (emailsToAdd.length > 0) {
+          await addSplitRoomMembers(selectedRoom.id, emailsToAdd);
+        }
+
+        const roomData = await getSplitRooms();
+        const updatedRoom = roomData.rooms.find((room) => room.id === selectedRoom.id);
+
+        if (!updatedRoom) {
+          throw new Error("Could not reload the selected room.");
+        }
+
+        setRooms(roomData.rooms);
+        setSelectedRoomId(updatedRoom.id);
+
+        const memberIds = pickerSelectedValues
+          .map((value) => {
+            if (value === selfPickerValue) {
+              return updatedRoom.members.find((member) => member.isMe)?.id || "";
+            }
+
+            return (
+              updatedRoom.members.find(
+                (member) => member.email?.toLowerCase() === value.toLowerCase(),
+              )?.id || ""
+            );
+          })
+          .filter(Boolean);
+
+        if (assignmentFriendPickerMode === "assign") {
+          setAssignedMemberId(memberIds[0] || "");
+          setMessage("Assigned person updated.");
+        } else {
+          setAutomaticMemberIds(memberIds);
+          setMessage("Split members updated.");
+        }
+
+        emitSplitVerseUpdates({ pendingDuesChanged: false });
+      });
+
+      setAssignmentFriendPickerMode(null);
+      setFriendSearch("");
+    } catch (pickerError) {
+      setError(
+        pickerError instanceof Error
+          ? pickerError.message
+          : "Could not update room members.",
+      );
+    } finally {
+      setSavingPickerSelection(false);
+    }
   }
 
   function getOptimisticId(prefix: string) {
     optimisticIdRef.current += 1;
     return `optimistic-${prefix}-${Date.now()}-${optimisticIdRef.current}`;
-  }
-
-  function markRoomMemberDuesCollected(
-    room: SplitRoom,
-    memberId: string,
-    collectedAt = new Date().toISOString(),
-  ): SplitRoom {
-    const updatedItems = room.items.map((item) =>
-      item.assigned_member_id === memberId
-        ? {
-            ...item,
-            collected_at: item.collected_at ?? collectedAt,
-            isCollected: true,
-          }
-        : item,
-    );
-    const updatedBalances = room.balances.map((balance) => {
-      if (balance.memberId !== memberId) {
-        return balance;
-      }
-
-      return {
-        ...balance,
-        detail: balance.amount > 0 ? "Collected" : "No dues yet",
-        outstandingAmount: 0,
-        collectedAmount: balance.amount,
-        isCollected: balance.amount > 0,
-      };
-    });
-    const outstandingAmount = updatedBalances.reduce(
-      (sum, balance) => sum + (balance.isMe ? 0 : balance.outstandingAmount),
-      0,
-    );
-    const collectedAmount = updatedBalances.reduce(
-      (sum, balance) => sum + (balance.isMe ? 0 : balance.collectedAmount),
-      0,
-    );
-
-    return {
-      ...room,
-      items: updatedItems,
-      balances: updatedBalances,
-      outstandingAmount,
-      collectedAmount,
-      status: outstandingAmount > 0 ? room.status : "All paid",
-    };
   }
 
   function addOptimisticRoomItem({
@@ -1010,107 +1006,6 @@ export default function SharedSplitRooms() {
     cancelEditingItem();
   }
 
-  function closeMembersDialog() {
-    setMembersDialogOpen(false);
-  }
-
-  function getMemberAssignedItemCount(memberId: string) {
-    return selectedRoomItems.filter((item) => item.assigned_member_id === memberId)
-      .length;
-  }
-
-  function getMemberPendingItemCount(memberId: string) {
-    return selectedRoomItems.filter(
-      (item) => item.assigned_member_id === memberId && !item.isCollected,
-    ).length;
-  }
-
-  function canRemoveMember(member: SplitRoom["members"][number]) {
-    return Boolean(
-      selectedRoom?.isOwner &&
-        !member.isMe &&
-        !member.isOwner &&
-        getMemberAssignedItemCount(member.id) === 0,
-    );
-  }
-
-  function getMemberRemoveReason(member: SplitRoom["members"][number]) {
-    const assignedItemCount = getMemberAssignedItemCount(member.id);
-
-    if (!selectedRoom?.isOwner) {
-      return "Only the room host can remove members.";
-    }
-
-    if (member.isMe || member.isOwner) {
-      return "The room host cannot be removed.";
-    }
-
-    if (assignedItemCount > 0) {
-      return "This member has room history, so removing them would affect previous split records.";
-    }
-
-    return "Remove member from this room.";
-  }
-
-  async function handleRemoveRoomMember(member: SplitRoom["members"][number]) {
-    setMessage("");
-    setError("");
-
-    if (!selectedRoom) {
-      setError("Choose a room first.");
-      return;
-    }
-
-    if (!canRemoveMember(member)) {
-      setError(getMemberRemoveReason(member));
-      return;
-    }
-
-    const confirmed = window.confirm(
-      `Remove ${getMemberName(member)} from ${selectedRoom.name}?`,
-    );
-
-    if (!confirmed) {
-      return;
-    }
-
-    const previousRooms = rooms;
-
-    try {
-      setRemovingMemberId(member.id);
-      setRooms((prev) =>
-        prev.map((room) =>
-          room.id === selectedRoom.id
-            ? {
-                ...room,
-                members: room.members.filter((item) => item.id !== member.id),
-                balances: room.balances.filter(
-                  (balance) => balance.memberId !== member.id,
-                ),
-                memberCount: Math.max(0, room.memberCount - 1),
-              }
-            : room,
-        ),
-      );
-      setMessage("Member removed from the room.");
-
-      await withTopProgress(async () => {
-        await removeSplitRoomMember(selectedRoom.id, member.id);
-        refreshSplitRoomDataInBackground(selectedRoom.id);
-      });
-    } catch (removeError) {
-      setRooms(previousRooms);
-      setError(
-        removeError instanceof Error
-          ? removeError.message
-          : "Failed to remove member",
-      );
-      setMessage("");
-    } finally {
-      setRemovingMemberId("");
-    }
-  }
-
   async function handleUpdateItem(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setMessage("");
@@ -1238,21 +1133,15 @@ export default function SharedSplitRooms() {
     setMessage("");
     setError("");
 
-    if (selectedFriendEmails.length === 0) {
-      setError("Select at least one friend for this room.");
-      return;
-    }
-
     const previousRooms = rooms;
     const previousSelectedRoomId = selectedRoomId;
     const nextRoomName = getIndiaRoomName();
     const nextRoomCategory = roomCategory;
-    const nextFriendEmails = selectedFriendEmails;
     const nextPaidByEmail = user?.email || "";
     const optimisticRoom = createOptimisticRoom({
       name: nextRoomName,
       category: nextRoomCategory,
-      friendEmails: nextFriendEmails,
+      friendEmails: [],
       paidByEmail: nextPaidByEmail,
     });
 
@@ -1260,15 +1149,12 @@ export default function SharedSplitRooms() {
       setSavingRoom(true);
       setRooms((prev) => [optimisticRoom, ...prev]);
       setSelectedRoomId(optimisticRoom.id);
-      setSelectedFriendEmails([]);
-      setFriendSearch("");
-      setFriendPickerOpen(false);
       setRoomCategory("restaurant");
       setMessage("Room created instantly. Saving...");
 
       await withTopProgress(async () => {
         const response = await createSplitRoom({
-          members: nextFriendEmails,
+          members: [],
           dailyRoom: true,
         });
 
@@ -1278,7 +1164,6 @@ export default function SharedSplitRooms() {
     } catch (createError) {
       setRooms(previousRooms);
       setSelectedRoomId(previousSelectedRoomId);
-      setSelectedFriendEmails(nextFriendEmails);
       setRoomCategory(nextRoomCategory);
       setError(
         createError instanceof Error
@@ -1470,74 +1355,6 @@ export default function SharedSplitRooms() {
     }
   };
 
-  const handleCollectMemberDues = async (roomId: string, memberId: string) => {
-    setMessage("");
-    setError("");
-
-    const previousRooms = rooms;
-    const previousPendingDues = pendingDues;
-
-    try {
-      setCollectingMemberId(memberId);
-      setRooms((prev) =>
-        prev.map((room) =>
-          room.id === roomId
-            ? markRoomMemberDuesCollected(room, memberId)
-            : room,
-        ),
-      );
-      setMessage("Dues marked collected.");
-
-      await withTopProgress(async () => {
-        const response = await collectSplitRoomMemberDues(roomId, memberId);
-
-        setMessage(
-          response.updatedCount > 0
-            ? "Dues marked as collected."
-            : "There were no pending dues for this member.",
-        );
-        refreshSplitRoomDataInBackground(roomId);
-      });
-    } catch (collectError) {
-      setRooms(previousRooms);
-      setPendingDues(previousPendingDues);
-      setError(
-        `${
-          collectError instanceof Error
-            ? collectError.message
-            : "Failed to mark dues collected"
-        } The member balance was restored.`,
-      );
-      setMessage("");
-    } finally {
-      setCollectingMemberId("");
-    }
-  };
-
-  function openPaymentDialog(itemId: string) {
-    setMessage("");
-    setError("");
-    setPaymentDialogError("");
-    setPaymentWalletPin("");
-    setPaymentMode("single");
-    setPaymentPinDialogOpen(false);
-    setPaymentDueId(itemId);
-  }
-
-  function openMemberPaymentDialog(memberId: string) {
-    if (!selectedRoom) {
-      return;
-    }
-
-    const member = selectedRoom.members.find((item) => item.id === memberId);
-
-    if (!member?.isMe || selectedRoomPendingDues.length === 0) {
-      return;
-    }
-
-    openPaymentDialog(selectedRoomPendingDues[0].id);
-  }
-
   function closePaymentDialog() {
     if (payingDueId) {
       return;
@@ -1720,25 +1537,6 @@ export default function SharedSplitRooms() {
     }
   }
 
-  async function handleSendRoomReminder(room: SplitRoom) {
-    try {
-      setRemindingRoomId(room.id);
-      setMessage("");
-      setError("");
-
-      const response = await withTopProgress(() => sendSplitRoomReminder(room.id));
-      setMessage(response.message || "Reminder sent for adjusted pending dues.");
-    } catch (reminderError) {
-      setError(
-        reminderError instanceof Error
-          ? reminderError.message
-          : "Failed to send reminder",
-      );
-    } finally {
-      setRemindingRoomId("");
-    }
-  }
-
   async function handleFinalizeRoom(room: SplitRoom) {
     if (!window.confirm(`Finalize ${room.name}? This locks the room after adjusted dues are cleared.`)) {
       return;
@@ -1819,87 +1617,9 @@ export default function SharedSplitRooms() {
                 <strong>{getIndiaRoomName()}</strong>
                 <small>Only one room can be created each day.</small>
               </div>
-              <label className="friend-picker-label">
-                <span>Friends</span>
-
-                {friends.length === 0 ? (
-                  <p
-                    className="dashboard-muted-text split-room-friends-skeleton"
-                    aria-label="No friends yet. Add friends first from the Friends page."
-                  >
-                    <LoadingSkeleton wide />
-                  </p>
-                ) : (
-                  <div className="friend-dropdown" ref={friendDropdownRef}>
-                    <button
-                      className="friend-dropdown-trigger"
-                      type="button"
-                      onClick={() => setFriendPickerOpen((open) => !open)}
-                      disabled={savingRoom}
-                      aria-expanded={friendPickerOpen}
-                    >
-                      <span>
-                        {selectedFriendEmails.length > 0
-                          ? selectedFriendNames
-                          : "Choose friends"}
-                      </span>
-                      <ChevronDown size={17} />
-                    </button>
-
-                    {friendPickerOpen && (
-                      <div className="friend-dropdown-menu">
-                        <label className="friend-picker-search">
-                          <span>Search friends</span>
-                          <input
-                            type="search"
-                            placeholder="Search by name or email"
-                            value={friendSearch}
-                            onChange={(event) =>
-                              setFriendSearch(event.target.value)
-                            }
-                            onClick={(event) => event.stopPropagation()}
-                          />
-                        </label>
-
-                        {filteredFriends.length === 0 && (
-                          <p className="friend-picker-empty">
-                            You are not friends with {trimmedFriendSearch}.
-                          </p>
-                        )}
-
-                        {filteredFriends.map((friend) => {
-                          const checked = selectedFriendEmails.includes(
-                            friend.email,
-                          );
-
-                          return (
-                            <button
-                              type="button"
-                              className={
-                                checked
-                                  ? "friend-picker-chip active"
-                                  : "friend-picker-chip"
-                              }
-                              key={friend.id}
-                              onClick={() => toggleSelectedFriend(friend.email)}
-                              disabled={savingRoom}
-                            >
-                              {renderFriendMiniAvatar(friend)}
-
-                              <strong>
-                                {friend.name || friend.email.split("@")[0]}
-                                <small>
-                                  {formatFriendshipAge(friend.friendship_days)}
-                                </small>
-                              </strong>
-                            </button>
-                          );
-                        })}
-                      </div>
-                    )}
-                  </div>
-                )}
-              </label>
+              <p className="dashboard-muted-text create-room-member-note">
+                Start the room with yourself. Add friends later from Assign To or Split Between.
+              </p>
 
               <button
                 className="dashboard-primary-button"
@@ -2006,7 +1726,7 @@ export default function SharedSplitRooms() {
             </div>
           </article>
 
-        <article className="bento-card member-balance-card">
+        <article className="bento-card member-balance-card members-only-card">
           <div className="bento-card-head">
             <div>
               <span>Members</span>
@@ -2015,154 +1735,23 @@ export default function SharedSplitRooms() {
             <CheckCircle2 size={23} />
           </div>
 
-          <div className="member-balance-panel">
-            <div className="member-balance-list">
-              {selectedRoom?.balances.length
-                ? selectedRoom.balances.map((balance) => {
-                    const hasWalletDues =
-                      balance.isMe && selectedRoomPendingDues.length > 0;
-                    const canExpandOwnerActions = Boolean(
-                      !balance.isMe &&
-                        balance.outstandingAmount > 0 &&
-                        selectedRoom.isOwner &&
-                        !selectedRoomClosed,
-                    );
-                    const isOwnerActionsExpanded =
-                      canExpandOwnerActions &&
-                      expandedMemberActionId === balance.memberId;
-                    const hasUnpaidDue =
-                      hasWalletDues || canExpandOwnerActions;
-                    const rowClassName = [
-                      "member-balance-row",
-                      balance.isCollected ? "collected" : "",
-                      hasUnpaidDue ? "unpaid" : "",
-                      hasWalletDues || canExpandOwnerActions ? "expandable" : "",
-                      isOwnerActionsExpanded ? "expanded" : "",
-                    ]
-                      .filter(Boolean)
-                      .join(" ");
-                    const balanceMember = selectedRoom.members.find(
-                      (member) => member.id === balance.memberId,
-                    );
-                    const handleMemberRowAction = () => {
-                      if (canExpandOwnerActions) {
-                        setExpandedMemberActionId((prev) =>
-                          prev === balance.memberId ? "" : balance.memberId,
-                        );
-                        return;
-                      }
-
-                      if (hasWalletDues) {
-                        openMemberPaymentDialog(balance.memberId);
-                      }
-                    };
-
-                    return (
-                      <div
-                        className={[
-                          "member-balance-entry",
-                          isOwnerActionsExpanded ? "expanded" : "",
-                        ]
-                          .filter(Boolean)
-                          .join(" ")}
-                        key={balance.memberId}
-                      >
-                        <div
-                          className={rowClassName}
-                          role={
-                            hasWalletDues || canExpandOwnerActions
-                              ? "button"
-                              : undefined
-                          }
-                          tabIndex={
-                            hasWalletDues || canExpandOwnerActions ? 0 : undefined
-                          }
-                          onClick={handleMemberRowAction}
-                          onKeyDown={(event) => {
-                            if (
-                              !(hasWalletDues || canExpandOwnerActions) ||
-                              (event.key !== "Enter" && event.key !== " ")
-                            ) {
-                              return;
-                            }
-
-                            event.preventDefault();
-                            handleMemberRowAction();
-                          }}
-                          aria-expanded={
-                            canExpandOwnerActions
-                              ? isOwnerActionsExpanded
-                              : undefined
-                          }
-                        >
-                          {renderMemberMiniAvatar(balanceMember)}
-                          <span className="member-balance-name">
-                            {hasUnpaidDue && (
-                              <i
-                                className="member-unpaid-dot"
-                                aria-label="Unpaid dues"
-                              />
-                            )}
-                            <span className="member-balance-name-text">
-                              {balance.name}
-                            </span>
-                          </span>
-                          <strong>{balance.detail}</strong>
-                          <em>
-                            {balance.isMe
-                              ? formatCurrency(balance.amount)
-                              : formatCurrency(balance.outstandingAmount)}
-                          </em>
-                          {hasWalletDues ? (
-                            <WalletCards
-                              className="member-due-chevron"
-                              size={16}
-                              aria-hidden="true"
-                            />
-                          ) : canExpandOwnerActions ? (
-                            <ChevronDown
-                              className="member-due-chevron"
-                              size={16}
-                              aria-hidden="true"
-                            />
-                          ) : null}
-                        </div>
-
-                        {isOwnerActionsExpanded && (
-                          <div className="member-balance-actions-panel">
-                            <button
-                              className="balance-collect-button compact"
-                              type="button"
-                              onClick={() =>
-                                handleCollectMemberDues(
-                                  selectedRoom.id,
-                                  balance.memberId,
-                                )
-                              }
-                              disabled={collectingMemberId === balance.memberId}
-                            >
-                              <CheckCircle2 size={12} />
-                              {collectingMemberId === balance.memberId
-                                ? "Collecting"
-                                : "Manual collect"}
-                            </button>
-                            <button
-                              className="balance-collect-button compact reminder"
-                              type="button"
-                              onClick={() => handleSendRoomReminder(selectedRoom)}
-                              disabled={remindingRoomId === selectedRoom.id}
-                            >
-                              {remindingRoomId === selectedRoom.id
-                                ? "Sending"
-                                : "Remind"}
-                            </button>
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })
-                : null}
-            </div>
+          <div className="members-only-list">
+            {!selectedRoom && (
+              <p className="dashboard-muted-text">Choose a room to see its members.</p>
+            )}
+            {selectedRoom && sortedMembers.length === 0 && (
+              <p className="dashboard-muted-text">No members in this room yet.</p>
+            )}
+            {selectedRoom &&
+              sortedMembers.map((member) => (
+                <div className="members-only-row" key={member.id}>
+                  {renderMemberMiniAvatar(member)}
+                  <div>
+                    <strong>{getMemberName(member)}</strong>
+                    <span>{member.isOwner ? "Room owner" : member.email || "Room member"}</span>
+                  </div>
+                </div>
+              ))}
           </div>
         </article>
 
@@ -2204,17 +1793,33 @@ export default function SharedSplitRooms() {
                 </button>
               ))}
             </div>
-            <label className="assign-payer">
-              <span>Paid by</span>
-              <Dropdown
-                ariaLabel="Who paid for this item"
-                value={itemPaidByMemberId}
-                options={memberOptions}
-                onChange={setItemPaidByMemberId}
-                placeholder="Choose payer"
-                disabled={savingItem || sortedMembers.length === 0 || !selectedRoom?.isOwner || selectedRoomClosed}
-              />
-            </label>
+
+            {splitMode === "manual" ? (
+              <div className="assignment-picker-field assign-category">
+                <span>Assign to</span>
+                <button
+                  className="assignment-friend-picker-button"
+                  type="button"
+                  onClick={() => openAssignmentFriendPicker("assign")}
+                  disabled={savingItem || !selectedRoom?.isOwner || selectedRoomClosed}
+                >
+                  {assignedMemberLabel}
+                </button>
+              </div>
+            ) : (
+              <div className="assignment-picker-field automatic-member-picker-trigger">
+                <span>Split between</span>
+                <button
+                  className="assignment-friend-picker-button"
+                  type="button"
+                  onClick={() => openAssignmentFriendPicker("automatic")}
+                  disabled={savingItem || !selectedRoom?.isOwner || selectedRoomClosed}
+                >
+                  {automaticMembersLabel}
+                </button>
+              </div>
+            )}
+
             <label className="assign-rooms">
               <span>Room</span>
               <Dropdown
@@ -2225,6 +1830,7 @@ export default function SharedSplitRooms() {
                 disabled={loading || rooms.length === 0}
               />
             </label>
+
             <label>
               <span>Item</span>
               <input
@@ -2235,26 +1841,7 @@ export default function SharedSplitRooms() {
                 disabled={savingItem || !selectedRoom || !selectedRoom.isOwner || selectedRoomClosed}
               />
             </label>
-            {splitMode === "automatic" && (
-              <fieldset
-                className="automatic-member-picker"
-                aria-label="Members included in the automatic split"
-              >
-                <div>
-                  {sortedMembers.map((member) => (
-                    <label key={member.id}>
-                      <input
-                        type="checkbox"
-                        checked={automaticMemberIds.includes(member.id)}
-                        onChange={() => toggleAutomaticMember(member.id)}
-                        disabled={savingItem || selectedRoomClosed}
-                      />
-                      <span>{getMemberName(member)}</span>
-                    </label>
-                  ))}
-                </div>
-              </fieldset>
-            )}
+
             <label>
               <span>Amount ({activeCurrency.symbol} {appCurrency})</span>
               <input
@@ -2267,6 +1854,7 @@ export default function SharedSplitRooms() {
                 disabled={savingItem || !selectedRoom || !selectedRoom.isOwner || selectedRoomClosed}
               />
             </label>
+
             {splitMode === "automatic" && automaticSharePreview.length > 0 && (
               <div className="automatic-share-preview">
                 <span>Amount each person will pay</span>
@@ -2278,19 +1866,19 @@ export default function SharedSplitRooms() {
                 ))}
               </div>
             )}
-            {splitMode === "manual" && (
-              <label className="assign-category">
-                <span>Assign to</span>
-                <Dropdown
-                  ariaLabel="Assigned member"
-                  value={assignedMemberId}
-                  options={memberOptions}
-                  onChange={setAssignedMemberId}
-                  placeholder="No members yet"
-                  disabled={savingItem || sortedMembers.length === 0 || !selectedRoom?.isOwner || selectedRoomClosed}
-                />
-              </label>
-            )}
+
+            <label className="assign-payer">
+              <span>Paid by</span>
+              <Dropdown
+                ariaLabel="Who paid for this item"
+                value={itemPaidByMemberId}
+                options={memberOptions}
+                onChange={setItemPaidByMemberId}
+                placeholder="Choose payer"
+                disabled={savingItem || sortedMembers.length === 0 || !selectedRoom?.isOwner || selectedRoomClosed}
+              />
+            </label>
+
             <button type="submit" disabled={savingItem || !selectedRoom || !selectedRoom.isOwner || selectedRoomClosed}>
               {savingItem ? "Adding item" : selectedRoomClosed ? "Room closed" : selectedRoom?.isOwner ? "Add item" : "Owner only"}
             </button>
@@ -2307,8 +1895,7 @@ export default function SharedSplitRooms() {
           </div>
 
           <p className="dashboard-muted-text">
-            View the full split history or manage room members from one place
-            without changing the room layout.
+            View the full split history without changing the room layout.
           </p>
 
           <div className="split-room-history-preview">
@@ -2337,20 +1924,7 @@ export default function SharedSplitRooms() {
               Open room history
             </button>
 
-            <button
-              className="dashboard-secondary-button split-room-members-open-button"
-              type="button"
-              onClick={() => setMembersDialogOpen(true)}
-              disabled={!selectedRoom || !selectedRoom.isOwner}
-              title={
-                selectedRoom?.isOwner
-                  ? "Manage room members"
-                  : "Only the room host can manage members"
-              }
-            >
-              <UsersRound size={16} />
-              Manage members
-            </button>
+
           </div>
         </article>
 
@@ -2373,7 +1947,7 @@ export default function SharedSplitRooms() {
               <button
                 className="net-settlement-metric payable"
                 type="button"
-                onClick={() => navigate("/settlements/payable")}
+                onClick={() => navigate(`/settlements/payable${selectedRoom?.id ? `?roomId=${encodeURIComponent(selectedRoom.id)}` : ""}`)}
               >
                 <span>Payable</span>
                 <strong>{formatCurrency(netSettlementOutgoingTotal)}</strong>
@@ -2382,7 +1956,7 @@ export default function SharedSplitRooms() {
               <button
                 className="net-settlement-metric receivable"
                 type="button"
-                onClick={() => navigate("/settlements/receivable")}
+                onClick={() => navigate(`/settlements/receivable${selectedRoom?.id ? `?roomId=${encodeURIComponent(selectedRoom.id)}` : ""}`)}
               >
                 <span>Receivable</span>
                 <strong>{formatCurrency(netSettlementIncomingTotal)}</strong>
@@ -2402,6 +1976,102 @@ export default function SharedSplitRooms() {
           </article>
         )}
       </section>
+
+      {assignmentFriendPickerMode && selectedRoom && (
+        <div className="assignment-friend-picker-backdrop" role="presentation">
+          <div
+            className="assignment-friend-picker-dialog"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="assignment-friend-picker-title"
+          >
+            <div className="assignment-friend-picker-head">
+              <div>
+                <span>{assignmentFriendPickerMode === "assign" ? "Assign item" : "Automatic split"}</span>
+                <h2 id="assignment-friend-picker-title">
+                  {assignmentFriendPickerMode === "assign" ? "Choose a person" : "Choose people"}
+                </h2>
+              </div>
+              <button
+                type="button"
+                aria-label="Close friend selection"
+                onClick={() => setAssignmentFriendPickerMode(null)}
+                disabled={savingPickerSelection}
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <label className="assignment-friend-picker-search">
+              <span>Search friends</span>
+              <input
+                type="search"
+                placeholder="Search by name or email"
+                value={friendSearch}
+                onChange={(event) => setFriendSearch(event.target.value)}
+                disabled={savingPickerSelection}
+              />
+            </label>
+
+            <div className="assignment-friend-picker-list">
+              <button
+                type="button"
+                className={pickerSelectedValues.includes(selfPickerValue) ? "selected" : ""}
+                onClick={() => togglePickerValue(selfPickerValue)}
+                disabled={savingPickerSelection}
+              >
+                {renderMemberMiniAvatar(sortedMembers.find((member) => member.isMe))}
+                <span><strong>Me</strong><small>Current user</small></span>
+              </button>
+
+              {filteredFriends.map((friend) => {
+                const selected = pickerSelectedValues.includes(friend.email);
+                const alreadyInRoom = selectedRoom.members.some(
+                  (member) => member.email?.toLowerCase() === friend.email.toLowerCase(),
+                );
+
+                return (
+                  <button
+                    type="button"
+                    className={selected ? "selected" : ""}
+                    key={friend.id}
+                    onClick={() => togglePickerValue(friend.email)}
+                    disabled={savingPickerSelection}
+                  >
+                    <span className="assignment-friend-picker-avatar">
+                      {renderFriendMiniAvatar(friend)}
+                    </span>
+                    <span>
+                      <strong>{friend.name || friend.email.split("@")[0]}</strong>
+                      <small>{alreadyInRoom ? "Already in room" : friend.email}</small>
+                    </span>
+                  </button>
+                );
+              })}
+
+              {filteredFriends.length === 0 && trimmedFriendSearch && (
+                <p className="dashboard-muted-text">No friends match {trimmedFriendSearch}.</p>
+              )}
+            </div>
+
+            <div className="assignment-friend-picker-footer">
+              <span>{pickerSelectedValues.length} selected</span>
+              <button
+                className="dashboard-primary-button"
+                type="button"
+                onClick={() => void applyAssignmentFriendSelection()}
+                disabled={savingPickerSelection || pickerSelectedValues.length === 0}
+              >
+                {savingPickerSelection
+                  ? "Updating room"
+                  : assignmentFriendPickerMode === "assign"
+                    ? "Assign to selected person"
+                    : "Split between selected people"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {netSettlementInfoDialog && (
         <div className="split-room-payment-backdrop" role="presentation">
@@ -3108,119 +2778,6 @@ export default function SharedSplitRooms() {
         </div>
       )}
 
-      {membersDialogOpen && selectedRoom && (
-        <div className="split-room-history-backdrop" role="presentation">
-          <div
-            className="split-room-history-dialog split-room-members-dialog"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="split-room-members-title"
-          >
-            <div className="split-room-history-head">
-              <div>
-                <span>Room member management</span>
-                <h2 id="split-room-members-title">
-                  Members ({selectedRoom.memberCount})
-                </h2>
-              </div>
-              <button
-                type="button"
-                aria-label="Close member management"
-                onClick={closeMembersDialog}
-                disabled={Boolean(removingMemberId)}
-              >
-                <X size={18} />
-              </button>
-            </div>
-
-            <div className="split-room-history-stats split-room-members-stats">
-              <div>
-                <span>Total members</span>
-                <strong>{selectedRoom.memberCount}</strong>
-              </div>
-              <div>
-                <span>Can remove</span>
-                <strong>{removableMemberCount}</strong>
-              </div>
-            </div>
-
-            <div className="split-room-members-list">
-              {sortedMembers.map((member) => {
-                const assignedItemCount = getMemberAssignedItemCount(member.id);
-                const pendingItemCount = getMemberPendingItemCount(member.id);
-                const removable = canRemoveMember(member);
-
-                return (
-                  <div
-                    className={[
-                      "split-room-member-row",
-                      member.isOwner ? "host" : "",
-                      removable ? "removable" : "locked",
-                    ]
-                      .filter(Boolean)
-                      .join(" ")}
-                    key={member.id}
-                  >
-                    {renderMemberMiniAvatar(member)}
-                    <div className="split-room-member-meta">
-                      <strong>{getMemberName(member)}</strong>
-                      <span>{member.email || "No email saved"}</span>
-                      <small>
-                        {member.isOwner
-                          ? "Room host"
-                          : assignedItemCount > 0
-                            ? `${assignedItemCount} room item${
-                                assignedItemCount === 1 ? "" : "s"
-                              }${
-                                pendingItemCount > 0
-                                  ? ` • ${pendingItemCount} pending`
-                                  : ""
-                              }`
-                            : "No room items yet"}
-                      </small>
-                    </div>
-                    <span
-                      className={
-                        removable
-                          ? "split-room-member-status removable"
-                          : "split-room-member-status locked"
-                      }
-                    >
-                      {removable ? "Removable" : "Locked"}
-                    </span>
-                    <button
-                      className="split-room-member-remove-button"
-                      type="button"
-                      onClick={() => handleRemoveRoomMember(member)}
-                      disabled={!removable || removingMemberId === member.id}
-                      title={getMemberRemoveReason(member)}
-                    >
-                      <UserMinus size={14} />
-                      {removingMemberId === member.id ? "Removing" : "Remove"}
-                    </button>
-                  </div>
-                );
-              })}
-            </div>
-
-            <div className="split-room-history-footer">
-              <p>
-                Members can only be removed when they have no room items. This
-                keeps split history, dues, wallet payments, and dashboard totals
-                safe.
-              </p>
-              <button
-                className="dashboard-secondary-button"
-                type="button"
-                onClick={closeMembersDialog}
-                disabled={Boolean(removingMemberId)}
-              >
-                Close
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </DashboardLayout>
   );
 }

@@ -4459,3 +4459,284 @@ img.room-member-avatar {
     gap: 10px;
   }
 }
+
+/* Website parity with the mobile room/member selection flow */
+.create-room-member-note {
+  margin: 0;
+  padding: 12px 14px;
+  border: 1px solid var(--dash-hairline-soft);
+  border-radius: 14px;
+  background: var(--dash-surface-soft);
+}
+
+.members-only-card {
+  align-content: start;
+}
+
+.members-only-list {
+  display: grid;
+  gap: 9px;
+  min-width: 0;
+}
+
+.members-only-row {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 11px;
+  padding: 11px 12px;
+  border: 1px solid var(--dash-hairline-soft);
+  border-radius: 14px;
+  background: var(--dash-surface-soft);
+}
+
+.members-only-row > div {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.members-only-row strong,
+.members-only-row span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.members-only-row strong {
+  color: var(--dash-ink);
+  font-size: 14px;
+}
+
+.members-only-row span {
+  color: var(--dash-body);
+  font-size: 12px;
+}
+
+.assignment-picker-field {
+  min-width: 0;
+  display: grid;
+  align-content: start;
+  gap: 7px;
+}
+
+.assignment-picker-field > span {
+  color: var(--dash-muted);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.split-rooms-grid .assignment-grid .assignment-friend-picker-button {
+  min-width: 0;
+  min-height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  padding: 0 13px;
+  border: 1px solid var(--dash-hairline);
+  border-radius: 12px;
+  color: var(--dash-ink);
+  background: var(--dash-canvas);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  text-align: left;
+  cursor: pointer;
+}
+
+.split-rooms-grid .assignment-grid .assignment-friend-picker-button:hover:not(:disabled),
+.split-rooms-grid .assignment-grid .assignment-friend-picker-button:focus-visible {
+  border-color: var(--dash-primary);
+  outline: none;
+}
+
+.assignment-friend-picker-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1200;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: var(--dash-backdrop, rgba(0, 0, 0, 0.62));
+}
+
+.assignment-friend-picker-dialog {
+  width: min(620px, 100%);
+  max-height: min(780px, calc(100vh - 40px));
+  display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr) auto;
+  gap: 14px;
+  padding: 20px;
+  border: 1px solid var(--dash-hairline);
+  border-radius: 24px;
+  background: var(--dash-canvas);
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.22);
+}
+
+.assignment-friend-picker-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.assignment-friend-picker-head > div {
+  display: grid;
+  gap: 3px;
+}
+
+.assignment-friend-picker-head span {
+  color: var(--dash-muted);
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.assignment-friend-picker-head h2 {
+  margin: 0;
+  color: var(--dash-ink);
+  font-weight: 500;
+}
+
+.assignment-friend-picker-head > button {
+  width: 38px;
+  height: 38px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--dash-hairline-soft);
+  border-radius: 999px;
+  color: var(--dash-ink);
+  background: var(--dash-surface-soft);
+  cursor: pointer;
+}
+
+.assignment-friend-picker-search {
+  display: grid;
+  gap: 6px;
+}
+
+.assignment-friend-picker-search span {
+  color: var(--dash-muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.assignment-friend-picker-search input {
+  width: 100%;
+  min-height: 46px;
+  padding: 0 13px;
+  border: 1px solid var(--dash-hairline);
+  border-radius: 12px;
+  color: var(--dash-ink);
+  background: var(--dash-canvas);
+  font: inherit;
+}
+
+.assignment-friend-picker-list {
+  min-height: 0;
+  display: grid;
+  align-content: start;
+  gap: 8px;
+  overflow-y: auto;
+  padding-right: 3px;
+}
+
+.assignment-friend-picker-list > button {
+  width: 100%;
+  min-width: 0;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 11px;
+  padding: 11px 12px;
+  border: 1px solid var(--dash-hairline-soft);
+  border-radius: 14px;
+  color: var(--dash-ink);
+  background: var(--dash-surface-soft);
+  text-align: left;
+  cursor: pointer;
+}
+
+.assignment-friend-picker-list > button.selected {
+  border-color: var(--dash-primary);
+  background: color-mix(in srgb, var(--dash-primary) 10%, var(--dash-canvas));
+}
+
+.assignment-friend-picker-list > button > span:last-child {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.assignment-friend-picker-list strong,
+.assignment-friend-picker-list small {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.assignment-friend-picker-list small {
+  color: var(--dash-body);
+}
+
+.assignment-friend-picker-avatar,
+.assignment-friend-picker-list .room-member-avatar {
+  width: 40px;
+  height: 40px;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--dash-surface-strong);
+}
+
+.assignment-friend-picker-avatar img,
+.assignment-friend-picker-list .room-member-avatar {
+  width: 40px;
+  height: 40px;
+  object-fit: cover;
+}
+
+.assignment-friend-picker-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding-top: 4px;
+}
+
+.assignment-friend-picker-footer > span {
+  color: var(--dash-body);
+  font-size: 13px;
+}
+
+.assignment-friend-picker-footer .dashboard-primary-button {
+  width: auto;
+  min-height: 44px;
+}
+
+@media (max-width: 620px) {
+  .assignment-friend-picker-backdrop {
+    padding: 0;
+  }
+
+  .assignment-friend-picker-dialog {
+    width: 100%;
+    height: 100%;
+    max-height: none;
+    border: 0;
+    border-radius: 0;
+  }
+
+  .assignment-friend-picker-footer {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .assignment-friend-picker-footer .dashboard-primary-button {
+    width: 100%;
+  }
+}

@@ -224,3 +224,22 @@
     grid-template-columns: 1fr;
   }
 }
+
+.settlement-person-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.settlement-person-actions button {
+  min-height: 40px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+}
+
+.settlement-offset-detail {
+  color: var(--dash-primary) !important;
+  font-weight: 700;
+}

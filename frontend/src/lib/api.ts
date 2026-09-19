@@ -565,6 +565,10 @@ export type NetSettlementBreakdown = {
   settledAmount: number;
   offsetAdjustments?: Array<{
     id?: string;
+    itemId?: string;
+    roomId?: string;
+    roomName?: string;
+    title?: string;
     amount: number;
     createdAt?: string;
   }>;
@@ -583,6 +587,50 @@ export type NetSettlement = {
   isOutgoing: boolean;
   isIncoming: boolean;
   breakdown: NetSettlementBreakdown[];
+};
+
+
+export type SettlementHistoryEvent = {
+  id: string;
+  amount: number;
+  method: "wallet" | "manual" | "offset";
+  createdAt: string;
+  counterItemId: string | null;
+  counterItemTitle: string | null;
+  counterRoomId: string | null;
+  counterRoomName: string | null;
+};
+
+export type SettlementHistoryEntry = {
+  itemId: string;
+  roomId: string;
+  roomName: string;
+  title: string;
+  originalAmount: number;
+  settledAmount: number;
+  pendingAmount: number;
+  status: "pending" | "settled";
+  debtorUserId: string;
+  debtorName: string | null;
+  debtorEmail: string;
+  creditorUserId: string;
+  creditorName: string | null;
+  creditorEmail: string;
+  direction: "payable" | "receivable";
+  createdAt: string;
+  settlements: SettlementHistoryEvent[];
+};
+
+export type SettlementHistoryResponse = {
+  person: { id: string; name: string | null; email: string };
+  summary: {
+    lifetimePayable: number;
+    lifetimeReceivable: number;
+    pendingPayable: number;
+    pendingReceivable: number;
+    currency: "INR";
+  };
+  entries: SettlementHistoryEntry[];
 };
 
 export type NetSettlementsResponse = {
@@ -605,6 +653,38 @@ export async function getNetSettlements() {
   return cachedApiRequest("dues:net-settlements", 8_000, () =>
     apiFetch<NetSettlementsResponse>("/api/split-rooms/net-settlements"),
   );
+}
+
+export async function getNetSettlementHistory(otherUserId: string) {
+  return apiFetch<SettlementHistoryResponse>(
+    `/api/split-rooms/net-settlements/history/${encodeURIComponent(otherUserId)}`,
+  );
+}
+
+export async function remindNetSettlement(fromUserId: string) {
+  const response = await apiFetch<{ message: string; amount: number }>(
+    "/api/split-rooms/net-settlements/remind",
+    {
+      method: "POST",
+      body: JSON.stringify({ fromUserId }),
+    },
+  );
+  clearApiCache("dues");
+  return response;
+}
+
+export async function collectNetSettlement(fromUserId: string) {
+  const response = await apiFetch<{
+    message: string;
+    amount: number;
+    updatedCount: number;
+    expenseId?: string;
+  }>("/api/split-rooms/net-settlements/collect", {
+    method: "POST",
+    body: JSON.stringify({ fromUserId }),
+  });
+  clearApiCache("dues");
+  return response;
 }
 
 export async function payNetSettlement(payload: {
@@ -982,6 +1062,18 @@ export async function createSplitRoom(payload: CreateSplitRoomPayload) {
     method: "POST",
     body: JSON.stringify(payload),
   });
+}
+
+export async function addSplitRoomMembers(roomId: string, emails: string[]) {
+  const response = await apiFetch<{ message: string; addedCount: number }>(
+    `/api/split-rooms/${roomId}/members`,
+    {
+      method: "POST",
+      body: JSON.stringify({ emails }),
+    },
+  );
+  clearApiCache("dues");
+  return response;
 }
 
 export async function createSplitRoomItem(

@@ -1,0 +1,39 @@
+.settlement-history-page { display: grid; gap: 16px; }
+.settlement-history-heading { display: grid; grid-template-columns: auto minmax(0,1fr) auto; gap: 18px; align-items: start; padding: 22px; border: 1px solid var(--dash-hairline); border-radius: 24px; background: var(--dash-canvas); }
+.settlement-history-heading > button { min-height: 42px; display: inline-flex; align-items: center; justify-content: center; gap: 8px; padding: 0 14px; border: 1px solid var(--dash-hairline); border-radius: 999px; color: var(--dash-ink); background: var(--dash-surface-strong); cursor: pointer; font: inherit; font-size: 14px; font-weight: 700; }
+.settlement-history-heading > div { display: grid; gap: 4px; }
+.settlement-history-heading span, .settlement-history-summary span, .settlement-history-room header span { color: var(--dash-muted); font-size: 12px; font-weight: 700; text-transform: uppercase; }
+.settlement-history-heading h2, .settlement-history-room h3, .settlement-history-state h3 { margin: 0; color: var(--dash-ink); font-weight: 500; }
+.settlement-history-heading p { margin: 0; color: var(--dash-body); line-height: 1.5; }
+.settlement-history-state { min-height: 140px; display: grid; place-items: center; gap: 10px; padding: 24px; text-align: center; }
+.settlement-history-summary { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 10px; padding: 18px; }
+.settlement-history-summary > div { display: grid; gap: 5px; padding: 14px; border-radius: 16px; background: var(--dash-surface-soft); }
+.settlement-history-summary strong { color: var(--dash-ink); font-size: 21px; }
+.settlement-history-groups { display: grid; gap: 14px; }
+.settlement-history-room { display: grid; gap: 14px; padding: 20px; }
+.settlement-history-room header { display: grid; gap: 3px; }
+.settlement-history-entry-list { display: grid; gap: 12px; }
+.settlement-history-entry { display: grid; gap: 12px; padding: 15px; border: 1px solid var(--dash-hairline-soft); border-radius: 18px; }
+.settlement-history-entry-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
+.settlement-history-entry-head > div { display: grid; gap: 3px; }
+.settlement-history-entry-head > strong { color: var(--dash-ink); font-size: 20px; }
+.settlement-history-entry-head small, .settlement-history-events small { color: var(--dash-muted); }
+.settlement-history-direction { width: fit-content; padding: 3px 8px; border-radius: 999px; font-size: 11px; font-weight: 800; text-transform: uppercase; }
+.settlement-history-direction.payable { color: var(--dash-danger); background: color-mix(in srgb, var(--dash-danger) 10%, transparent); }
+.settlement-history-direction.receivable { color: var(--dash-success); background: color-mix(in srgb, var(--dash-success) 10%, transparent); }
+.settlement-history-entry dl { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 8px; margin: 0; }
+.settlement-history-entry dl > div { display: grid; gap: 3px; padding: 10px; border-radius: 12px; background: var(--dash-surface-soft); }
+.settlement-history-entry dt { color: var(--dash-muted); font-size: 12px; font-weight: 700; }
+.settlement-history-entry dd { margin: 0; color: var(--dash-ink); font-weight: 700; }
+.settlement-history-events { display: grid; gap: 7px; }
+.settlement-history-events > div { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 10px 12px; border-radius: 12px; background: var(--dash-surface-soft); }
+.settlement-history-events > div > div { display: grid; gap: 2px; }
+.settlement-history-events span { color: var(--dash-body); font-size: 13px; }
+.settlement-history-events em { color: var(--dash-ink); font-style: normal; font-weight: 800; white-space: nowrap; }
+@media (max-width: 760px) { .settlement-history-heading { grid-template-columns: 1fr auto; } .settlement-history-heading > div { grid-column: 1/-1; grid-row: 2; } .settlement-history-summary { grid-template-columns: repeat(2,minmax(0,1fr)); } .settlement-history-entry dl { grid-template-columns: 1fr; } }
+@media (max-width: 520px) { .settlement-history-summary { grid-template-columns: 1fr; } .settlement-history-entry-head, .settlement-history-events > div { align-items: flex-start; flex-direction: column; } }
+
+.settlement-history-paid-by {
+  color: var(--dash-body);
+  font-size: 13px;
+}
