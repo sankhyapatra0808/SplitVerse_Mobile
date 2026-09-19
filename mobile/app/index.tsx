@@ -1,32 +1,67 @@
 import { Redirect, router } from "expo-router";
+import { StatusBar } from "expo-status-bar";
+import { LinearGradient } from "expo-linear-gradient";
+
 import {
   ActivityIndicator,
   Image,
+  ImageBackground,
   Pressable,
   StyleSheet,
   Text as NativeText,
   View,
+  useWindowDimensions,
 } from "react-native";
 
-import Text from "../src/components/LocalizedText";
-import Screen from "../src/components/Screen";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAuth } from "../src/context/AuthContext";
-import { useAppSettings } from "../src/context/useAppSettings";
-import { radius, spacing, typography } from "../src/theme/tokens";
+
+const ART_WIDTH = 941;
+const ART_HEIGHT = 1672;
+
+type SourceRect = {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+};
+
+function mapSourceRectToCover(
+  rect: SourceRect,
+  viewportWidth: number,
+  viewportHeight: number,
+) {
+  const scale = Math.max(
+    viewportWidth / ART_WIDTH,
+    viewportHeight / ART_HEIGHT,
+  );
+
+  const renderedWidth = ART_WIDTH * scale;
+  const renderedHeight = ART_HEIGHT * scale;
+
+  const offsetX = (viewportWidth - renderedWidth) / 2;
+  const offsetY = (viewportHeight - renderedHeight) / 2;
+
+  return {
+    left: offsetX + rect.x * scale,
+    top: offsetY + rect.y * scale,
+    width: rect.width * scale,
+    height: rect.height * scale,
+  };
+}
 
 export default function Index() {
   const { user, initializing } = useAuth();
-  const { theme } = useAppSettings();
+  const { width, height } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
 
   if (initializing) {
     return (
-      <Screen scroll={false} safeBackgroundColor={theme.background}>
-        <View
-          style={[styles.loadingScreen, { backgroundColor: theme.background }]}
-        >
-          <ActivityIndicator color={theme.primary} />
-        </View>
-      </Screen>
+      <View style={styles.loadingScreen}>
+        <StatusBar style="dark" translucent backgroundColor="transparent" />
+
+        <ActivityIndicator color="#159b87" />
+      </View>
     );
   }
 
@@ -34,205 +69,351 @@ export default function Index() {
     return <Redirect href="/(tabs)/dashboard" />;
   }
 
+  const compact = width < 370;
+
+  const artworkScale = Math.max(width / ART_WIDTH, height / ART_HEIGHT);
+
+  const getStartedButtonRect = mapSourceRectToCover(
+    {
+      x: 179,
+      y: 1510,
+      width: 583,
+      height: 102,
+    },
+    width,
+    height,
+  );
+
+  const signInButtonRect = mapSourceRectToCover(
+    {
+      x: 350,
+      y: 1621,
+      width: 240,
+      height: 56,
+    },
+    width,
+    height,
+  );
+
   return (
-    <Screen scroll={false} safeBackgroundColor={theme.background}>
-      <View style={[styles.screen, { backgroundColor: theme.background }]}>
-        <View style={styles.frame}>
-          {/* TOP SPLITVERSE BRAND */}
-          <View style={styles.topBar}>
-            <View style={styles.topBrand}>
-              <Image
-                source={require("../assets/splitverse-logo.png")}
-                style={styles.topLogo}
-                resizeMode="contain"
-              />
+    <View style={styles.screen}>
+      <StatusBar style="dark" translucent backgroundColor="transparent" />
 
-              <NativeText style={styles.topBrandText}>
-                <NativeText style={{ color: theme.text }}>Split</NativeText>
+      <ImageBackground
+        source={require("../assets/landing-split-bills.png")}
+        style={StyleSheet.absoluteFill}
+        imageStyle={styles.backgroundImage}
+        resizeMode="cover"
+      />
 
-                <NativeText style={{ color: theme.primary }}>Verse</NativeText>
-              </NativeText>
-            </View>
-          </View>
+      {/* SplitVerse branding */}
+      <View
+        pointerEvents="box-none"
+        style={[
+          styles.brandRow,
+          {
+            top: insets.top + (compact ? 6 : 10),
+            left: compact ? 18 : 24,
+          },
+        ]}
+      >
+        <View style={[styles.logoShell, compact && styles.logoShellCompact]}>
+          <Image
+            source={require("../assets/splitverse-logo.png")}
+            style={[styles.logo, compact && styles.logoCompact]}
+            resizeMode="contain"
+          />
+        </View>
 
-          {/* MAIN HERO IMAGE */}
-          <View style={styles.heroSection}>
-            <Image
-              source={require("../assets/welcome-hero.png")}
-              style={styles.heroImage}
-              resizeMode="contain"
-            />
-          </View>
+        <View style={styles.brandCopy}>
+          <NativeText
+            numberOfLines={1}
+            style={[styles.brandName, compact && styles.brandNameCompact]}
+          >
+            <NativeText style={styles.brandSplit}>Split</NativeText>
 
-          {/* SPLIT SMARTER / WISER / SETTLE FASTER */}
-          <View style={styles.sloganRow}>
-            <NativeText style={[styles.bigS, { color: theme.text }]}>
-              S
-            </NativeText>
+            <NativeText style={styles.brandVerse}>Verse</NativeText>
+          </NativeText>
 
-            <View style={styles.infoTextWrap}>
-              <Text style={[styles.tagline, { color: theme.body }]}>
-                plit smarter.
-              </Text>
-
-              <Text style={[styles.tagline, { color: theme.body }]}>
-                plit wiser.
-              </Text>
-
-              <Text style={[styles.tagline, { color: theme.body }]}>
-                ettle faster.
-              </Text>
-            </View>
-          </View>
-
-          {/* ACTIONS */}
-          <View style={styles.footerSection}>
-            <Pressable
-              style={({ pressed }) => [
-                styles.primaryButton,
-                {
-                  backgroundColor: pressed
-                    ? theme.primaryActive
-                    : theme.primary,
-                },
-              ]}
-              onPress={() => router.replace("/(auth)/signup")}
-            >
-              <Text
-                style={[styles.primaryButtonText, { color: theme.onPrimary }]}
-              >
-                Get Started
-              </Text>
-            </Pressable>
-
-            <Pressable
-              style={styles.signInButton}
-              onPress={() => router.push("/(auth)/login")}
-            >
-              <Text style={[styles.signInText, { color: theme.body }]}>
-                I already have an account
-              </Text>
-            </Pressable>
-          </View>
+          <NativeText
+            numberOfLines={1}
+            style={[styles.brandTagline, compact && styles.brandTaglineCompact]}
+          >
+            BILLS ARE BETTER TOGETHER
+          </NativeText>
         </View>
       </View>
-    </Screen>
+
+      {/* Skip */}
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="Skip to sign in"
+        onPress={() => router.push("/(auth)/login")}
+        style={({ pressed }) => [
+          styles.skipButton,
+          {
+            top: insets.top + (compact ? 8 : 12),
+            right: compact ? 16 : 24,
+            opacity: pressed ? 0.72 : 1,
+          },
+        ]}
+      >
+        <NativeText
+          style={[styles.skipText, compact && styles.skipTextCompact]}
+        >
+          Skip
+        </NativeText>
+      </Pressable>
+
+      {/* Get Started */}
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="Get Started"
+        onPress={() => router.replace("/(auth)/signup")}
+        style={({ pressed }) => [
+          styles.getStartedButton,
+          getStartedButtonRect,
+          pressed && styles.realButtonPressed,
+        ]}
+      >
+        <LinearGradient
+          colors={["#2DAD9E", "#1E968A", "#158176"]}
+          locations={[0, 0.5, 1]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={styles.getStartedGradient}
+        >
+          <NativeText
+            style={[
+              styles.getStartedText,
+              {
+                fontSize: Math.max(15, Math.min(20, 31 * artworkScale)),
+                lineHeight: Math.max(19, Math.min(25, 38 * artworkScale)),
+              },
+            ]}
+          >
+            Get Started →
+          </NativeText>
+        </LinearGradient>
+      </Pressable>
+
+      {/* Sign In */}
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="Sign In"
+        onPress={() => router.push("/(auth)/login")}
+        hitSlop={8}
+        style={({ pressed }) => [
+          styles.signInButton,
+          signInButtonRect,
+          pressed && styles.signInButtonPressed,
+        ]}
+      >
+        <NativeText
+          style={[
+            styles.signInText,
+            {
+              fontSize: Math.max(14, Math.min(18, 28 * artworkScale)),
+              lineHeight: Math.max(18, Math.min(23, 34 * artworkScale)),
+            },
+          ]}
+        >
+          Sign In
+        </NativeText>
+      </Pressable>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
+  screen: {
+    flex: 1,
+    backgroundColor: "#f0fdfd",
+    overflow: "hidden",
+  },
+
   loadingScreen: {
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
+    backgroundColor: "#f0fdfd",
   },
 
-  screen: {
-    flex: 1,
+  backgroundImage: {
+    backgroundColor: "#f0fdfd",
   },
 
-  frame: {
-    flex: 1,
-  },
-
-  topBar: {
-    minHeight: 105,
-    alignItems: "center",
-    justifyContent: "center",
-    paddingTop: 22,
-  },
-
-  topBrand: {
+  brandRow: {
+    position: "absolute",
+    zIndex: 3,
     flexDirection: "row",
     alignItems: "center",
+    maxWidth: "72%",
+  },
+
+  logoShell: {
+    width: 50,
+    height: 50,
+    borderRadius: 14,
+    alignItems: "center",
     justifyContent: "center",
-    gap: 12,
+    backgroundColor: "rgba(223, 250, 245, 0.94)",
+
+    shadowColor: "#8cbeb8",
+    shadowOffset: {
+      width: 0,
+      height: 3,
+    },
+    shadowOpacity: 0.16,
+    shadowRadius: 9,
+
+    elevation: 2,
   },
 
-  topLogo: {
-    width: 60,
-    height: 60,
-    borderRadius: 15,
+  logoShellCompact: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
   },
 
-  topBrandText: {
-    fontFamily: "LibreBaskerville_700Bold",
-    fontSize: 40,
-    lineHeight: 54,
-    letterSpacing: -1,
+  logo: {
+    width: 41,
+    height: 41,
+    borderRadius: 10,
   },
 
-  heroSection: {
+  logoCompact: {
+    width: 36,
+    height: 36,
+    borderRadius: 9,
+  },
+
+  brandCopy: {
+    marginLeft: 10,
+    justifyContent: "center",
+    minWidth: 0,
+  },
+
+  brandName: {
+    fontSize: 28,
+    lineHeight: 31,
+    fontWeight: "900",
+    letterSpacing: -1.1,
+  },
+
+  brandNameCompact: {
+    fontSize: 24,
+    lineHeight: 27,
+  },
+
+  brandSplit: {
+    color: "#0c1b3a",
+  },
+
+  brandVerse: {
+    color: "#149b87",
+  },
+
+  brandTagline: {
+    marginTop: 1,
+    color: "#65728c",
+    fontSize: 8.5,
+    lineHeight: 11,
+    letterSpacing: 1.7,
+    fontWeight: "700",
+  },
+
+  brandTaglineCompact: {
+    fontSize: 7.2,
+    letterSpacing: 1.35,
+  },
+
+  skipButton: {
+    position: "absolute",
+    zIndex: 4,
+
+    minWidth: 58,
+    height: 42,
+
+    borderRadius: 23,
+
+    alignItems: "center",
+    justifyContent: "center",
+
+    backgroundColor: "rgba(226, 240, 240, 0.88)",
+  },
+
+  skipText: {
+    color: "#65728c",
+    fontSize: 16,
+    lineHeight: 20,
+    fontWeight: "700",
+  },
+
+  skipTextCompact: {
+    fontSize: 14,
+  },
+
+  getStartedButton: {
+    position: "absolute",
+    zIndex: 5,
+
+    borderRadius: 999,
+    overflow: "hidden",
+
+    shadowColor: "#0e746b",
+    shadowOffset: {
+      width: 0,
+      height: 7,
+    },
+    shadowOpacity: 0.18,
+    shadowRadius: 14,
+
+    elevation: 5,
+  },
+
+  getStartedGradient: {
     flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    paddingHorizontal: spacing.base,
-    paddingVertical: spacing.sm,
-  },
+    borderRadius: 999,
 
-  heroImage: {
-    width: "100%",
-    height: "100%",
-    maxHeight: 420,
-  },
-
-  sloganRow: {
-    flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    alignSelf: "center",
-    gap: 10,
-    paddingHorizontal: spacing.base,
-    paddingVertical: spacing.base,
   },
 
-  bigS: {
-    fontFamily: "LibreBaskerville_700Bold",
-    fontSize: 85,
-    lineHeight: 110,
-    letterSpacing: -2,
-    marginTop: 10,
+  getStartedText: {
+    color: "#ffffff",
+
+    fontSize: 25,
+    lineHeight: 30,
+
+    fontWeight: "800",
+    letterSpacing: 0.1,
   },
 
-  infoTextWrap: {
-    justifyContent: "center",
-    alignItems: "flex-start",
-  },
-
-  tagline: {
-    ...typography.bodySm,
-    fontSize: 18,
-    lineHeight: 24,
-  },
-
-  footerSection: {
-    paddingHorizontal: spacing.base,
-    paddingVertical: spacing.base,
-    gap: 6,
-  },
-
-  primaryButton: {
-    minHeight: 50,
-    borderRadius: radius.pill,
-    alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: 28,
-    alignSelf: "center",
-    width: "85%",
-  },
-
-  primaryButtonText: {
-    ...typography.button,
-    fontSize: 20,
+  realButtonPressed: {
+    opacity: 0.96,
   },
 
   signInButton: {
-    minHeight: 36,
+    position: "absolute",
+    zIndex: 5,
+
     alignItems: "center",
     justifyContent: "center",
+
+    borderRadius: 999,
+  },
+
+  signInButtonPressed: {
+    opacity: 0.62,
   },
 
   signInText: {
-    ...typography.bodySm,
+    color: "#586C84",
+
+    fontSize: 21,
+    lineHeight: 27,
+
+    fontWeight: "700",
   },
 });
