@@ -25,7 +25,11 @@ export async function verifyFirebaseEmailPassword(
   email: string,
   password: string,
 ): Promise<FirebasePasswordCredential> {
-  const apiKey = process.env.FIREBASE_WEB_API_KEY?.trim();
+  const apiKey =
+    process.env.FIREBASE_WEB_API_KEY?.trim() ||
+    process.env.FIREBASE_API_KEY?.trim() ||
+    process.env.VITE_FIREBASE_API_KEY?.trim() ||
+    process.env.EXPO_PUBLIC_FIREBASE_API_KEY?.trim();
 
   if (!apiKey) {
     throw makeHttpError(

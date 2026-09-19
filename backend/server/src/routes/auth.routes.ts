@@ -39,7 +39,19 @@ const loginOtpMaxResends = Number(process.env.LOGIN_OTP_MAX_RESENDS || 3);
 const loginOtpResendCooldownMs = Number(
   process.env.LOGIN_OTP_RESEND_COOLDOWN_MS || 30 * 1000,
 );
-const loginOtpPepper = process.env.LOGIN_OTP_PEPPER?.trim() || "";
+const explicitLoginOtpPepper = process.env.LOGIN_OTP_PEPPER?.trim() || "";
+const firebasePrivateKeyForOtp = process.env.FIREBASE_PRIVATE_KEY
+  ?.replace(/\\n/g, "\n")
+  .trim();
+const loginOtpPepper =
+  explicitLoginOtpPepper.length >= 32
+    ? explicitLoginOtpPepper
+    : firebasePrivateKeyForOtp
+      ? crypto
+          .createHash("sha256")
+          .update(`splitverse:login-otp:${firebasePrivateKeyForOtp}`)
+          .digest("hex")
+      : explicitLoginOtpPepper;
 const profileIdentityOtpLength = 6;
 const profileIdentityOtpExpiryMs = 10 * 60 * 1000;
 const profileIdentityOtpMaxAttempts = 5;
@@ -1620,13 +1632,13 @@ router.post(
         });
       }
 
-      const canDeferUsernameSetup =
-        deferUsernameSetup &&
-        ["google", "google.com"].includes(String(provider || ""));
+      // Username setup may be deliberately deferred by trusted clients until
+      // the mandatory wallet-security step. This is used by both Google signup
+      // and verified email signup. Existing usernames are always preserved.
       const username =
         existingUser?.username ||
         requestedUsername ||
-        (canDeferUsernameSetup
+        (deferUsernameSetup
           ? null
           : await generateAvailableUsername(
               buildUsernameBase(name, email),
@@ -2502,10 +2514,9 @@ router.post(
         id: string;
         wallet_pin_hash: string | null;
         username: string | null;
-        provider: string | null;
       }>(
         `
-      SELECT id, wallet_pin_hash, username, provider
+      SELECT id, wallet_pin_hash, username
       FROM users
       WHERE firebase_uid = $1
       FOR UPDATE;
@@ -2521,34 +2532,28 @@ router.post(
         return res.status(404).json({ message: "User not found in database" });
       }
 
-      const isGoogleUser = ["google", "google.com"].includes(
-        String(user.provider || ""),
-      );
-
-      if (!user.username && isGoogleUser && !requestedUsername) {
+      // Any newly authenticated account whose username was intentionally
+      // deferred must choose it together with the first wallet PIN. This keeps
+      // Google and email signup on the same onboarding path.
+      if (!user.username && !requestedUsername) {
         await client.query("ROLLBACK");
 
         return res.status(400).json({
           code: "USERNAME_REQUIRED",
-          message: "Choose your permanent username to complete Google signup.",
+          message: "Choose your permanent username to complete setup.",
         });
       }
 
-      if (user.username && requestedUsername && requestedUsername !== user.username) {
+      if (
+        user.username &&
+        requestedUsername &&
+        requestedUsername !== user.username
+      ) {
         await client.query("ROLLBACK");
 
         return res.status(409).json({
           code: "USERNAME_IMMUTABLE",
           message: "Your SplitVerse username is permanent and cannot be changed.",
-        });
-      }
-
-      if (!user.username && requestedUsername && !isGoogleUser) {
-        await client.query("ROLLBACK");
-
-        return res.status(403).json({
-          code: "USERNAME_SETUP_NOT_ALLOWED",
-          message: "Username setup through this step is available only for Google signup.",
         });
       }
 
