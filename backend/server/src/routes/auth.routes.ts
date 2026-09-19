@@ -971,6 +971,158 @@ router.post("/username/availability", async (req, res) => {
   }
 });
 
+router.post(
+  "/email-signup-otp/request",
+  verifyFirebaseCredentialToken,
+  async (req: AuthRequest, res) => {
+    try {
+      assertLoginOtpConfigured();
+      const firebaseUser = req.user;
+
+      if (!firebaseUser) {
+        return res.status(401).json({
+          code: "AUTH_TOKEN_MISSING",
+          message: "Missing authorization token",
+        });
+      }
+
+      const provider = String(firebaseUser.firebase?.sign_in_provider || "");
+
+      if (provider !== "password") {
+        return res.status(400).json({
+          code: "EMAIL_SIGNUP_CREDENTIAL_REQUIRED",
+          message: "Email signup verification requires an email/password account.",
+        });
+      }
+
+      const email = String(firebaseUser.email || "")
+        .trim()
+        .toLowerCase();
+
+      if (!email) {
+        return res.status(400).json({
+          code: "EMAIL_REQUIRED",
+          message: "Your Firebase account does not contain an email address.",
+        });
+      }
+
+      const requestCountResult = await db.query<{ request_count: number }>(
+        `
+        SELECT COUNT(*)::int AS request_count
+        FROM email_login_otp_sessions
+        WHERE firebase_uid = $1
+        AND created_at > NOW() - ($2::int * INTERVAL '1 minute');
+        `,
+        [firebaseUser.uid, loginOtpRequestWindowMinutes],
+      );
+
+      if (
+        Number(requestCountResult.rows[0]?.request_count || 0) >=
+        loginOtpMaxRequests
+      ) {
+        return res.status(429).json({
+          code: "LOGIN_OTP_RATE_LIMITED",
+          message: "Too many login code requests. Please try again later.",
+        });
+      }
+
+      const sessionId = crypto.randomUUID();
+      const otp = createLoginOtp();
+      const expiresAt = new Date(Date.now() + loginOtpExpiryMs);
+      const emailStatus = await sendLoginOtpEmail({ email, otp });
+
+      if (emailStatus !== "sent") {
+        return res.status(503).json({
+          code: "LOGIN_OTP_DELIVERY_FAILED",
+          message:
+            emailStatus === "not_configured"
+              ? "Email signup verification is not configured on the server."
+              : "Could not send the signup verification code. Please try again.",
+        });
+      }
+
+      const client = await db.connect();
+
+      try {
+        await client.query("BEGIN");
+        await client.query(
+          `
+          UPDATE email_login_otp_sessions
+          SET consumed_at = NOW()
+          WHERE firebase_uid = $1
+          AND consumed_at IS NULL;
+          `,
+          [firebaseUser.uid],
+        );
+        await client.query(
+          `
+          INSERT INTO email_login_otp_sessions (
+            id,
+            firebase_uid,
+            email,
+            otp_hash,
+            expires_at
+          )
+          VALUES ($1, $2, $3, $4, $5);
+          `,
+          [
+            sessionId,
+            firebaseUser.uid,
+            email,
+            hashLoginOtp(otp, sessionId, firebaseUser.uid),
+            expiresAt,
+          ],
+        );
+        await client.query("COMMIT");
+      } catch (error) {
+        await client.query("ROLLBACK").catch(() => undefined);
+        throw error;
+      } finally {
+        client.release();
+      }
+
+      return res.status(201).json({
+        sessionId,
+        email,
+        expiresAt: expiresAt.toISOString(),
+      });
+    } catch (error) {
+      const statusCode =
+        typeof error === "object" &&
+        error !== null &&
+        "statusCode" in error &&
+        Number.isInteger(Number((error as { statusCode?: unknown }).statusCode))
+          ? Number((error as { statusCode?: unknown }).statusCode)
+          : 500;
+      const code =
+        typeof error === "object" && error !== null && "code" in error
+          ? String(
+              (error as { code?: unknown }).code ||
+                "EMAIL_SIGNUP_OTP_REQUEST_FAILED",
+            )
+          : "EMAIL_SIGNUP_OTP_REQUEST_FAILED";
+
+      if (statusCode >= 500) {
+        console.error("Request email signup OTP failed:", error);
+      }
+
+      return res.status(statusCode).json({
+        code,
+        message:
+          statusCode === 429
+            ? "Too many signup verification requests. Please try again later."
+            : statusCode >= 500
+              ? error instanceof Error
+                ? error.message
+                : "Email signup verification is temporarily unavailable."
+              : error instanceof Error
+                ? error.message
+                : "Could not request signup verification code.",
+      });
+    }
+  },
+);
+
 router.post("/email-login-otp/request", async (req, res) => {
   try {
     assertLoginOtpConfigured();
