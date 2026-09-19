@@ -3,6 +3,8 @@ import type { ReactNode } from "react";
 import { useAuth } from "../context/useAuth";
 import DashboardPageLoader from "../pageloaders/DashboardPageLoader";
 import MandatoryWalletPinSetup from "./MandatoryWalletPinSetup";
+import FirstTimeOnboarding from "./FirstTimeOnboarding";
+import FeatureHintController from "./FeatureHintController";
 import type { DashboardLoaderVariant } from "../pageloaders/DashboardPageLoader";
 
 type ProtectedRouteProps = {
@@ -35,5 +37,11 @@ export default function ProtectedRoute({
     return <MandatoryWalletPinSetup />;
   }
 
-  return <>{children}</>;
+  return (
+    <>
+      {children}
+      <FirstTimeOnboarding />
+      <FeatureHintController />
+    </>
+  );
 }

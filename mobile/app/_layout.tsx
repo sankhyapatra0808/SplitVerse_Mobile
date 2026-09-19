@@ -11,6 +11,8 @@ import { Stack } from "expo-router";
 import AppErrorBoundary from "../src/components/AppErrorBoundary";
 import MandatoryWalletPinSetup from "../src/components/MandatoryWalletPinSetup";
 import GitHubUpdateGate from "../src/components/GitHubUpdateGate";
+import FirstTimeOnboarding from "../src/components/FirstTimeOnboarding";
+import FeatureHintController from "../src/components/FeatureHintController";
 import { AppSettingsProvider } from "../src/context/AppSettingsContext";
 import { AuthProvider } from "../src/context/AuthContext";
 import LiveNotificationsProvider from "../src/context/LiveNotificationsProvider";
@@ -95,6 +97,8 @@ export default function RootLayout() {
           <LiveNotificationsProvider>
             <Stack screenOptions={{ headerShown: false }} />
             <MandatoryWalletPinSetup />
+            <FirstTimeOnboarding />
+            <FeatureHintController />
             <GitHubUpdateGate />
           </LiveNotificationsProvider>
         </AuthProvider>
