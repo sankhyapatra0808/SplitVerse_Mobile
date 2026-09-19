@@ -188,9 +188,10 @@ const styles = StyleSheet.create({
 
   bigS: {
     fontFamily: "LibreBaskerville_700Bold",
-    fontSize: 90,
-    lineHeight: 108,
+    fontSize: 85,
+    lineHeight: 110,
     letterSpacing: -2,
+    marginTop: 10,
   },
 
   infoTextWrap: {
