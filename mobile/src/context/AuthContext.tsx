@@ -10,6 +10,7 @@ import {
 import { AppState } from "react-native";
 import {
   createUserWithEmailAndPassword,
+  signInWithEmailAndPassword,
   GoogleAuthProvider,
   onAuthStateChanged,
   signInWithCredential,
@@ -23,6 +24,7 @@ import { normalizeAppError } from "../lib/errors";
 import {
   getCurrentDbUser,
   requestEmailLoginOtp,
+  requestEmailSignupOtp,
   resendEmailLoginOtp as resendEmailLoginOtpApi,
   requestPasswordResetOtp as requestPasswordResetOtpApi,
   resetPasswordWithOtp as resetPasswordWithOtpApi,
@@ -48,7 +50,6 @@ type AuthContextValue = {
     email: string,
     password: string,
     name: string,
-    username: string,
   ) => Promise<EmailLoginOtpSession>;
   loginWithGoogleIdToken: (
     idToken: string,
@@ -107,7 +108,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setDbUser(response.user);
       return response.user;
     } catch {
-      const synced = await syncCurrentUser();
+      const synced = await syncCurrentUser({
+        requireUsername: false,
+        deferUsernameSetup: true,
+      });
       setDbUser(synced.user);
       return synced.user;
     }
@@ -130,7 +134,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   async function syncSignedInUser() {
     await touchSessionActivity();
-    const response = await syncCurrentUser();
+    const response = await syncCurrentUser({
+      requireUsername: false,
+      deferUsernameSetup: true,
+    });
     setDbUser(response.user);
   }
 
@@ -172,7 +179,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
         await touchSessionActivity();
 
-        const synced = await syncCurrentUser();
+        const synced = await syncCurrentUser({
+          requireUsername: false,
+          deferUsernameSetup: true,
+        });
         setDbUser(synced.user);
       } catch (error) {
         const appError = normalizeAppError(error, {
@@ -227,29 +237,60 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       dbUser,
       initializing,
 
-      signup: async (email, password, name, username) => {
+      signup: async (email, password, name) => {
         credentialBootstrapInProgress.current = true;
+        const normalizedEmail = email.trim().toLowerCase();
 
         try {
-          const normalizedEmail = email.trim().toLowerCase();
-          const credential = await createUserWithEmailAndPassword(
-            auth,
-            normalizedEmail,
-            password,
-          );
+          let firebaseUser: User;
 
-          if (name?.trim()) {
-            await updateProfile(credential.user, {
-              displayName: name.trim(),
-            });
-            await credential.user.getIdToken(true);
+          try {
+            const credential = await createUserWithEmailAndPassword(
+              auth,
+              normalizedEmail,
+              password,
+            );
+            firebaseUser = credential.user;
+          } catch (createError) {
+            const firebaseCode =
+              typeof createError === "object" &&
+              createError !== null &&
+              "code" in createError
+                ? String((createError as { code?: unknown }).code || "")
+                : "";
+
+            if (firebaseCode !== "auth/email-already-in-use") {
+              throw createError;
+            }
+
+            // A previous signup attempt may have created the Firebase account
+            // before OTP delivery failed. Re-authenticate that account with the
+            // password the user just entered and continue the same signup flow.
+            const credential = await signInWithEmailAndPassword(
+              auth,
+              normalizedEmail,
+              password,
+            );
+            firebaseUser = credential.user;
           }
 
-          await syncCurrentUser({
-            username: username.trim().toLowerCase(),
-            requireUsername: true,
-          });
-          return await requestEmailLoginOtp(normalizedEmail, password);
+          if (name?.trim()) {
+            await updateProfile(firebaseUser, {
+              displayName: name.trim(),
+            });
+          }
+
+          // Force a fresh ID token because the signup OTP endpoint deliberately
+          // accepts a genuine Firebase password credential before the SplitVerse
+          // OTP claim exists. This avoids requiring a Firebase Web API key on
+          // the backend merely to verify the password a second time.
+          await firebaseUser.getIdToken(true);
+
+          // The database user is intentionally NOT created here. After the OTP
+          // is verified, completeEmailLoginWithOtp() signs in with the custom
+          // token and syncSignedInUser() creates the Neon user with username
+          // setup deferred to MandatoryWalletPinSetup.
+          return await requestEmailSignupOtp();
         } catch (error) {
           throw normalizeAppError(error, {
             title: "Account creation failed",

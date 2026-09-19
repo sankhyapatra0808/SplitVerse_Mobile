@@ -1070,6 +1070,15 @@ export async function requestEmailLoginOtp(email: string, password: string) {
   );
 }
 
+export async function requestEmailSignupOtp() {
+  return apiFetch<EmailLoginOtpSession>(
+    "/api/auth/email-signup-otp/request",
+    {
+      method: "POST",
+    },
+  );
+}
+
 export async function resendEmailLoginOtp(sessionId: string) {
   return publicApiFetch<EmailLoginOtpSession>(
     "/api/auth/email-login-otp/resend",

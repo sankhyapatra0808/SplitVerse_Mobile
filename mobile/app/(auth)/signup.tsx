@@ -21,7 +21,6 @@ import { useAppSettings } from "../../src/context/useAppSettings";
 import { getErrorPresentation } from "../../src/lib/errors";
 import { signInWithGoogleAndGetIdToken } from "../../src/lib/googleAuth";
 import { isValidEmailAddress } from "../../src/lib/validation";
-import { checkUsernameAvailability } from "../../src/lib/api";
 import { setPendingLoginOtp } from "../../src/lib/pendingLoginOtp";
 
 type ActiveAction = "email" | "google" | null;
@@ -45,14 +44,12 @@ export default function Signup() {
   const { theme, t } = useAppSettings();
   const { signup, loginWithGoogleIdToken } = useAuth();
 
-  const usernameRef = useRef<TextInput>(null);
   const emailRef = useRef<TextInput>(null);
   const passwordRef = useRef<TextInput>(null);
   const confirmPasswordRef = useRef<TextInput>(null);
   const keyboardVisibleRef = useRef(false);
 
   const [name, setName] = useState("");
-  const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -116,7 +113,6 @@ export default function Signup() {
     setError("");
 
     const trimmedName = name.trim();
-    const normalizedUsername = username.trim().toLowerCase().replace(/^@+/, "");
     const trimmedEmail = email.trim().toLowerCase();
 
     if (!trimmedName) {
@@ -129,12 +125,6 @@ export default function Signup() {
       return;
     }
 
-    if (!/^[a-z0-9_]{3,30}$/.test(normalizedUsername)) {
-      setError(
-        "Choose a username using 3 to 30 lowercase letters, numbers, or underscores.",
-      );
-      return;
-    }
 
     if (!trimmedEmail) {
       setError("Enter an email address for your SplitVerse account.");
@@ -170,16 +160,10 @@ export default function Signup() {
 
     try {
       setActiveAction("email");
-      const availability = await checkUsernameAvailability(normalizedUsername);
-      if (!availability.available) {
-        setError("That username is already taken. Choose another one.");
-        return;
-      }
       const session = await signup(
         trimmedEmail,
         password,
         trimmedName,
-        normalizedUsername,
       );
       setPendingLoginOtp({
         email: trimmedEmail,
@@ -246,26 +230,6 @@ export default function Signup() {
                 autoCorrect={false}
                 textContentType="name"
                 autoComplete="name"
-                editable={!loading}
-                returnKeyType="next"
-                blurOnSubmit={false}
-                onSubmitEditing={() => usernameRef.current?.focus()}
-              />
-
-              <FloatingAuthField
-                ref={usernameRef}
-                label={t("Unique username")}
-                palette={palette}
-                compact={dense}
-                value={username}
-                onChangeText={(value) => {
-                  setUsername(
-                    value.toLowerCase().replace(/^@+/, "").replace(/[^a-z0-9_]/g, "").slice(0, 30),
-                  );
-                  clearInlineError();
-                }}
-                autoCapitalize="none"
-                autoCorrect={false}
                 editable={!loading}
                 returnKeyType="next"
                 blurOnSubmit={false}

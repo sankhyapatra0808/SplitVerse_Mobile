@@ -3,8 +3,10 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import { router, useLocalSearchParams } from "expo-router";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
+  ActivityIndicator,
   Alert,
   Animated,
+  Image,
   ImageBackground,
   Pressable,
   ScrollView,
@@ -700,20 +702,50 @@ export default function Profile() {
                             {person.emailHint ? ` · ${person.emailHint}` : ""}
                           </Text>
                         </View>
-                        <AppButton
-                          title={
-                            sending
-                              ? "Sending"
-                              : getRelationshipLabel(person.relationshipStatus)
-                          }
-                          loading={sending}
-                          disabled={!canSend || Boolean(sendingTarget)}
-                          variant={canSend ? "primary" : "secondary"}
-                          style={styles.personAction}
-                          onPress={() =>
-                            void handleSendRequest(person.username, person.id)
-                          }
-                        />
+                        {canSend ? (
+                          <Pressable
+                            accessibilityRole="button"
+                            accessibilityLabel={`Send friend request to ${
+                              person.name || `@${person.username}`
+                            }`}
+                            disabled={Boolean(sendingTarget)}
+                            hitSlop={8}
+                            onPress={() =>
+                              void handleSendRequest(person.username, person.id)
+                            }
+                            style={({ pressed }) => [
+                              styles.sendRequestIconButton,
+                              {
+                                backgroundColor: theme.primary,
+                                borderColor: theme.primary,
+                              },
+                              pressed && !sending && styles.sendRequestIconPressed,
+                              Boolean(sendingTarget) &&
+                                !sending &&
+                                styles.sendRequestIconDisabled,
+                            ]}
+                          >
+                            {sending ? (
+                              <ActivityIndicator size="small" color="#FFFFFF" />
+                            ) : (
+                              <Image
+                                source={require("../../assets/icons8-send-100.png")}
+                                style={styles.sendRequestIcon}
+                                tintColor="#FFFFFF"
+                                resizeMode="contain"
+                              />
+                            )}
+                          </Pressable>
+                        ) : (
+                          <AppButton
+                            title={getRelationshipLabel(
+                              person.relationshipStatus,
+                            )}
+                            disabled
+                            variant="secondary"
+                            style={styles.personAction}
+                          />
+                        )}
                       </View>
                     );
                   })}
@@ -1273,6 +1305,24 @@ const styles = StyleSheet.create({
     minHeight: 40,
     paddingHorizontal: spacing.sm,
   },
+  sendRequestIconButton: {
+    width: 46,
+    height: 38,
+    flexShrink: 0,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderRadius: 12,
+  },
+  sendRequestIcon: {
+    width: 25,
+    height: 25,
+  },
+  sendRequestIconPressed: {
+    opacity: 0.72,
+    transform: [{ scale: 0.96 }],
+  },
+  sendRequestIconDisabled: { opacity: 0.45 },
   requestActions: { gap: spacing.xs, alignItems: "stretch" },
   compactAction: {
     minWidth: 86,
