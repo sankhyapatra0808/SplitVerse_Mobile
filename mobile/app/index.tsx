@@ -16,49 +16,20 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAuth } from "../src/context/AuthContext";
 
-const ART_WIDTH = 941;
-const ART_HEIGHT = 1672;
-
-type SourceRect = {
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-};
-
-function mapSourceRectToCover(
-  rect: SourceRect,
-  viewportWidth: number,
-  viewportHeight: number,
-) {
-  const scale = Math.max(
-    viewportWidth / ART_WIDTH,
-    viewportHeight / ART_HEIGHT,
-  );
-
-  const renderedWidth = ART_WIDTH * scale;
-  const renderedHeight = ART_HEIGHT * scale;
-
-  const offsetX = (viewportWidth - renderedWidth) / 2;
-  const offsetY = (viewportHeight - renderedHeight) / 2;
-
-  return {
-    left: offsetX + rect.x * scale,
-    top: offsetY + rect.y * scale,
-    width: rect.width * scale,
-    height: rect.height * scale,
-  };
-}
-
 export default function Index() {
   const { user, initializing } = useAuth();
-  const { width, height } = useWindowDimensions();
+
+  const { width } = useWindowDimensions();
   const insets = useSafeAreaInsets();
 
   if (initializing) {
     return (
       <View style={styles.loadingScreen}>
-        <StatusBar style="dark" translucent backgroundColor="transparent" />
+        <StatusBar
+          style="dark"
+          translucent
+          backgroundColor="transparent"
+        />
 
         <ActivityIndicator color="#159b87" />
       </View>
@@ -71,34 +42,35 @@ export default function Index() {
 
   const compact = width < 370;
 
-  const artworkScale = Math.max(width / ART_WIDTH, height / ART_HEIGHT);
+  /*
+   * Keep the CTA width consistent across devices.
+   *
+   * Small phones:
+   *   18px side spacing
+   *
+   * Normal phones:
+   *   24px side spacing
+   *
+   * Tablets / very wide screens:
+   *   maximum width is limited so the button
+   *   doesn't become ridiculously large.
+   */
+  const horizontalPadding = compact ? 18 : 24;
 
-  const getStartedButtonRect = mapSourceRectToCover(
-    {
-      x: 179,
-      y: 1490,
-      width: 583,
-      height: 102,
-    },
-    width,
-    height,
-  );
-
-  const signInButtonRect = mapSourceRectToCover(
-    {
-      x: 350,
-      y: 1590,
-      width: 240,
-      height: 56,
-    },
-    width,
-    height,
+  const actionWidth = Math.min(
+    width - horizontalPadding * 2,
+    560,
   );
 
   return (
     <View style={styles.screen}>
-      <StatusBar style="dark" translucent backgroundColor="transparent" />
+      <StatusBar
+        style="dark"
+        translucent
+        backgroundColor="transparent"
+      />
 
+      {/* BACKGROUND ARTWORK */}
       <ImageBackground
         source={require("../assets/landing-split-bills.png")}
         style={StyleSheet.absoluteFill}
@@ -106,7 +78,7 @@ export default function Index() {
         resizeMode="cover"
       />
 
-      {/* SplitVerse branding */}
+      {/* SPLITVERSE BRANDING */}
       <View
         pointerEvents="box-none"
         style={[
@@ -117,10 +89,18 @@ export default function Index() {
           },
         ]}
       >
-        <View style={[styles.logoShell, compact && styles.logoShellCompact]}>
+        <View
+          style={[
+            styles.logoShell,
+            compact && styles.logoShellCompact,
+          ]}
+        >
           <Image
             source={require("../assets/splitverse-logo.png")}
-            style={[styles.logo, compact && styles.logoCompact]}
+            style={[
+              styles.logo,
+              compact && styles.logoCompact,
+            ]}
             resizeMode="contain"
           />
         </View>
@@ -128,23 +108,33 @@ export default function Index() {
         <View style={styles.brandCopy}>
           <NativeText
             numberOfLines={1}
-            style={[styles.brandName, compact && styles.brandNameCompact]}
+            style={[
+              styles.brandName,
+              compact && styles.brandNameCompact,
+            ]}
           >
-            <NativeText style={styles.brandSplit}>Split</NativeText>
+            <NativeText style={styles.brandSplit}>
+              Split
+            </NativeText>
 
-            <NativeText style={styles.brandVerse}>Verse</NativeText>
+            <NativeText style={styles.brandVerse}>
+              Verse
+            </NativeText>
           </NativeText>
 
           <NativeText
             numberOfLines={1}
-            style={[styles.brandTagline, compact && styles.brandTaglineCompact]}
+            style={[
+              styles.brandTagline,
+              compact && styles.brandTaglineCompact,
+            ]}
           >
             BILLS ARE BETTER TOGETHER
           </NativeText>
         </View>
       </View>
 
-      {/* Skip */}
+      {/* SKIP BUTTON */}
       <Pressable
         accessibilityRole="button"
         accessibilityLabel="Skip to sign in"
@@ -159,68 +149,88 @@ export default function Index() {
         ]}
       >
         <NativeText
-          style={[styles.skipText, compact && styles.skipTextCompact]}
+          style={[
+            styles.skipText,
+            compact && styles.skipTextCompact,
+          ]}
         >
           Skip
         </NativeText>
       </Pressable>
 
-      {/* Get Started */}
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel="Get Started"
-        onPress={() => router.replace("/(auth)/signup")}
-        style={({ pressed }) => [
-          styles.getStartedButton,
-          getStartedButtonRect,
-          pressed && styles.realButtonPressed,
+      {/* BOTTOM ACTION AREA */}
+      <View
+        pointerEvents="box-none"
+        style={[
+          styles.bottomActions,
+          {
+            /*
+             * Everything is positioned relative to
+             * the bottom safe area of the actual phone.
+             *
+             * This is what keeps the buttons consistent
+             * between Samsung / Pixel / OnePlus / etc.
+             */
+            bottom: Math.max(insets.bottom, 12),
+
+            width: actionWidth,
+          },
         ]}
       >
-        <LinearGradient
-          colors={["#2DAD9E", "#1E968A", "#158176"]}
-          locations={[0, 0.5, 1]}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={styles.getStartedGradient}
+        {/* GET STARTED */}
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Get Started"
+          onPress={() => router.replace("/(auth)/signup")}
+          style={({ pressed }) => [
+            styles.getStartedButton,
+            compact && styles.getStartedButtonCompact,
+            pressed && styles.realButtonPressed,
+          ]}
+        >
+          <LinearGradient
+            colors={[
+              "#2DAD9E",
+              "#1E968A",
+              "#158176",
+            ]}
+            locations={[0, 0.5, 1]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={styles.getStartedGradient}
+          >
+            <NativeText
+              style={[
+                styles.getStartedText,
+                compact && styles.getStartedTextCompact,
+              ]}
+            >
+              Get Started →
+            </NativeText>
+          </LinearGradient>
+        </Pressable>
+
+        {/* SIGN IN */}
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Sign In"
+          onPress={() => router.push("/(auth)/login")}
+          hitSlop={8}
+          style={({ pressed }) => [
+            styles.signInButton,
+            pressed && styles.signInButtonPressed,
+          ]}
         >
           <NativeText
             style={[
-              styles.getStartedText,
-              {
-                fontSize: Math.max(15, Math.min(20, 31 * artworkScale)),
-                lineHeight: Math.max(19, Math.min(25, 38 * artworkScale)),
-              },
+              styles.signInText,
+              compact && styles.signInTextCompact,
             ]}
           >
-            Get Started →
+            Sign In
           </NativeText>
-        </LinearGradient>
-      </Pressable>
-
-      {/* Sign In */}
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel="Sign In"
-        onPress={() => router.push("/(auth)/login")}
-        hitSlop={8}
-        style={({ pressed }) => [
-          styles.signInButton,
-          signInButtonRect,
-          pressed && styles.signInButtonPressed,
-        ]}
-      >
-        <NativeText
-          style={[
-            styles.signInText,
-            {
-              fontSize: Math.max(14, Math.min(18, 28 * artworkScale)),
-              lineHeight: Math.max(18, Math.min(23, 34 * artworkScale)),
-            },
-          ]}
-        >
-          Sign In
-        </NativeText>
-      </Pressable>
+        </Pressable>
+      </View>
     </View>
   );
 }
@@ -243,20 +253,31 @@ const styles = StyleSheet.create({
     backgroundColor: "#f0fdfd",
   },
 
+  /*
+   * ============================
+   * BRAND
+   * ============================
+   */
+
   brandRow: {
     position: "absolute",
     zIndex: 3,
+
     flexDirection: "row",
     alignItems: "center",
+
     maxWidth: "72%",
   },
 
   logoShell: {
     width: 50,
     height: 50,
+
     borderRadius: 14,
+
     alignItems: "center",
     justifyContent: "center",
+
     backgroundColor: "rgba(223, 250, 245, 0.94)",
 
     shadowColor: "#8cbeb8",
@@ -290,14 +311,18 @@ const styles = StyleSheet.create({
 
   brandCopy: {
     marginLeft: 10,
+
     justifyContent: "center",
+
     minWidth: 0,
   },
 
   brandName: {
     fontSize: 28,
     lineHeight: 31,
+
     fontWeight: "900",
+
     letterSpacing: -1.1,
   },
 
@@ -316,10 +341,14 @@ const styles = StyleSheet.create({
 
   brandTagline: {
     marginTop: 1,
+
     color: "#65728c",
+
     fontSize: 8.5,
     lineHeight: 11,
+
     letterSpacing: 1.7,
+
     fontWeight: "700",
   },
 
@@ -328,12 +357,20 @@ const styles = StyleSheet.create({
     letterSpacing: 1.35,
   },
 
+  /*
+   * ============================
+   * SKIP
+   * ============================
+   */
+
   skipButton: {
     position: "absolute",
     zIndex: 4,
 
     minWidth: 58,
     height: 42,
+
+    paddingHorizontal: 16,
 
     borderRadius: 23,
 
@@ -345,8 +382,10 @@ const styles = StyleSheet.create({
 
   skipText: {
     color: "#65728c",
+
     fontSize: 16,
     lineHeight: 20,
+
     fontWeight: "700",
   },
 
@@ -354,26 +393,55 @@ const styles = StyleSheet.create({
     fontSize: 14,
   },
 
-  getStartedButton: {
+  /*
+   * ============================
+   * BOTTOM CTA AREA
+   * ============================
+   */
+
+  bottomActions: {
     position: "absolute",
+
     zIndex: 5,
 
+    alignSelf: "center",
+    alignItems: "center",
+  },
+
+  /*
+   * GET STARTED
+   */
+
+  getStartedButton: {
+    width: "100%",
+    height: 60,
+
     borderRadius: 999,
+
     overflow: "hidden",
 
     shadowColor: "#0e746b",
+
     shadowOffset: {
       width: 0,
       height: 7,
     },
+
     shadowOpacity: 0.18,
     shadowRadius: 14,
 
     elevation: 5,
   },
 
+  getStartedButtonCompact: {
+    height: 56,
+  },
+
   getStartedGradient: {
     flex: 1,
+
+    width: "100%",
+
     borderRadius: 999,
 
     alignItems: "center",
@@ -383,25 +451,45 @@ const styles = StyleSheet.create({
   getStartedText: {
     color: "#ffffff",
 
-    fontSize: 25,
-    lineHeight: 30,
+    fontSize: 19,
+    lineHeight: 24,
 
     fontWeight: "800",
+
     letterSpacing: 0.1,
   },
 
-  realButtonPressed: {
-    opacity: 0.96,
+  getStartedTextCompact: {
+    fontSize: 17,
+    lineHeight: 22,
   },
 
+  realButtonPressed: {
+    opacity: 0.9,
+    transform: [
+      {
+        scale: 0.985,
+      },
+    ],
+  },
+
+  /*
+   * SIGN IN
+   */
+
   signInButton: {
-    position: "absolute",
-    zIndex: 5,
+    height: 48,
+
+    minWidth: 130,
+
+    marginTop: 4,
+
+    paddingHorizontal: 20,
+
+    borderRadius: 999,
 
     alignItems: "center",
     justifyContent: "center",
-
-    borderRadius: 999,
   },
 
   signInButtonPressed: {
@@ -411,9 +499,14 @@ const styles = StyleSheet.create({
   signInText: {
     color: "#586C84",
 
-    fontSize: 21,
-    lineHeight: 27,
+    fontSize: 17,
+    lineHeight: 22,
 
     fontWeight: "700",
+  },
+
+  signInTextCompact: {
+    fontSize: 16,
+    lineHeight: 21,
   },
 });

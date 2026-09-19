@@ -210,7 +210,7 @@ export default function Signup() {
   }
 
   return (
-    <AuthFullscreenScaffold title="Sign up" layout="signup">
+    <AuthFullscreenScaffold title="Sign Up" layout="signup">
       {({ palette }) => {
         const dense = true;
 
