@@ -1190,7 +1190,7 @@ export default function SplitRooms() {
         <LinearGradient
           colors={
             theme.mode === "dark"
-              ? ["rgba(0,0,0,0.30)", "rgba(0, 0, 0, 0.86)"]
+              ? ["rgba(0,0,0,0.30)", theme.background]
               : ["rgba(8, 8, 8, 0.18)", "rgb(255, 255, 255)"]
           }
           start={{ x: 0, y: 0 }}
