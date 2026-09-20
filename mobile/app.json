@@ -31,7 +31,8 @@
       "expo-router",
       "expo-secure-store",
       "expo-font",
-      "@react-native-google-signin/google-signin"
+      "@react-native-google-signin/google-signin",
+      "./plugins/withSplitVerseSecureWindow"
     ],
     "extra": {
       "router": {},

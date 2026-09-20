@@ -30,6 +30,16 @@ const minimumSplashDurationMs = 1400;
 
 const PRIVACY_CAPTURE_KEY = "splitverse-privacy-mode";
 
+// Privacy Mode is secure-by-default during a cold start. This closes the short
+// window before saved settings are restored. If the user previously disabled
+// Privacy Mode, PrivacyScreenGuard releases the same key as soon as that saved
+// preference is loaded.
+void ScreenCapture.preventScreenCaptureAsync(PRIVACY_CAPTURE_KEY).catch((error) => {
+  if (__DEV__) {
+    console.warn("Could not enable startup screen-capture protection:", error);
+  }
+});
+
 function PrivacyScreenGuard() {
   const { privacyMode } = useAppSettings();
 
