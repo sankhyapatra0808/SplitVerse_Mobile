@@ -100,7 +100,7 @@ const steps = [
 ];
 
 const mobileAppReleaseUrl =
-  "https://github.com/sankhyapatra0808/SplitVerse_Mobile/releases/tag/v1.0.0-preview";
+  "https://github.com/sankhyapatra0808/SplitVerse_Mobile/releases/tag/v1.1.0-preview";
 
 const mobileAppApkUrl =
   "https://github.com/sankhyapatra0808/SplitVerse_Mobile/releases/latest/download/SplitVerse-v1.1.0.apk";
