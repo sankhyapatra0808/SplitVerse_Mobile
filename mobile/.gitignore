@@ -44,3 +44,4 @@ mobile/.env
 # generated native folders
 /ios
 /android
+*.apk
