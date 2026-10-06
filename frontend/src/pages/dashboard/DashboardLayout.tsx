@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState, type ReactNode } from "react";
-import { NavLink, useNavigate } from "react-router-dom";
+import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import {
   Bell,
   ChevronRight,
@@ -16,6 +16,17 @@ import {
   UsersRound,
   WalletCards,
   X,
+  ShieldCheck,
+  ArrowLeft,
+  Users,
+  DoorOpen,
+  Activity,
+  ScanSearch,
+  BarChart3,
+  SlidersHorizontal,
+  Smartphone,
+  Settings2,
+  ScrollText,
 } from "lucide-react";
 
 import logo from "../../assets/Logo-v2.png";
@@ -35,6 +46,22 @@ import {
 } from "../../lib/api";
 import LoadingSkeleton from "../../components/LoadingSkeleton";
 import { withTopProgress } from "../../utils/topProgress";
+import { useAdminAccess } from "../../hooks/useAdminAccess";
+
+const adminSidebarLinks = [
+  { label: "Overview", icon: LayoutDashboard, to: "/admin" },
+  { label: "Users", icon: Users, to: "/admin/users" },
+  { label: "Rooms", icon: DoorOpen, to: "/admin/rooms" },
+  { label: "Settlement Debugger", icon: ScanSearch, to: "/admin/settlements" },
+  { label: "Financial Activity", icon: Activity, to: "/admin/financial-activity" },
+  { label: "Audit & Integrity", icon: ScrollText, to: "/admin/audit" },
+  { label: "Analytics", icon: BarChart3, to: "/admin/analytics" },
+  { label: "Feature Flags", icon: SlidersHorizontal, to: "/admin/feature-flags" },
+  { label: "App Versions", icon: Smartphone, to: "/admin/versions" },
+  { label: "Configuration", icon: Settings2, to: "/admin/config" },
+  { label: "Security", icon: ShieldCheck, to: "/admin/security" },
+  { label: "Admin Audit Logs", icon: ScrollText, to: "/admin/admin-audit-logs" },
+];
 
 const sidebarLinks = [
   { label: "Dashboard", icon: LayoutDashboard, to: "/dashboard" },
@@ -88,6 +115,12 @@ export default function DashboardLayout({
   eyebrow = "Overview",
 }: DashboardLayoutProps) {
   const navigate = useNavigate();
+  const location = useLocation();
+  const adminMode = location.pathname.startsWith("/admin");
+  const animateAdminSidebar = Boolean(
+    (location.state as { sidebarModeTransition?: boolean } | null)?.sidebarModeTransition,
+  );
+  const { isAdmin: adminEntryVisible } = useAdminAccess({ respectClientVisibility: true });
   const { user, logout } = useAuth();
   const { avatarId, compactMode, formatCurrency } = useAppSettings();
   const userId = user?.uid;
@@ -391,39 +424,79 @@ export default function DashboardLayout({
   return (
     <main className={compactMode ? "dashboard-shell compact-workspace" : "dashboard-shell"}>
       <aside className="dashboard-sidebar" aria-label="Dashboard navigation">
-        <NavLink to="/" className="dashboard-brand" aria-label="SplitVerse home">
+        <NavLink to={adminMode ? "/admin" : "/"} className="dashboard-brand" aria-label="SplitVerse home">
           <img src={logo} alt="SplitVerse logo" />
-          <span>SplitVerse</span>
+          <span>{adminMode ? "SplitVerse Admin" : "SplitVerse"}</span>
         </NavLink>
 
-        <nav className="dashboard-nav">
-          {sidebarLinks.map((item) => {
-            const Icon = item.icon;
+        <div
+          className={`${adminMode ? "dashboard-sidebar-mode admin" : "dashboard-sidebar-mode normal"}${
+            animateAdminSidebar ? " sidebar-mode-transition" : ""
+          }`}
+        >
+          <nav className="dashboard-nav">
+            {adminMode ? (
+              <>
+                <NavLink className="dashboard-nav-item admin-back" to="/dashboard">
+                  <ArrowLeft size={19} />
+                  <span>Back to SplitVerse</span>
+                </NavLink>
+                {adminSidebarLinks.map((item) => {
+                  const Icon = item.icon;
+                  return (
+                    <NavLink
+                      className={({ isActive }) => isActive ? "dashboard-nav-item active" : "dashboard-nav-item"}
+                      end={item.to === "/admin"}
+                      to={item.to}
+                      key={item.label}
+                    >
+                      <Icon size={19} />
+                      <span>{item.label}</span>
+                    </NavLink>
+                  );
+                })}
+              </>
+            ) : (
+              <>
+                {sidebarLinks.map((item) => {
+                  const Icon = item.icon;
+                  return (
+                    <NavLink
+                      className={({ isActive }) => isActive ? "dashboard-nav-item active" : "dashboard-nav-item"}
+                      to={item.to}
+                      key={item.label}
+                    >
+                      <Icon size={19} />
+                      <span>{item.label}</span>
+                    </NavLink>
+                  );
+                })}
+                {adminEntryVisible ? (
+                  <NavLink
+                    className="dashboard-nav-item admin-entry"
+                    to="/admin"
+                    state={{ sidebarModeTransition: true }}
+                  >
+                    <ShieldCheck size={19} />
+                    <span>Admin Portal</span>
+                  </NavLink>
+                ) : null}
+              </>
+            )}
+          </nav>
 
-            return (
-              <NavLink
-                className={({ isActive }) =>
-                  isActive ? "dashboard-nav-item active" : "dashboard-nav-item"
-                }
-                to={item.to}
-                key={item.label}
-              >
-                <Icon size={19} />
-                <span>{item.label}</span>
+          {!adminMode ? (
+            <div className="dashboard-sidebar-actions">
+              <NavLink className="sidebar-action secondary" to="/split-rooms">
+                <Send size={18} />
+                <span>Send Money</span>
               </NavLink>
-            );
-          })}
-        </nav>
-
-        <div className="dashboard-sidebar-actions">
-          <NavLink className="sidebar-action secondary" to="/split-rooms">
-            <Send size={18} />
-            <span>Send Money</span>
-          </NavLink>
-          <NavLink className="sidebar-action primary" to="/wallet-top-up">
-            <Plus size={18} />
-            <span>Add money</span>
-          </NavLink>
+              <NavLink className="sidebar-action primary" to="/wallet-top-up">
+                <Plus size={18} />
+                <span>Add money</span>
+              </NavLink>
+            </div>
+          ) : null}
         </div>
       </aside>
 
@@ -431,7 +504,7 @@ export default function DashboardLayout({
         <header className="dashboard-topbar">
           <div>
             <span className="dashboard-kicker">{eyebrow}</span>
-            <h1>Hi, {username}. Welcome to SplitVerse</h1>
+            <h1>{adminMode ? "SplitVerse operations and control center" : `Hi, ${username}. Welcome to SplitVerse`}</h1>
           </div>
 
           <div className="dashboard-topbar-actions">

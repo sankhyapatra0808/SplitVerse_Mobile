@@ -10,10 +10,7 @@ import cors from "cors";
 import helmet from "helmet";
 import rateLimit from "express-rate-limit";
 import { testDbConnection, db, warmDatabaseConnection } from "./config/db.js";
-import {
-  ensurePerformanceIndexes,
-  ensurePerformanceIndexesInBackground,
-} from "./db/performanceIndexes.js";
+import { ensurePerformanceIndexes } from "./db/performanceIndexes.js";
 import dashboardRoutes from "./routes/dashboard.routes.js";
 import exchangeRatesRoutes from "./routes/exchangeRates.routes.js";
 import publicPagesRoutes from "./routes/publicPages.routes.js";
@@ -24,6 +21,8 @@ import friendRoutes, {
 } from "./routes/friends.routes.js";
 import transactionRoutes from "./routes/transactions.routes.js";
 import walletRoutes from "./routes/wallet.routes.js";
+import adminRoutes from "./routes/admin.routes.js";
+import appControlRoutes from "./routes/appControl.routes.js";
 import paymentRoutes, {
   razorpayWebhookHandler,
 } from "./routes/payments.routes.js";
@@ -166,7 +165,13 @@ const corsOptions: cors.CorsOptions = {
     );
   },
   methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-  allowedHeaders: ["Content-Type", "Authorization"],
+  allowedHeaders: [
+    "Content-Type",
+    "Authorization",
+    "X-SplitVerse-Installation-Id",
+    "X-SplitVerse-Platform",
+    "X-Request-Id",
+  ],
   credentials: true,
   optionsSuccessStatus: 204,
 };
@@ -568,7 +573,6 @@ app.post(
   },
 );
 
-ensurePerformanceIndexesInBackground();
 
 app.use("/api/exchange-rates", exchangeRatesRoutes);
 app.use("/api/public-pages", publicPagesRoutes);
@@ -579,6 +583,8 @@ app.use("/api/split-rooms", splitRoomRoutes);
 app.use("/api/friends", friendRoutes);
 app.use("/api/transactions", transactionRoutes);
 app.use("/api/wallet", walletRoutes);
+app.use("/api/app-control", appControlRoutes);
+app.use("/api/admin", adminRoutes);
 app.use("/api/payments", paymentRoutes);
 
 app.use((req, res) => {

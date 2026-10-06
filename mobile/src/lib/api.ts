@@ -1,4 +1,5 @@
 import { auth } from "./firebase";
+import { getInstallationHeaders } from "./installationId";
 import {
   AppError,
   createFetchFailureError,
@@ -137,6 +138,7 @@ async function requestJson<T>(
   const bodyIsFormData = isFormDataBody(options.body);
 
   try {
+    const installationHeaders = await getInstallationHeaders();
     const response = await fetch(getApiUrl(path), {
       ...options,
       signal: controller.signal,
@@ -144,6 +146,7 @@ async function requestJson<T>(
         Accept: "application/json",
         ...(bodyIsFormData ? {} : { "Content-Type": "application/json" }),
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...installationHeaders,
         ...(options.headers ?? {}),
       },
     });
@@ -1281,4 +1284,83 @@ export async function downloadMyData() {
     transactions: transactions.transactions,
     transactionSummary: transactions.summary,
   };
+}
+
+export async function getAdminAccess() {
+  return apiFetch<{ isAdmin: boolean }>("/api/admin/access");
+}
+
+export async function getAdminOverview() {
+  return apiFetch<Record<string, any>>("/api/admin/overview");
+}
+
+export async function getAdminUsers(search = "", page = 1) {
+  const params = new URLSearchParams({ search, page: String(page), limit: "25" });
+  return apiFetch<{ users: any[]; page: number; limit: number; total: number }>(`/api/admin/users?${params}`);
+}
+
+export async function getAdminUser(id: string) {
+  return apiFetch<Record<string, any>>(`/api/admin/users/${encodeURIComponent(id)}`);
+}
+
+export async function getAdminRooms(search = "", page = 1) {
+  const params = new URLSearchParams({ search, page: String(page), limit: "25" });
+  return apiFetch<{ rooms: any[]; page: number; limit: number; total: number }>(`/api/admin/rooms?${params}`);
+}
+
+export async function getAdminRoom(id: string) {
+  return apiFetch<Record<string, any>>(`/api/admin/rooms/${encodeURIComponent(id)}`);
+}
+
+export async function getAdminSettlementDebugger(roomId: string, userId: string) {
+  return apiFetch<Record<string, any>>(`/api/admin/settlement-debugger/${encodeURIComponent(roomId)}?userId=${encodeURIComponent(userId)}`);
+}
+
+export async function getAdminFinancialActivity() {
+  return apiFetch<Record<string, any>>("/api/admin/financial-activity?limit=30&page=1");
+}
+
+export async function getAdminAudit() {
+  return apiFetch<Record<string, any>>("/api/admin/audit?limit=30&page=1");
+}
+
+export async function getAdminAnalytics() {
+  return apiFetch<Record<string, any>>("/api/admin/analytics");
+}
+
+export async function getAdminFeatureFlags() {
+  return apiFetch<Record<string, any>>("/api/admin/feature-flags");
+}
+
+export async function getAdminConfig() {
+  return apiFetch<Record<string, any>>("/api/admin/config");
+}
+
+export async function getAdminSecurity() {
+  return apiFetch<Record<string, any>>("/api/admin/security");
+}
+
+export async function updateAdminUserSecurityStatus(id: string, status: "active" | "restricted" | "blocked", reason: string) {
+  return apiFetch<Record<string, any>>(`/api/admin/users/${encodeURIComponent(id)}/security-status`, {
+    method: "POST",
+    body: JSON.stringify({ status, reason }),
+  });
+}
+
+export async function reverseAdminSettlement(id: string, refundMode: "wallet_refund" | "external_refund", reason: string) {
+  return apiFetch<Record<string, any>>(`/api/admin/settlements/${encodeURIComponent(id)}/reverse`, {
+    method: "POST",
+    body: JSON.stringify({ refundMode, reason }),
+  });
+}
+
+export async function getAdminAuditLogs() {
+  return apiFetch<Record<string, any>>("/api/admin/admin-audit-logs?limit=30&page=1");
+}
+
+export async function getPublicAppControl() {
+  return publicApiFetch<{
+    config: Record<string, unknown>;
+    featureFlags: Record<string, { enabled: boolean; rolloutPercent: number }>;
+  }>("/api/app-control");
 }

@@ -15,6 +15,7 @@ import {
 import { useAppSettings } from "../context/useAppSettings";
 import { radius, spacing, typography } from "../theme/tokens";
 import Text from "./LocalizedText";
+import { getPublicAppControl } from "../lib/api";
 
 const GITHUB_OWNER = "sankhyapatra0808";
 const GITHUB_REPO = "SplitVerse_Mobile";
@@ -48,6 +49,7 @@ type UpdateRelease = {
   apkUrl: string;
   apkName: string;
   apkSize?: number;
+  mandatory: boolean;
 };
 
 type ParsedVersion = {
@@ -140,6 +142,7 @@ async function fetchLatestAndroidRelease(): Promise<UpdateRelease | null> {
     apkUrl: apkAsset.browser_download_url,
     apkName: apkAsset.name?.trim() || `SplitVerse-${release.tag_name}.apk`,
     apkSize: apkAsset.size,
+    mandatory: false,
   };
 }
 
@@ -166,12 +169,41 @@ export default function GitHubUpdateGate() {
     setChecking(true);
     setErrorMessage(null);
     try {
-      const latest = await fetchLatestAndroidRelease();
-      if (latest && isNewerVersion(latest.version, currentVersion)) {
-        setRelease(latest);
-      } else {
+      const [controlResult, githubLatest] = await Promise.allSettled([
+        getPublicAppControl(),
+        fetchLatestAndroidRelease(),
+      ]);
+
+      const config = controlResult.status === "fulfilled" ? controlResult.value.config : {};
+      const configuredLatest = String(config.android_latest_version || "").trim();
+      const minimumVersion = String(config.android_minimum_version || "").trim();
+      const forceUpdate = config.android_force_update === true;
+      const configuredUrl = String(config.android_update_url || "").trim();
+      const configuredNotes = String(config.android_release_notes || "").trim();
+      const github = githubLatest.status === "fulfilled" ? githubLatest.value : null;
+      const candidateVersion = configuredLatest || github?.version || "";
+
+      if (!candidateVersion || !isNewerVersion(candidateVersion, currentVersion)) {
         setRelease(null);
+        return;
       }
+
+      const mandatory = forceUpdate || (minimumVersion ? isNewerVersion(minimumVersion, currentVersion) : false);
+      const apkUrl = configuredUrl || github?.apkUrl || "";
+      if (!apkUrl) {
+        setRelease(null);
+        return;
+      }
+
+      setRelease({
+        version: candidateVersion,
+        title: github?.title || `SplitVerse ${candidateVersion}`,
+        notes: configuredNotes || github?.notes || "Bug fixes and improvements.",
+        apkUrl,
+        apkName: github?.apkName || `SplitVerse-${candidateVersion}.apk`,
+        apkSize: github?.apkSize,
+        mandatory,
+      });
     } catch (error) {
       // Update checks should never prevent the app from opening when GitHub or
       // the user's connection is temporarily unavailable.
@@ -315,9 +347,9 @@ export default function GitHubUpdateGate() {
               style={styles.logo}
             />
 
-            <Text style={[styles.eyebrow, { color: theme.primary }]}>UPDATE AVAILABLE</Text>
+            <Text style={[styles.eyebrow, { color: theme.primary }]}>{release.mandatory ? "UPDATE REQUIRED" : "UPDATE AVAILABLE"}</Text>
             <Text style={[styles.title, { color: theme.text }]}>A newer SplitVerse is ready</Text>
-            <Text style={[styles.subtitle, { color: theme.body }]}>Update to version {release.version} to continue with the latest SplitVerse.</Text>
+            <Text style={[styles.subtitle, { color: theme.body }]}>{release.mandatory ? `Version ${release.version} is required before you can continue using SplitVerse.` : `Version ${release.version} is available with the latest SplitVerse improvements.`}</Text>
 
             <View
               style={[
@@ -393,6 +425,19 @@ export default function GitHubUpdateGate() {
                 ]}
               >
                 <Text style={[styles.secondaryButtonText, { color: theme.primary }]}>Allow app installs</Text>
+              </Pressable>
+            ) : null}
+
+            {!release.mandatory && !downloading ? (
+              <Pressable
+                accessibilityRole="button"
+                onPress={() => setRelease(null)}
+                style={({ pressed }) => [
+                  styles.secondaryButton,
+                  { borderColor: theme.border, backgroundColor: theme.surface, opacity: pressed ? 0.82 : 1 },
+                ]}
+              >
+                <Text style={[styles.secondaryButtonText, { color: theme.text }]}>Later</Text>
               </Pressable>
             ) : null}
 

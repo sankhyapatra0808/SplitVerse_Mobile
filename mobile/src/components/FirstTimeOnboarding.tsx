@@ -24,7 +24,7 @@ type Step = {
   title: string;
   body: string;
   detail: string;
-  icon: keyof typeof Ionicons.glyphMap;
+  icon?: keyof typeof Ionicons.glyphMap;
 };
 
 const steps: Step[] = [
@@ -33,7 +33,6 @@ const steps: Step[] = [
     title: "Split smarter. Settle faster.",
     body: "Create shared rooms, divide expenses fairly, and always know what you owe or what others owe you.",
     detail: "SplitVerse keeps shared spending, settlements, wallet activity, and reminders together.",
-    icon: "sparkles-outline",
   },
   {
     eyebrow: "FRIENDS & ROOMS",
@@ -164,9 +163,11 @@ export default function FirstTimeOnboarding() {
               { backgroundColor: theme.card, borderColor: theme.border },
             ]}
           >
-            <View style={[styles.iconHalo, { backgroundColor: theme.primarySoft }]}> 
-              <Ionicons name={step.icon} size={compact ? 64 : 78} color={theme.primary} />
-            </View>
+            {step.icon ? (
+              <View style={[styles.iconHalo, { backgroundColor: theme.primarySoft }]}>
+                <Ionicons name={step.icon} size={compact ? 64 : 78} color={theme.primary} />
+              </View>
+            ) : null}
 
             <View style={styles.mockRow}>
               <View style={[styles.mockCard, { backgroundColor: theme.surface, borderColor: theme.borderSoft }]}> 

@@ -1,6 +1,7 @@
 import { lazy, Suspense, type ReactNode } from "react";
 import { Navigate, Routes, Route } from "react-router-dom";
 import ProtectedRoute from "./components/ProtectedRoute";
+import AdminProtectedRoute from "./components/AdminProtectedRoute";
 import TopProgressBar from "./components/TopProgressBar";
 import DashboardPageLoader from "./pageloaders/DashboardPageLoader";
 import type { DashboardLoaderVariant } from "./pageloaders/DashboardPageLoader";
@@ -27,6 +28,20 @@ const Privacy = lazy(() => import("./pages/Privacy"));
 const Terms = lazy(() => import("./pages/Terms"));
 const Security = lazy(() => import("./pages/Security"));
 const NotFound = lazy(() => import("./pages/NotFound"));
+const AdminOverview = lazy(() => import("./pages/admin/AdminPortal").then((m) => ({ default: m.AdminOverview })));
+const AdminUsers = lazy(() => import("./pages/admin/AdminPortal").then((m) => ({ default: m.AdminUsers })));
+const AdminUserDetail = lazy(() => import("./pages/admin/AdminPortal").then((m) => ({ default: m.AdminUserDetail })));
+const AdminRooms = lazy(() => import("./pages/admin/AdminPortal").then((m) => ({ default: m.AdminRooms })));
+const AdminRoomDetail = lazy(() => import("./pages/admin/AdminPortal").then((m) => ({ default: m.AdminRoomDetail })));
+const AdminSettlementDebugger = lazy(() => import("./pages/admin/AdminPortal").then((m) => ({ default: m.AdminSettlementDebugger })));
+const AdminFinancialActivity = lazy(() => import("./pages/admin/AdminPortal").then((m) => ({ default: m.AdminFinancialActivity })));
+const AdminAudit = lazy(() => import("./pages/admin/AdminPortal").then((m) => ({ default: m.AdminAudit })));
+const AdminAnalytics = lazy(() => import("./pages/admin/AdminPortal").then((m) => ({ default: m.AdminAnalytics })));
+const AdminFeatureFlags = lazy(() => import("./pages/admin/AdminPortal").then((m) => ({ default: m.AdminFeatureFlags })));
+const AdminConfiguration = lazy(() => import("./pages/admin/AdminPortal").then((m) => ({ default: m.AdminConfiguration })));
+const AdminSecurity = lazy(() => import("./pages/admin/AdminPortal").then((m) => ({ default: m.AdminSecurity })));
+const AdminAuditLogs = lazy(() => import("./pages/admin/AdminPortal").then((m) => ({ default: m.AdminAuditLogs })));
+
 
 function publicPage(page: ReactNode) {
   return <Suspense fallback={null}>{page}</Suspense>;
@@ -64,6 +79,17 @@ function dashboardPage(page: ReactNode, loaderVariant: DashboardLoaderVariant) {
   );
 }
 
+
+function adminPage(page: ReactNode) {
+  return (
+    <AdminProtectedRoute>
+      <Suspense fallback={<DashboardPageLoader variant="dashboard" />}>
+        {page}
+      </Suspense>
+    </AdminProtectedRoute>
+  );
+}
+
 function App() {
   return (
     <>
@@ -90,6 +116,21 @@ function App() {
         <Route path="/transactions" element={dashboardPage(<TransactionHistory />, "transactions")} />
         <Route path="/friends" element={dashboardPage(<Friends />, "friends")} />
         <Route path="/settings" element={dashboardPage(<AppSettings />, "settings")} />
+
+        <Route path="/admin" element={adminPage(<AdminOverview />)} />
+        <Route path="/admin/users" element={adminPage(<AdminUsers />)} />
+        <Route path="/admin/users/:id" element={adminPage(<AdminUserDetail />)} />
+        <Route path="/admin/rooms" element={adminPage(<AdminRooms />)} />
+        <Route path="/admin/rooms/:id" element={adminPage(<AdminRoomDetail />)} />
+        <Route path="/admin/settlements" element={adminPage(<AdminSettlementDebugger />)} />
+        <Route path="/admin/financial-activity" element={adminPage(<AdminFinancialActivity />)} />
+        <Route path="/admin/audit" element={adminPage(<AdminAudit />)} />
+        <Route path="/admin/analytics" element={adminPage(<AdminAnalytics />)} />
+        <Route path="/admin/feature-flags" element={adminPage(<AdminFeatureFlags />)} />
+        <Route path="/admin/versions" element={adminPage(<AdminConfiguration versionsOnly />)} />
+        <Route path="/admin/config" element={adminPage(<AdminConfiguration />)} />
+        <Route path="/admin/security" element={adminPage(<AdminSecurity />)} />
+        <Route path="/admin/admin-audit-logs" element={adminPage(<AdminAuditLogs />)} />
         <Route path="*" element={publicPage(<NotFound />)} />
       </Routes>
     </>

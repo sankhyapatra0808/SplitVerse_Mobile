@@ -23,6 +23,7 @@ import {
   verifyWalletPinForUser,
 } from "../utils/walletPin.js";
 import { verifyFirebaseEmailPassword } from "../utils/firebasePasswordAuth.js";
+import { getSecurityStateByFirebaseUid, registerInstallationForUser } from "../security/accountSecurity.js";
 
 const router = express.Router();
 const deleteAccountConfirmationText = "/DeleteAccount";
@@ -1829,9 +1830,20 @@ router.post(
         [firebaseUid, name, email, photoUrl, provider, username],
       );
 
+      await registerInstallationForUser(result.rows[0].id, req);
+      const securityState = await getSecurityStateByFirebaseUid(firebaseUid);
+
+      if (securityState?.status === "blocked") {
+        return res.status(403).json({
+          code: "ACCOUNT_BLOCKED",
+          message: "This SplitVerse account has been blocked. Contact support if you believe this is an error.",
+        });
+      }
+
       return res.json({
         message: "User synced successfully",
         user: result.rows[0],
+        securityStatus: securityState?.status ?? "active",
       });
     } catch (error) {
       if (sendValidationError(res, error)) {

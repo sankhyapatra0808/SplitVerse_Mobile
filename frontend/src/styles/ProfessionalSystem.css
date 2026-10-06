@@ -1,0 +1,398 @@
+/* SplitVerse professional UI consistency layer.
+   This file is intentionally imported last so existing page-specific layouts keep
+   their functionality while sharing one typography, spacing, control and motion system. */
+
+:root {
+  --sv-font-sans: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --sv-font-mono: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+  --sv-control-height: 48px;
+  --sv-control-radius: 12px;
+  --sv-card-radius: 20px;
+  --sv-menu-radius: 16px;
+  --sv-motion-fast: 180ms;
+  --sv-motion-base: 240ms;
+  --sv-motion-page: 320ms;
+  --sv-ease-standard: cubic-bezier(0.22, 1, 0.36, 1);
+  --sv-ease-enter: cubic-bezier(0.16, 1, 0.3, 1);
+  --sv-focus-ring: 0 0 0 3px rgba(0, 82, 255, 0.12);
+  --sv-menu-shadow: 0 18px 48px rgba(10, 11, 13, 0.14);
+}
+
+html {
+  font-family: var(--sv-font-sans);
+  font-size: 16px;
+  line-height: 1.5;
+  letter-spacing: 0;
+  word-spacing: normal;
+  text-rendering: optimizeLegibility;
+}
+
+body,
+button,
+input,
+textarea,
+select {
+  font-family: var(--sv-font-sans);
+  letter-spacing: 0;
+  word-spacing: normal;
+}
+
+body {
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  font-family: var(--sv-font-sans);
+  color: var(--dash-ink, var(--text-h));
+  text-wrap: balance;
+}
+
+h1 {
+  font-weight: 400;
+  letter-spacing: -0.035em;
+  line-height: 1.06;
+}
+
+h2 {
+  font-weight: 500;
+  letter-spacing: -0.02em;
+  line-height: 1.15;
+}
+
+h3 {
+  font-size: 18px;
+  font-weight: 600;
+  line-height: 1.33;
+  letter-spacing: -0.01em;
+}
+
+p,
+li,
+label,
+td,
+th {
+  line-height: 1.5;
+}
+
+button,
+a,
+input,
+textarea,
+select {
+  -webkit-tap-highlight-color: transparent;
+}
+
+button,
+a,
+[role="button"] {
+  transition-duration: var(--sv-motion-fast);
+  transition-timing-function: var(--sv-ease-standard);
+}
+
+input,
+textarea,
+select {
+  font-size: 14px;
+  line-height: 1.4;
+}
+
+input:not([type="checkbox"]):not([type="radio"]):not([type="file"]),
+select {
+  min-height: var(--sv-control-height);
+  border-radius: var(--sv-control-radius);
+}
+
+textarea {
+  border-radius: var(--sv-control-radius);
+}
+
+:is(input, textarea, select):focus-visible {
+  outline: none;
+  border-color: var(--dash-primary, #0052ff) !important;
+  box-shadow: var(--sv-focus-ring) !important;
+}
+
+/* One dropdown language for every standard SplitVerse dropdown. */
+.app-dropdown,
+.friend-dropdown {
+  position: relative;
+  min-width: 0;
+  color: var(--dash-ink);
+  font-family: var(--sv-font-sans);
+}
+
+.app-dropdown.open,
+.friend-dropdown:has(.friend-dropdown-trigger[aria-expanded="true"]) {
+  z-index: 120;
+}
+
+.app-dropdown-trigger,
+.friend-dropdown-trigger {
+  width: 100% !important;
+  height: var(--sv-control-height) !important;
+  min-height: var(--sv-control-height) !important;
+  max-height: var(--sv-control-height) !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 12px !important;
+  padding: 0 14px !important;
+  border: 1px solid var(--dash-hairline) !important;
+  border-radius: var(--sv-control-radius) !important;
+  outline: 0 !important;
+  color: var(--dash-ink) !important;
+  background: var(--dash-canvas) !important;
+  box-shadow: none !important;
+  cursor: pointer;
+  font-family: var(--sv-font-sans) !important;
+  font-size: 14px !important;
+  font-weight: 500 !important;
+  line-height: 1.25 !important;
+  text-align: left;
+  transition:
+    border-color var(--sv-motion-fast) var(--sv-ease-standard),
+    box-shadow var(--sv-motion-fast) var(--sv-ease-standard),
+    background-color var(--sv-motion-fast) var(--sv-ease-standard) !important;
+}
+
+.app-dropdown-trigger:hover:not(:disabled),
+.friend-dropdown-trigger:hover:not(:disabled) {
+  border-color: color-mix(in srgb, var(--dash-primary) 28%, var(--dash-hairline)) !important;
+  background: var(--dash-canvas) !important;
+}
+
+.app-dropdown.open .app-dropdown-trigger,
+.app-dropdown-trigger:focus-visible,
+.friend-dropdown-trigger[aria-expanded="true"],
+.friend-dropdown-trigger:focus-visible {
+  border-color: var(--dash-primary) !important;
+  background: var(--dash-canvas) !important;
+  box-shadow: var(--sv-focus-ring) !important;
+}
+
+.app-dropdown-trigger > span,
+.friend-dropdown-trigger > span {
+  min-width: 0;
+  flex: 1 1 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  line-height: 1.25 !important;
+}
+
+.app-dropdown-trigger svg,
+.friend-dropdown-trigger svg {
+  flex: 0 0 auto;
+  color: var(--dash-muted) !important;
+  transition:
+    transform var(--sv-motion-base) var(--sv-ease-standard),
+    color var(--sv-motion-fast) ease !important;
+}
+
+.app-dropdown.open .app-dropdown-trigger svg,
+.friend-dropdown-trigger[aria-expanded="true"] svg {
+  color: var(--dash-ink) !important;
+  transform: rotate(180deg);
+}
+
+.app-dropdown-trigger:disabled,
+.friend-dropdown-trigger:disabled {
+  cursor: not-allowed;
+  opacity: 0.52;
+}
+
+.app-dropdown-menu,
+.friend-dropdown-menu {
+  position: absolute;
+  top: calc(100% + 8px) !important;
+  left: 0;
+  right: 0;
+  z-index: 140 !important;
+  max-height: min(320px, 44svh);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 6px !important;
+  border: 1px solid var(--dash-hairline) !important;
+  border-radius: var(--sv-menu-radius) !important;
+  background: var(--dash-canvas) !important;
+  box-shadow: var(--sv-menu-shadow) !important;
+  transform-origin: top center;
+  animation: svDropdownEnter var(--sv-motion-base) var(--sv-ease-enter) both !important;
+}
+
+.app-dropdown-menu {
+  display: grid;
+  gap: 2px !important;
+}
+
+.app-dropdown-menu button {
+  width: 100%;
+  min-height: 42px !important;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 9px 10px !important;
+  border: 0;
+  border-radius: 10px !important;
+  color: var(--dash-ink) !important;
+  background: transparent !important;
+  font-family: var(--sv-font-sans) !important;
+  font-size: 14px !important;
+  font-weight: 500 !important;
+  line-height: 1.35 !important;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    background-color var(--sv-motion-fast) ease,
+    color var(--sv-motion-fast) ease,
+    transform var(--sv-motion-fast) var(--sv-ease-standard) !important;
+}
+
+.app-dropdown-menu button:hover,
+.app-dropdown-menu button:focus-visible {
+  outline: none;
+  background: var(--dash-surface-soft) !important;
+}
+
+.app-dropdown-menu button.selected {
+  color: var(--dash-primary) !important;
+  background: color-mix(in srgb, var(--dash-primary) 8%, transparent) !important;
+}
+
+.app-dropdown-menu button.selected svg {
+  color: var(--dash-primary) !important;
+}
+
+/* Friend picker keeps its richer content, but adopts the same menu geometry and motion. */
+.friend-dropdown-menu {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px !important;
+  padding: 10px !important;
+}
+
+.friend-picker-search input {
+  height: 44px !important;
+  border: 1px solid var(--dash-hairline) !important;
+  border-radius: var(--sv-control-radius) !important;
+  background: var(--dash-surface-soft) !important;
+  font-size: 14px !important;
+  font-weight: 500 !important;
+  transition:
+    border-color var(--sv-motion-fast) ease,
+    box-shadow var(--sv-motion-fast) ease,
+    background-color var(--sv-motion-fast) ease !important;
+}
+
+.friend-picker-search input:focus {
+  border-color: var(--dash-primary) !important;
+  background: var(--dash-canvas) !important;
+  box-shadow: var(--sv-focus-ring) !important;
+}
+
+.friend-picker-chip {
+  border-radius: 12px !important;
+  box-shadow: none !important;
+  transition:
+    border-color var(--sv-motion-fast) ease,
+    background-color var(--sv-motion-fast) ease,
+    transform var(--sv-motion-fast) var(--sv-ease-standard) !important;
+}
+
+.friend-picker-chip:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: none !important;
+}
+
+@keyframes svDropdownEnter {
+  from {
+    opacity: 0;
+    transform: translateY(-6px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* Native selects remain for browser-level forms only and visually match the custom dropdown trigger. */
+select {
+  border: 1px solid var(--dash-hairline, var(--border));
+  color: var(--dash-ink, var(--text-h));
+  background-color: var(--dash-canvas, var(--bg));
+  padding: 0 40px 0 14px;
+  font-weight: 500;
+}
+
+/* Shared surface discipline: low-shadow, crisp financial-product cards. */
+.dashboard-card,
+.wallet-card,
+.settings-card,
+.public-info-card,
+.admin-panel,
+.admin-metric,
+.admin-table-wrap {
+  box-shadow: none;
+}
+
+/* Keep controls calm and consistent across dashboard pages. */
+:is(.primary-action, .sidebar-action, .auth-submit, .public-info-form button, .settings-dialog button) {
+  font-family: var(--sv-font-sans);
+  letter-spacing: 0;
+}
+
+@media (max-width: 560px) {
+  .friend-dropdown-menu {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 1ms !important;
+  }
+}
+
+/* Page-level Split Rooms CSS is lazy-loaded after the global bundle. Keep the
+   shared control contract authoritative even when those legacy rules arrive later. */
+html body .split-rooms-grid .app-dropdown-trigger,
+html body .split-rooms-grid .friend-dropdown-trigger,
+html body .dashboard-shell .app-dropdown-trigger,
+html body .dashboard-shell .friend-dropdown-trigger {
+  height: var(--sv-control-height) !important;
+  min-height: var(--sv-control-height) !important;
+  max-height: var(--sv-control-height) !important;
+  border-radius: var(--sv-control-radius) !important;
+  padding: 0 14px !important;
+  font-family: var(--sv-font-sans) !important;
+  font-size: 14px !important;
+  font-weight: 500 !important;
+  line-height: 1.25 !important;
+}
+
+html body .split-rooms-grid .app-dropdown-menu,
+html body .split-rooms-grid .friend-dropdown-menu,
+html body .dashboard-shell .app-dropdown-menu,
+html body .dashboard-shell .friend-dropdown-menu {
+  top: calc(100% + 8px) !important;
+  border-radius: var(--sv-menu-radius) !important;
+  animation: svDropdownEnter var(--sv-motion-base) var(--sv-ease-enter) both !important;
+}

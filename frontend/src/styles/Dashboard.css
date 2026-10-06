@@ -2970,3 +2970,5 @@
   cursor: not-allowed;
   opacity: 0.58;
 }
+
+.dashboard-sidebar-mode{min-height:0;display:grid;grid-template-rows:minmax(0,1fr) auto;gap:18px;overflow:hidden}.dashboard-sidebar-mode.sidebar-mode-transition{animation:sidebarModeIn 320ms ease both}.dashboard-sidebar-mode.admin{grid-template-rows:minmax(0,1fr)}.dashboard-sidebar-mode.admin .dashboard-nav{overflow-y:auto;padding-right:2px}.dashboard-nav-item.admin-entry{margin-top:8px;border:1px solid var(--dash-hairline);color:var(--dash-primary)}.dashboard-nav-item.admin-back{margin-bottom:8px;background:var(--dash-surface-strong);color:var(--dash-ink)}@keyframes sidebarModeIn{from{opacity:0;transform:translateX(-7px)}to{opacity:1;transform:none}}

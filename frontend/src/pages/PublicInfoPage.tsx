@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { Link } from "react-router-dom";
+import Dropdown from "../components/Dropdown";
 import {
   createSupportTicket,
   getPublicPage,
@@ -429,17 +430,19 @@ export default function PublicInfoPage({ slug }: Props) {
                 {isSupportPage && (
                   <label>
                     <span>Category</span>
-                    <select
+                    <Dropdown
                       value={form.category}
-                      onChange={(event) => updateForm("category", event.target.value)}
-                    >
-                      <option value="general">General</option>
-                      <option value="payments">Payments</option>
-                      <option value="wallet">Wallet</option>
-                      <option value="friends">Friends</option>
-                      <option value="split_rooms">Split rooms</option>
-                      <option value="security">Security</option>
-                    </select>
+                      onChange={(value) => updateForm("category", value)}
+                      ariaLabel="Support category"
+                      options={[
+                        { value: "general", label: "General" },
+                        { value: "payments", label: "Payments" },
+                        { value: "wallet", label: "Wallet" },
+                        { value: "friends", label: "Friends" },
+                        { value: "split_rooms", label: "Split rooms" },
+                        { value: "security", label: "Security" },
+                      ]}
+                    />
                   </label>
                 )}
                 <label>

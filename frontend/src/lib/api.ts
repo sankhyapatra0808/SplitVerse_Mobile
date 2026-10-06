@@ -1,4 +1,5 @@
 import { auth } from "../config/firebase";
+import { getInstallationHeaders } from "./installationId";
 
 function resolveApiUrl() {
   const configuredUrl = String(import.meta.env.VITE_API_URL || "").trim();
@@ -847,6 +848,7 @@ async function publicApiFetch<T>(
     ...options,
     headers: {
       "Content-Type": "application/json",
+      ...getInstallationHeaders(),
       ...options.headers,
     },
   });
@@ -854,6 +856,9 @@ async function publicApiFetch<T>(
   const data = await readJsonResponse(response);
 
   if (!response.ok) {
+    if (response.status === 403 && typeof data === "object" && data !== null && (data as ApiErrorPayload).code === "ADMIN_ACCESS_DENIED") {
+      window.dispatchEvent(new Event("splitverse:admin-access-revoked"));
+    }
     throwApiResponseError(response, data);
   }
 
@@ -900,6 +905,7 @@ export async function apiFetch<T>(
     headers: {
       "Content-Type": "application/json",
       Authorization: `Bearer ${token}`,
+      ...getInstallationHeaders(),
       ...options.headers,
     },
   });
@@ -907,6 +913,9 @@ export async function apiFetch<T>(
   const data = await readJsonResponse(response);
 
   if (!response.ok) {
+    if (response.status === 403 && typeof data === "object" && data !== null && (data as ApiErrorPayload).code === "ADMIN_ACCESS_DENIED") {
+      window.dispatchEvent(new Event("splitverse:admin-access-revoked"));
+    }
     throwApiResponseError(response, data);
   }
 
@@ -1575,4 +1584,89 @@ export async function downloadMyData() {
     transactions: transactions.transactions,
     transactionSummary: transactions.summary,
   } satisfies UserDataExport;
+}
+
+export type AdminAccessResponse = { isAdmin: boolean };
+
+export async function getAdminAccess() {
+  return apiFetch<AdminAccessResponse>("/api/admin/access");
+}
+
+export async function getAdminOverview() {
+  return apiFetch<Record<string, any>>("/api/admin/overview");
+}
+
+export async function getAdminUsers(search = "", page = 1) {
+  const params = new URLSearchParams({ search, page: String(page), limit: "25" });
+  return apiFetch<{ users: any[]; page: number; limit: number; total: number }>(`/api/admin/users?${params}`);
+}
+
+export async function getAdminUser(id: string) {
+  return apiFetch<Record<string, any>>(`/api/admin/users/${encodeURIComponent(id)}`);
+}
+
+export async function getAdminRooms(search = "", page = 1) {
+  const params = new URLSearchParams({ search, page: String(page), limit: "25" });
+  return apiFetch<{ rooms: any[]; page: number; limit: number; total: number; currency: string }>(`/api/admin/rooms?${params}`);
+}
+
+export async function getAdminRoom(id: string) {
+  return apiFetch<Record<string, any>>(`/api/admin/rooms/${encodeURIComponent(id)}`);
+}
+
+export async function getAdminSettlementDebugger(roomId: string, userId: string) {
+  return apiFetch<Record<string, any>>(`/api/admin/settlement-debugger/${encodeURIComponent(roomId)}?userId=${encodeURIComponent(userId)}`);
+}
+
+export async function getAdminFinancialActivity(search = "", page = 1) {
+  const params = new URLSearchParams({ search, page: String(page), limit: "30" });
+  return apiFetch<Record<string, any>>(`/api/admin/financial-activity?${params}`);
+}
+
+export async function getAdminAudit(search = "", page = 1) {
+  const params = new URLSearchParams({ search, page: String(page), limit: "30" });
+  return apiFetch<Record<string, any>>(`/api/admin/audit?${params}`);
+}
+
+export async function getAdminAnalytics() {
+  return apiFetch<Record<string, any>>("/api/admin/analytics");
+}
+
+export async function getAdminFeatureFlags() {
+  return apiFetch<{ flags: any[] }>("/api/admin/feature-flags");
+}
+
+export async function updateAdminFeatureFlag(key: string, payload: { description: string; enabled: boolean; rolloutPercent: number; reason: string }) {
+  return apiFetch<Record<string, any>>(`/api/admin/feature-flags/${encodeURIComponent(key)}`, { method: "PUT", body: JSON.stringify(payload) });
+}
+
+export async function getAdminConfig() {
+  return apiFetch<Record<string, any>>("/api/admin/config");
+}
+
+export async function updateAdminConfig(key: string, value: unknown, reason: string) {
+  return apiFetch<Record<string, any>>(`/api/admin/config/${encodeURIComponent(key)}`, { method: "PUT", body: JSON.stringify({ value, reason }) });
+}
+
+export async function getAdminAuditLogs(search = "", page = 1) {
+  const params = new URLSearchParams({ search, page: String(page), limit: "30" });
+  return apiFetch<Record<string, any>>(`/api/admin/admin-audit-logs?${params}`);
+}
+
+export async function getAdminSecurity() {
+  return apiFetch<Record<string, any>>("/api/admin/security");
+}
+
+export async function updateAdminUserSecurityStatus(id: string, status: "active" | "restricted" | "blocked", reason: string) {
+  return apiFetch<Record<string, any>>(`/api/admin/users/${encodeURIComponent(id)}/security-status`, {
+    method: "POST",
+    body: JSON.stringify({ status, reason }),
+  });
+}
+
+export async function reverseAdminSettlement(id: string, refundMode: "wallet_refund" | "external_refund", reason: string) {
+  return apiFetch<Record<string, any>>(`/api/admin/settlements/${encodeURIComponent(id)}/reverse`, {
+    method: "POST",
+    body: JSON.stringify({ refundMode, reason }),
+  });
 }

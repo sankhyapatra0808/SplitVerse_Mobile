@@ -46,6 +46,7 @@ import {
   type Friend,
   type ProfileIdentityField,
 } from "../../src/lib/api";
+import { resolveAdminAccess } from "../../src/lib/adminAccess";
 import { showErrorAlert } from "../../src/lib/errors";
 import { colors, radius, spacing, typography } from "../../src/theme/tokens";
 
@@ -172,6 +173,7 @@ export default function Settings() {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [deleteConfirmation, setDeleteConfirmation] = useState("");
   const [deletingAccount, setDeletingAccount] = useState(false);
+  const [adminAllowed, setAdminAllowed] = useState(false);
 
   const displayName =
     dbUser?.display_name ||
@@ -236,6 +238,14 @@ export default function Settings() {
   useEffect(() => {
     setWalletPinSet(Boolean(dbUser?.has_wallet_pin));
   }, [dbUser?.has_wallet_pin]);
+
+  useEffect(() => {
+    let active = true;
+    resolveAdminAccess(dbUser?.email || user?.email)
+      .then((allowed) => { if (active) setAdminAllowed(allowed); })
+      .catch(() => { if (active) setAdminAllowed(false); });
+    return () => { active = false; };
+  }, [dbUser?.email, user?.email]);
 
   useEffect(() => {
     let active = true;
@@ -1131,6 +1141,26 @@ export default function Settings() {
         <AppButton title="Logout" variant="secondary" onPress={handleLogout} />
       </AppCard>
 
+      {adminAllowed ? (
+        <AppCard style={styles.card}>
+          <Text style={styles.cardEyebrow}>ADMINISTRATION</Text>
+          <Text style={styles.cardTitle}>SplitVerse Admin</Text>
+          <Text style={styles.cardText}>
+            Open the secured operations, settlement investigation, and product control center.
+          </Text>
+          <Pressable
+            style={[styles.adminPortalRow, { borderColor: theme.border, backgroundColor: theme.surface }]}
+            onPress={() => router.push("/admin" as never)}
+          >
+            <View style={styles.rowCopy}>
+              <Text style={styles.rowTitle}>Admin Portal</Text>
+              <Text style={styles.rowSubtext}>Authorized accounts only</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={20} color={theme.muted} />
+          </Pressable>
+        </AppCard>
+      ) : null}
+
       <SheetModal
         visible={Boolean(identityRequest)}
         eyebrow="Identity verification"
@@ -1355,6 +1385,7 @@ const styles = StyleSheet.create({
   activeChip: { borderColor: colors.primary, backgroundColor: colors.primary },
   chipText: { color: colors.ink, fontSize: 13, fontWeight: "700" },
   activeChipText: { color: colors.canvas },
+  adminPortalRow: { minHeight: 64, flexDirection: "row", alignItems: "center", gap: spacing.sm, borderWidth: 1, borderRadius: radius.lg, paddingHorizontal: spacing.base },
   switchRow: {
     minHeight: 72,
     flexDirection: "row",

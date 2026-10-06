@@ -546,7 +546,7 @@ function getDebtLineQuery({
   `;
 }
 
-async function loadNetDebtLines(client: Queryable, currentUserId: string) {
+export async function loadNetDebtLines(client: Queryable, currentUserId: string) {
   const result = await client.query<NetDebtLineRow>(
     getDebtLineQuery({ currentUserOnly: true }),
     [currentUserId],
@@ -587,7 +587,7 @@ async function loadPairDebtLines(
   }));
 }
 
-function serializeNetSettlements(
+export function serializeNetSettlements(
   debtLines: NetDebtLineRow[],
   currentUserId: string,
 ) {

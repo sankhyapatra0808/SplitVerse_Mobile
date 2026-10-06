@@ -9,6 +9,7 @@ import "./styles/Dashboard.css";
 import "./styles/WalletBalance.css";
 import "./styles/TransactionHistory.css";
 import "./styles/Theme.css";
+import "./styles/ProfessionalSystem.css";
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>

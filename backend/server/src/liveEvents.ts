@@ -4,7 +4,6 @@ type LiveUpdatePayload = {
   type: string;
   reason?: string;
   roomId?: string;
-  conversationId?: string;
 };
 
 const liveClients = new Map<string, Set<Response>>();

@@ -1,6 +1,7 @@
 import type { NextFunction, Request, Response } from "express";
 import type { DecodedIdToken } from "firebase-admin/auth";
 import { adminAuth } from "../config/firebaseAdmin.js";
+import { getSecurityStateByFirebaseUid } from "../security/accountSecurity.js";
 import {
   CircuitBreaker,
   CircuitBreakerOpenError,
@@ -136,6 +137,27 @@ async function verifyToken(
         code: "LOGIN_OTP_REQUIRED",
         message: "Complete email OTP verification before continuing.",
       });
+    }
+
+    if (options.requireSplitVerseSession) {
+      const securityState = await getSecurityStateByFirebaseUid(decodedToken.uid);
+
+      if (securityState?.status === "blocked") {
+        return res.status(403).json({
+          code: "ACCOUNT_BLOCKED",
+          message: "This SplitVerse account has been blocked. Contact support if you believe this is an error.",
+        });
+      }
+
+      if (
+        securityState?.status === "restricted" &&
+        !["GET", "HEAD", "OPTIONS"].includes(req.method.toUpperCase())
+      ) {
+        return res.status(403).json({
+          code: "ACCOUNT_RESTRICTED",
+          message: "This account is temporarily restricted from making changes while it is under review.",
+        });
+      }
     }
 
     req.user = decodedToken;

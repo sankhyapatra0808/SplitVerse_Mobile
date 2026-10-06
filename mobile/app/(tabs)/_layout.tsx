@@ -33,6 +33,7 @@ export default function TabsLayout() {
       screenOptions={{
         headerShown: false,
         lazy: true,
+        animation: "shift",
         sceneStyle: { backgroundColor: theme.background },
       }}
     >
