@@ -332,6 +332,13 @@ app.get("/api/health", (_req, res) => {
     response.renderCaches = {
       friendAcceptPage: getAcceptPageCacheStats(),
     };
+    // Only exposed locally or when diagnostics are explicitly enabled.
+    // Pool counters help identify connection exhaustion without issuing a DB query.
+    response.databasePool = {
+      openConnections: db.totalCount,
+      idleConnections: db.idleCount,
+      waitingRequests: db.waitingCount,
+    };
   }
 
   res.json(response);
