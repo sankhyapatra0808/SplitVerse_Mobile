@@ -27,6 +27,7 @@ import Text from "../../src/components/LocalizedText";
 import StatCard from "../../src/components/StatCard";
 import { DashboardSkeleton } from "../../src/components/PageSkeletons";
 import { useAuth } from "../../src/context/AuthContext";
+import { headerForeground } from "../../src/theme/headerForeground";
 import { useAppSettings } from "../../src/context/useAppSettings";
 import {
   createExpense,
@@ -458,7 +459,7 @@ export default function Dashboard() {
           style={[styles.notificationButton]}
           onPress={() => router.push("/(tabs)/notifications")}
         >
-          <Ionicons name="notifications-outline" size={22} color="#fff" />
+          <Ionicons name="notifications-outline" size={22} color={headerForeground(theme, "#fff")} />
           {hasUnreadNotifications ? (
             <View style={styles.notificationDot} />
           ) : null}
@@ -504,7 +505,7 @@ export default function Dashboard() {
               >
                 <View style={styles.heroTop}>
                   <View>
-                    <Text style={styles.heroTitle}>Dashboard</Text>
+                    <Text style={[styles.heroTitle, { color: headerForeground(theme, colors.onPrimary) }]}>Dashboard</Text>
                   </View>
 
                   {renderHeroActions()}
@@ -519,10 +520,10 @@ export default function Dashboard() {
                   />
 
                   <View style={styles.profileCopy}>
-                    <Text style={styles.name} numberOfLines={1}>
+                    <Text style={[styles.name, { color: headerForeground(theme, colors.onPrimary) }]} numberOfLines={1}>
                       Hi, {displayName}
                     </Text>
-                    <Text style={styles.email} numberOfLines={1}>
+                    <Text style={[styles.email, { color: headerForeground(theme, "rgba(255,255,255,0.78)") }]} numberOfLines={1}>
                       {username}
                     </Text>
                   </View>
@@ -542,7 +543,7 @@ export default function Dashboard() {
             >
               <View style={styles.heroTop}>
                 <View>
-                  <Text style={styles.heroTitle}>Dashboard</Text>
+                  <Text style={[styles.heroTitle, { color: headerForeground(theme, colors.onPrimary) }]}>Dashboard</Text>
                 </View>
 
                 {renderHeroActions()}
@@ -557,10 +558,10 @@ export default function Dashboard() {
                 />
 
                 <View style={styles.profileCopy}>
-                  <Text style={styles.name} numberOfLines={1}>
+                  <Text style={[styles.name, { color: headerForeground(theme, colors.onPrimary) }]} numberOfLines={1}>
                     Hi, {displayName}
                   </Text>
-                  <Text style={styles.email} numberOfLines={1}>
+                  <Text style={[styles.email, { color: headerForeground(theme, "rgba(255,255,255,0.78)") }]} numberOfLines={1}>
                     {username}
                   </Text>
                 </View>

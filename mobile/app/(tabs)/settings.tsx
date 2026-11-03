@@ -1,3 +1,4 @@
+import { headerForeground } from "../../src/theme/headerForeground";
 import * as ImagePicker from "expo-image-picker";
 import { File, Paths } from "expo-file-system";
 import * as Sharing from "expo-sharing";
@@ -696,7 +697,7 @@ export default function Settings() {
           style={[styles.iconButton, { backgroundColor: theme.surfaceStrong }]}
           onPress={() => router.replace("/(tabs)/profile")}
         >
-          <Ionicons name="chevron-back" size={21} color={theme.primary} />
+          <Ionicons name="chevron-back" size={21} color={headerForeground(theme, theme.primary)} />
         </Pressable>
       </View>
 

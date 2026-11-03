@@ -1,3 +1,4 @@
+import { headerForeground } from "../../src/theme/headerForeground";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { router, useFocusEffect } from "expo-router";
 import { useCallback, useMemo, useState } from "react";
@@ -89,7 +90,7 @@ export default function BlockedUsers() {
         style={[styles.backButton, { backgroundColor: theme.surfaceStrong }]}
         onPress={() => router.replace("/(tabs)/settings")}
       >
-        <Ionicons name="chevron-back" size={21} color={theme.primary} />
+        <Ionicons name="chevron-back" size={21} color={headerForeground(theme, theme.primary)} />
       </Pressable>
 
       <View style={styles.header}>

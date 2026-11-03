@@ -17,6 +17,7 @@ import EmptyState from "../../src/components/EmptyState";
 import { FriendsSkeleton } from "../../src/components/PageSkeletons";
 import Screen from "../../src/components/Screen";
 import Text from "../../src/components/LocalizedText";
+import { headerForeground } from "../../src/theme/headerForeground";
 import { useAppSettings } from "../../src/context/useAppSettings";
 import {
   blockFriend,
@@ -164,7 +165,7 @@ export default function FriendsPage() {
           style={[styles.backButton, { backgroundColor: theme.surfaceStrong }]}
           onPress={() => router.replace("/(tabs)/profile")}
         >
-          <Ionicons name="chevron-back" size={21} color={theme.primary} />
+          <Ionicons name="chevron-back" size={21} color={headerForeground(theme, theme.primary)} />
         </Pressable>
       </View>
 

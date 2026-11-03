@@ -10,6 +10,7 @@ import EmptyState from "../../src/components/EmptyState";
 import Screen from "../../src/components/Screen";
 import Text from "../../src/components/LocalizedText";
 import { useAuth } from "../../src/context/AuthContext";
+import { headerForeground } from "../../src/theme/headerForeground";
 import { useAppSettings } from "../../src/context/useAppSettings";
 import {
   getFriendsSummary,
@@ -158,7 +159,7 @@ export default function Notifications() {
               style={styles.backButton}
               onPress={() => router.back()}
             >
-              <Ionicons name="chevron-back" size={22} color="#ffffff" />
+              <Ionicons name="chevron-back" size={22} color={headerForeground(theme, "#ffffff")} />
             </Pressable>
           </View>
 
@@ -174,8 +175,8 @@ export default function Notifications() {
               size={62}
             />
             <View style={styles.userCopy}>
-              <Text style={styles.userName}>{displayName}</Text>
-              <Text style={styles.userEmail} numberOfLines={1}>
+              <Text style={[styles.userName, { color: headerForeground(theme, "#ffffff") }]}>{displayName}</Text>
+              <Text style={[styles.userEmail, { color: headerForeground(theme, "rgba(255,255,255,0.76)") }]} numberOfLines={1}>
                 {email}
               </Text>
             </View>
@@ -183,12 +184,12 @@ export default function Notifications() {
 
           <View style={styles.summaryRow}>
             <View style={styles.summaryPill}>
-              <Text style={styles.summaryLabel}>Notifications</Text>
-              <Text style={styles.summaryValue}>{items.length}</Text>
+              <Text style={[styles.summaryLabel, { color: headerForeground(theme, "rgba(255,255,255,0.76)") }]}>Notifications</Text>
+              <Text style={[styles.summaryValue, { color: headerForeground(theme, "#ffffff") }]}>{items.length}</Text>
             </View>
             <View style={styles.summaryPill}>
-              <Text style={styles.summaryLabel}>Net position</Text>
-              <Text style={styles.summaryValue}>
+              <Text style={[styles.summaryLabel, { color: headerForeground(theme, "rgba(255,255,255,0.76)") }]}>Net position</Text>
+              <Text style={[styles.summaryValue, { color: headerForeground(theme, "#ffffff") }]}>
                 {formatCurrency(wallet?.summary.netPosition ?? 0, {
                   compact: true,
                 })}

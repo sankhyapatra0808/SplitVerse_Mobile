@@ -27,6 +27,7 @@ import Screen from "../../src/components/Screen";
 import Text from "../../src/components/LocalizedText";
 import SheetModal from "../../src/components/SheetModal";
 import { useAuth } from "../../src/context/AuthContext";
+import { headerForeground } from "../../src/theme/headerForeground";
 import { useAppSettings } from "../../src/context/useAppSettings";
 import {
   createSplitRoom,
@@ -1199,8 +1200,8 @@ export default function SplitRooms() {
         >
           <View style={styles.heroTopRow}>
             <View style={styles.heroCopy}>
-              <Text style={styles.heroTitle}>Rooms</Text>
-              <Text style={styles.heroSubtitle}>
+              <Text style={[styles.heroTitle, { color: headerForeground(theme, colors.onPrimary) }]}>Rooms</Text>
+              <Text style={[styles.heroSubtitle, { color: headerForeground(theme, "rgba(255,255,255,0.82)") }]}>
                 Create rooms. Assign items. Split bills fairly.
               </Text>
             </View>

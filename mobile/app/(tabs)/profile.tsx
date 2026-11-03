@@ -27,6 +27,7 @@ import Screen from "../../src/components/Screen";
 import SegmentedTabs from "../../src/components/SegmentedTabs";
 import SheetModal from "../../src/components/SheetModal";
 import { useAuth } from "../../src/context/AuthContext";
+import { headerForeground } from "../../src/theme/headerForeground";
 import { useAppSettings } from "../../src/context/useAppSettings";
 import {
   acceptFriendRequest,
@@ -1134,6 +1135,8 @@ function ProfileHeroContent({
   username: string;
   photoUrl?: string;
 }) {
+  const { theme } = useAppSettings();
+
   return (
     <View style={styles.heroContent}>
       <View style={styles.heroTop}>
@@ -1142,24 +1145,24 @@ function ProfileHeroContent({
           style={styles.iconButton}
           onPress={() => router.push("/(tabs)/dashboard")}
         >
-          <Ionicons name="chevron-back" size={20} color="#ffffff" />
+          <Ionicons name="chevron-back" size={20} color={headerForeground(theme, "#ffffff")} />
         </Pressable>
         <Pressable
           accessibilityLabel="Settings"
           style={styles.iconButton}
           onPress={() => router.push("/(tabs)/settings")}
         >
-          <Ionicons name="settings-outline" size={20} color="#ffffff" />
+          <Ionicons name="settings-outline" size={20} color={headerForeground(theme, "#ffffff")} />
         </Pressable>
       </View>
       <Avatar name={displayName} email={email} imageUrl={photoUrl} size={94} />
-      <Text style={styles.name} numberOfLines={1}>
+      <Text style={[styles.name, { color: headerForeground(theme, colors.onPrimary) }]} numberOfLines={1}>
         {displayName}
       </Text>
-      <Text style={styles.username} numberOfLines={1}>
+      <Text style={[styles.username, { color: headerForeground(theme, "rgba(255,255,255,0.84)") }]} numberOfLines={1}>
         {username}
       </Text>
-      <Text style={styles.email} numberOfLines={1}>
+      <Text style={[styles.email, { color: headerForeground(theme, "rgba(255,255,255,0.78)") }]} numberOfLines={1}>
         {email}
       </Text>
     </View>

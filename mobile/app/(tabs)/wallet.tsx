@@ -29,6 +29,7 @@ import { useRefreshOnReturn } from "../../src/hooks/useRefreshOnReturn";
 import { colors, radius, spacing, typography } from "../../src/theme/tokens";
 import { HERO_BLUR_RADIUS } from "../../src/theme/performance";
 import RazorpayCheckout from "react-native-razorpay";
+import { headerForeground } from "../../src/theme/headerForeground";
 import { useAppSettings } from "../../src/context/useAppSettings";
 import { useAuth } from "../../src/context/AuthContext";
 import Ionicons from "@expo/vector-icons/build/Ionicons";
@@ -247,8 +248,8 @@ export default function Wallet() {
               style={styles.heroOverlay}
             >
               <View style={styles.heroTitle}>
-                <Text style={styles.heroTitle}>Wallet & Balance</Text>
-                <Text style={styles.heroSubtitle}>
+                <Text style={[styles.heroTitle, { color: headerForeground(theme, colors.onPrimary) }]}>Wallet & Balance</Text>
+                <Text style={[styles.heroSubtitle, { color: headerForeground(theme, "rgba(255,255,255,0.82)") }]}>
                   Balance, dues, top-ups, and activity.
                 </Text>
               </View>
@@ -290,8 +291,8 @@ export default function Wallet() {
             style={styles.heroOverlay}
           >
             <View style={styles.heroTitle}>
-                <Text style={styles.heroTitle}>Wallet & Balance</Text>
-                <Text style={styles.heroSubtitle}>
+                <Text style={[styles.heroTitle, { color: headerForeground(theme, colors.onPrimary) }]}>Wallet & Balance</Text>
+                <Text style={[styles.heroSubtitle, { color: headerForeground(theme, "rgba(255,255,255,0.82)") }]}>
                   Balance, dues, top-ups, and activity.
                 </Text>
               </View>

@@ -1,3 +1,4 @@
+import { headerForeground } from "../src/theme/headerForeground";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
 import { useCallback, useMemo, useState } from "react";
@@ -197,7 +198,7 @@ export default function SplitRoomFriendPicker() {
           ]}
           onPress={() => router.back()}
         >
-          <Ionicons name="chevron-back" size={22} color={theme.primary} />
+          <Ionicons name="chevron-back" size={22} color={headerForeground(theme, theme.primary)} />
         </Pressable>
       </View>
 

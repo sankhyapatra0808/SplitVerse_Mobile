@@ -1,6 +1,5 @@
-import Ionicons from "@expo/vector-icons/Ionicons";
 import { router, usePathname } from "expo-router";
-import { useMemo, useRef, useState, type ReactNode } from "react";
+import { useMemo, useRef, type ReactNode } from "react";
 import {
   Animated,
   Easing,
@@ -10,7 +9,6 @@ import {
   RefreshControl,
   ScrollView,
   StyleSheet,
-  View,
   useWindowDimensions,
   type StyleProp,
   type ViewStyle,
@@ -18,20 +16,12 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { spacing } from "../theme/tokens";
 import { useAppSettings } from "../context/useAppSettings";
-import Text from "./LocalizedText";
 
 const tabOrder = [
   "/(tabs)/dashboard",
   "/(tabs)/split-rooms",
   "/(tabs)/wallet",
   "/(tabs)/profile",
-];
-
-const tabMeta = [
-  { label: "Home", icon: "home-outline" as const },
-  { label: "Rooms", icon: "receipt-outline" as const },
-  { label: "Wallet", icon: "wallet-outline" as const },
-  { label: "Profile", icon: "person-outline" as const },
 ];
 
 const pathnameToTabIndex: Record<string, number> = {
@@ -65,20 +55,7 @@ export default function Screen({
   const resolvedBackground = safeBackgroundColor ?? theme.background;
   const pathname = usePathname();
   const translateX = useRef(new Animated.Value(0)).current;
-  const [previewIndex, setPreviewIndex] = useState<number | null>(null);
   const currentIndex = pathnameToTabIndex[pathname];
-
-  const previewOpacity = translateX.interpolate({
-    inputRange: [-Math.max(width, 1), 0, Math.max(width, 1)],
-    outputRange: [1, 0, 1],
-    extrapolate: "clamp",
-  });
-
-  const previewScale = translateX.interpolate({
-    inputRange: [-Math.max(width, 1), 0, Math.max(width, 1)],
-    outputRange: [1, 0.94, 1],
-    extrapolate: "clamp",
-  });
 
   const panResponder = useMemo(
     () =>
@@ -99,8 +76,6 @@ export default function Screen({
           const direction = gesture.dx < 0 ? 1 : -1;
           const targetIndex = currentIndex + direction;
           const hasTarget = targetIndex >= 0 && targetIndex < tabOrder.length;
-
-          setPreviewIndex(hasTarget ? targetIndex : null);
 
           const clamped = Math.max(-width, Math.min(width, gesture.dx));
           translateX.setValue(hasTarget ? clamped : clamped * 0.12);
@@ -128,7 +103,6 @@ export default function Screen({
               router.replace(tabOrder[targetIndex] as never);
               setTimeout(() => {
                 translateX.setValue(0);
-                setPreviewIndex(null);
               }, 260);
             });
             return;
@@ -140,7 +114,7 @@ export default function Screen({
             damping: 30,
             mass: 0.75,
             useNativeDriver: true,
-          }).start(() => setPreviewIndex(null));
+          }).start();
         },
         onPanResponderTerminate: () => {
           Animated.spring(translateX, {
@@ -149,7 +123,7 @@ export default function Screen({
             damping: 30,
             mass: 0.75,
             useNativeDriver: true,
-          }).start(() => setPreviewIndex(null));
+          }).start();
         },
       }),
     [currentIndex, swipeTabs, translateX, width],
@@ -188,43 +162,6 @@ export default function Screen({
       style={[styles.safe, { backgroundColor: resolvedBackground }]}
       {...panResponder.panHandlers}
     >
-      {swipeTabs && previewIndex !== null ? (
-        <Animated.View
-          pointerEvents="none"
-          style={[
-            styles.transitionPreview,
-            {
-              backgroundColor: theme.background,
-              opacity: previewOpacity,
-              transform: [{ scale: previewScale }],
-            },
-          ]}
-        >
-          <View
-            style={[
-              styles.transitionBadge,
-              {
-                borderColor: theme.border,
-                backgroundColor: theme.canvas,
-              },
-            ]}
-          >
-            <View style={[styles.transitionIcon, { backgroundColor: theme.primarySoft }]}>
-              <Ionicons name={tabMeta[previewIndex].icon} size={22} color={theme.primary} />
-            </View>
-            <View style={styles.transitionCopy}>
-              <Text style={[styles.transitionHint, { color: theme.body }]}>Swipe to</Text>
-              <Text style={[styles.transitionTitle, { color: theme.text }]}>{tabMeta[previewIndex].label}</Text>
-            </View>
-            <Ionicons
-              name={previewIndex > (currentIndex ?? 0) ? "arrow-forward" : "arrow-back"}
-              size={20}
-              color={theme.primary}
-            />
-          </View>
-        </Animated.View>
-      ) : null}
-
       <Animated.View
         style={[
           styles.animatedPage,
@@ -264,43 +201,5 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     padding: spacing.base,
     paddingBottom: spacing.xxl + 96,
-  },
-  transitionPreview: {
-    ...StyleSheet.absoluteFillObject,
-    alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: spacing.xl,
-  },
-  transitionBadge: {
-    width: "100%",
-    maxWidth: 300,
-    minHeight: 82,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.sm,
-    borderWidth: 1,
-    borderRadius: 22,
-    paddingHorizontal: spacing.base,
-    paddingVertical: spacing.sm,
-  },
-  transitionIcon: {
-    width: 44,
-    height: 44,
-    alignItems: "center",
-    justifyContent: "center",
-    borderRadius: 14,
-  },
-  transitionCopy: {
-    flex: 1,
-    gap: 1,
-  },
-  transitionHint: {
-    fontSize: 11,
-    lineHeight: 15,
-  },
-  transitionTitle: {
-    fontSize: 17,
-    lineHeight: 22,
-    fontWeight: "600",
   },
 });
