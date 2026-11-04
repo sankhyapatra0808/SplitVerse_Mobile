@@ -103,7 +103,7 @@ const mobileAppReleaseUrl =
   "https://github.com/sankhyapatra0808/SplitVerse_Mobile/releases/tag/v1.1.0";
 
 const mobileAppApkUrl =
-  "https://github.com/sankhyapatra0808/SplitVerse_Mobile/releases/latest/download/SplitVerse-v1.1.0.apk";
+  "https://github.com/sankhyapatra0808/SplitVerse_Mobile/releases/latest/download/SplitVerse-v1.1.1.apk";
 
 const footerColumns = [
   {
