@@ -1,4 +1,4 @@
-import type { MouseEvent } from "react";
+import { useEffect, useState, type MouseEvent } from "react";
 import { Link } from "react-router-dom";
 import {
   ArrowRight,
@@ -16,6 +16,7 @@ import {
 import editorialImage from "../assets/SplitVerse_Landing.png";
 import { useAppSettings } from "../context/useAppSettings";
 import iconimage from "../assets/Logo-v2.png";
+import { fetchLatestSplitVerseApkUrl, SPLITVERSE_LATEST_RELEASE_PAGE } from "../lib/githubReleases";
 import "../styles/Landing.css";
 
 const proofPoints = ["Item-wise bills", "Room balances", "Manual settlements"];
@@ -99,11 +100,6 @@ const steps = [
   "Record settlement",
 ];
 
-const mobileAppReleaseUrl =
-  "https://github.com/sankhyapatra0808/SplitVerse_Mobile/releases/tag/v1.1.0";
-
-const mobileAppApkUrl =
-  "https://github.com/sankhyapatra0808/SplitVerse_Mobile/releases/latest/download/SplitVerse-v1.1.1.apk";
 
 const footerColumns = [
   {
@@ -144,13 +140,29 @@ const footerColumns = [
 
 export default function Landing() {
   const { formatCurrency } = useAppSettings();
+  const [latestApkUrl, setLatestApkUrl] = useState<string | null>(null);
 
   const isAndroidDevice =
     typeof navigator !== "undefined" && /Android/i.test(navigator.userAgent);
 
+  useEffect(() => {
+    if (!isAndroidDevice) return;
+
+    const controller = new AbortController();
+    void fetchLatestSplitVerseApkUrl(controller.signal)
+      .then((apkUrl) => {
+        if (!controller.signal.aborted && apkUrl) setLatestApkUrl(apkUrl);
+      })
+      .catch(() => {
+        // GitHub may be unavailable or rate-limited: link to the latest release page.
+      });
+
+    return () => controller.abort();
+  }, [isAndroidDevice]);
+
   const mobileAppUrl = isAndroidDevice
-    ? mobileAppApkUrl
-    : mobileAppReleaseUrl;
+    ? (latestApkUrl ?? SPLITVERSE_LATEST_RELEASE_PAGE)
+    : SPLITVERSE_LATEST_RELEASE_PAGE;
 
   const serviceCards = services.map((service) => {
     const metric =
